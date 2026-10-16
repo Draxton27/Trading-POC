@@ -1,0 +1,13 @@
+{
+  "name": "trading-poc-001-bollinger",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "POC educativo para detectar compresiones/expansiones de Bollinger en velas OHLCV y evaluar movimientos posteriores sin usar datos futuros para la senal.",
+  "scripts": {
+    "demo": "node --experimental-strip-types src/demo.ts && node --experimental-strip-types src/main.ts data/QQQ_FICTICIO_5min.csv",
+    "analyze": "node --experimental-strip-types src/main.ts",
+    "test": "node --experimental-strip-types --test tests/*.test.ts"
+  },
+  "engines": {"node": ">=22.16.0"}
+}

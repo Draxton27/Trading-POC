@@ -1,0 +1,196 @@
+{
+  "input": "data/QQQ_FICTICIO_5min.csv",
+  "data_type": "synthetic",
+  "bar_size_minutes": 5,
+  "model": "bollinger_squeeze_expansion_v0",
+  "horizons": [
+    3,
+    6,
+    12
+  ],
+  "indicators": {
+    "bollinger_periods": 20,
+    "sd_multiples": 2,
+    "bandwidth_lookback": 100,
+    "lowest_bandwidth_quantile": 0.2,
+    "minimum_bandwidth_expansion": 1.05,
+    "signal_cooldown_bars": 12
+  },
+  "split_index": 5460,
+  "split_timestamp": "2026-09-07T13:30:00.000Z",
+  "total_signals": 153,
+  "stats": {
+    "exploracion": [
+      {
+        "direction": "CALL_CONTEXT",
+        "horizon": 3,
+        "samples": 45,
+        "favorable_count": 20,
+        "favorable_rate": 0.4444444444444444,
+        "wilson95": [
+          0.30938708549039107,
+          0.5882411658363468
+        ],
+        "average_signed_price_return_percent": 0.0005354557142061505,
+        "unconditional_baseline_positive_rate": 0.49504761904761907,
+        "unconditional_baseline_samples": 5250
+      },
+      {
+        "direction": "CALL_CONTEXT",
+        "horizon": 6,
+        "samples": 44,
+        "favorable_count": 23,
+        "favorable_rate": 0.5227272727272727,
+        "wilson95": [
+          0.379352201361717,
+          0.6624524205572824
+        ],
+        "average_signed_price_return_percent": 0.025301478457903145,
+        "unconditional_baseline_positive_rate": 0.4932539682539683,
+        "unconditional_baseline_samples": 5040
+      },
+      {
+        "direction": "CALL_CONTEXT",
+        "horizon": 12,
+        "samples": 41,
+        "favorable_count": 23,
+        "favorable_rate": 0.5609756097560976,
+        "wilson95": [
+          0.41040265151757305,
+          0.7011009522789017
+        ],
+        "average_signed_price_return_percent": 0.019760742374960522,
+        "unconditional_baseline_positive_rate": 0.4883116883116883,
+        "unconditional_baseline_samples": 4620
+      },
+      {
+        "direction": "PUT_CONTEXT",
+        "horizon": 3,
+        "samples": 50,
+        "favorable_count": 26,
+        "favorable_rate": 0.52,
+        "wilson95": [
+          0.3851151225880844,
+          0.6520308760449429
+        ],
+        "average_signed_price_return_percent": 0.015273012664350771,
+        "unconditional_baseline_positive_rate": 0.5049523809523809,
+        "unconditional_baseline_samples": 5250
+      },
+      {
+        "direction": "PUT_CONTEXT",
+        "horizon": 6,
+        "samples": 48,
+        "favorable_count": 28,
+        "favorable_rate": 0.5833333333333334,
+        "wilson95": [
+          0.44281082215364653,
+          0.7115054026542299
+        ],
+        "average_signed_price_return_percent": 0.02567935205179464,
+        "unconditional_baseline_positive_rate": 0.506547619047619,
+        "unconditional_baseline_samples": 5040
+      },
+      {
+        "direction": "PUT_CONTEXT",
+        "horizon": 12,
+        "samples": 43,
+        "favorable_count": 27,
+        "favorable_rate": 0.627906976744186,
+        "wilson95": [
+          0.47859538265273166,
+          0.7562386110622568
+        ],
+        "average_signed_price_return_percent": 0.08111039378728081,
+        "unconditional_baseline_positive_rate": 0.5116883116883116,
+        "unconditional_baseline_samples": 4620
+      }
+    ],
+    "validacion": [
+      {
+        "direction": "CALL_CONTEXT",
+        "horizon": 3,
+        "samples": 21,
+        "favorable_count": 12,
+        "favorable_rate": 0.5714285714285714,
+        "wilson95": [
+          0.3654621629703244,
+          0.7553030051347894
+        ],
+        "average_signed_price_return_percent": -0.022598602494209148,
+        "unconditional_baseline_positive_rate": 0.4866666666666667,
+        "unconditional_baseline_samples": 2250
+      },
+      {
+        "direction": "CALL_CONTEXT",
+        "horizon": 6,
+        "samples": 21,
+        "favorable_count": 10,
+        "favorable_rate": 0.47619047619047616,
+        "wilson95": [
+          0.28343712296762946,
+          0.6763078209973324
+        ],
+        "average_signed_price_return_percent": -0.005250355204156594,
+        "unconditional_baseline_positive_rate": 0.47962962962962963,
+        "unconditional_baseline_samples": 2160
+      },
+      {
+        "direction": "CALL_CONTEXT",
+        "horizon": 12,
+        "samples": 19,
+        "favorable_count": 9,
+        "favorable_rate": 0.47368421052631576,
+        "wilson95": [
+          0.27329505487448547,
+          0.6829251748817489
+        ],
+        "average_signed_price_return_percent": 0.019636741844292496,
+        "unconditional_baseline_positive_rate": 0.4808080808080808,
+        "unconditional_baseline_samples": 1980
+      },
+      {
+        "direction": "PUT_CONTEXT",
+        "horizon": 3,
+        "samples": 31,
+        "favorable_count": 16,
+        "favorable_rate": 0.5161290322580645,
+        "wilson95": [
+          0.34840118286973176,
+          0.6803001396872117
+        ],
+        "average_signed_price_return_percent": 0.017888598946246677,
+        "unconditional_baseline_positive_rate": 0.5133333333333333,
+        "unconditional_baseline_samples": 2250
+      },
+      {
+        "direction": "PUT_CONTEXT",
+        "horizon": 6,
+        "samples": 30,
+        "favorable_count": 15,
+        "favorable_rate": 0.5,
+        "wilson95": [
+          0.33153851227173764,
+          0.6684614877282624
+        ],
+        "average_signed_price_return_percent": 0.02685585386231759,
+        "unconditional_baseline_positive_rate": 0.5203703703703704,
+        "unconditional_baseline_samples": 2160
+      },
+      {
+        "direction": "PUT_CONTEXT",
+        "horizon": 12,
+        "samples": 28,
+        "favorable_count": 11,
+        "favorable_rate": 0.39285714285714285,
+        "wilson95": [
+          0.23565451827580033,
+          0.575912739650937
+        ],
+        "average_signed_price_return_percent": 0.03798602362473765,
+        "unconditional_baseline_positive_rate": 0.5186868686868686,
+        "unconditional_baseline_samples": 1980
+      }
+    ]
+  }
+}
