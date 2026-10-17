@@ -18,13 +18,22 @@ export type VolumeComparison = {
   retainedDays: number;
   smallSample: boolean;
 };
+export type HistoryComparison = Omit<VolumeComparison,
+  'originalEligible' | 'retainedMinusOriginalMeanPercent' | 'retainedMinusOriginalFavorableRate'> & {
+  historyEligible: number;
+  retainedMinusHistoryMeanPercent: number | null;
+  retainedMinusHistoryFavorableRate: number | null;
+};
 export type VolumeStudy = {
   original: ValidationStudy;
+  withHistory: ValidationStudy;
   retained: ValidationStudy;
   discarded: ValidationStudy;
   insufficient: ValidationStudy;
   comparisons: VolumeComparison[];
+  comparisonsWithHistory: HistoryComparison[];
   originalSignals: number;
+  withHistorySignals: number;
   retainedSignals: number;
   discardedSignals: number;
   insufficientSignals: number;
@@ -69,22 +78,14 @@ export function studyVolumeFilter(candles: readonly Candle[]): VolumeStudy {
   return evaluateVolumeFilter(candles, detectSignals(calculateBollinger(candles)));
 }
 
-export function evaluateVolumeFilter(candles: readonly Candle[], originalSignals: readonly Signal[]): VolumeStudy {
-  if (candles.length < 300) throw new Error('Se requieren al menos 300 velas para investigar volumen.');
-  const {retained, discarded, insufficient} = partitionByVolume(originalSignals, candles);
-  const split = chronologicalSplitIndex(candles);
-  const controls = new Set(originalSignals.map(signal => signal.index));
-  const original = evaluateStrategy(candles, originalSignals, split, controls);
-  const retainedStudy = evaluateStrategy(candles, retained, split, controls);
-  const discardedStudy = evaluateStrategy(candles, discarded, split, controls);
-  const insufficientStudy = evaluateStrategy(candles, insufficient, split, controls);
-  const retainedIndices = new Set(retained.map(signal => signal.index));
+function compareSignals(candles: readonly Candle[], referenceSignals: readonly Signal[],
+  retainedIndices: ReadonlySet<number>, split: number): VolumeComparison[] {
   const comparisons: VolumeComparison[] = [];
   for (const [segment, from, to] of [
     ['exploracion', 0, split], ['evaluacion', split, candles.length],
   ] as const) {
     for (const direction of ['CALL_CONTEXT', 'PUT_CONTEXT'] as const) {
-      const selected = originalSignals.filter(signal => signal.direction === direction &&
+      const selected = referenceSignals.filter(signal => signal.direction === direction &&
         signal.index >= from && signal.index < to);
       for (const horizon of HORIZONS) {
         const observations: Observation[] = [];
@@ -110,8 +111,34 @@ export function evaluateVolumeFilter(candles: readonly Candle[], originalSignals
       }
     }
   }
-  return {original, retained: retainedStudy, discarded: discardedStudy, insufficient: insufficientStudy,
-    comparisons, originalSignals: originalSignals.length, retainedSignals: retained.length,
+  return comparisons;
+}
+
+export function evaluateVolumeFilter(candles: readonly Candle[], originalSignals: readonly Signal[]): VolumeStudy {
+  if (candles.length < 300) throw new Error('Se requieren al menos 300 velas para investigar volumen.');
+  const {retained, discarded, insufficient} = partitionByVolume(originalSignals, candles);
+  const insufficientIndices = new Set(insufficient.map(signal => signal.index));
+  const withHistorySignals = originalSignals.filter(signal => !insufficientIndices.has(signal.index));
+  const split = chronologicalSplitIndex(candles);
+  const controls = new Set(originalSignals.map(signal => signal.index));
+  const original = evaluateStrategy(candles, originalSignals, split, controls);
+  const withHistory = evaluateStrategy(candles, withHistorySignals, split, controls);
+  const retainedStudy = evaluateStrategy(candles, retained, split, controls);
+  const discardedStudy = evaluateStrategy(candles, discarded, split, controls);
+  const insufficientStudy = evaluateStrategy(candles, insufficient, split, controls);
+  const retainedIndices = new Set(retained.map(signal => signal.index));
+  const comparisons = compareSignals(candles, originalSignals, retainedIndices, split);
+  const comparisonsWithHistory: HistoryComparison[] = compareSignals(candles, withHistorySignals,
+    retainedIndices, split).map(comparison => {
+    const {originalEligible, retainedMinusOriginalMeanPercent,
+      retainedMinusOriginalFavorableRate, ...shared} = comparison;
+    return {...shared, historyEligible: originalEligible,
+      retainedMinusHistoryMeanPercent: retainedMinusOriginalMeanPercent,
+      retainedMinusHistoryFavorableRate: retainedMinusOriginalFavorableRate};
+  });
+  return {original, withHistory, retained: retainedStudy, discarded: discardedStudy, insufficient: insufficientStudy,
+    comparisons, comparisonsWithHistory, originalSignals: originalSignals.length,
+    withHistorySignals: withHistorySignals.length, retainedSignals: retained.length,
     discardedSignals: discarded.length, insufficientSignals: insufficient.length,
     lookbackSessions: VOLUME_LOOKBACK_SESSIONS, multiplier: VOLUME_MULTIPLIER};
 }

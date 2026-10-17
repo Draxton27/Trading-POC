@@ -9,7 +9,7 @@ import {renderVolumeReport} from '../src/volume-report.ts';
 function sample(): Candle[] {
   const candles: Candle[] = [];
   const day = new Date('2026-06-01T00:00:00Z');
-  while (candles.length < 25 * 78) {
+  while (candles.length < 32 * 78) {
     if (day.getUTCDay() !== 0 && day.getUTCDay() !== 6) {
       for (let minute = 0; minute < 78; minute++) {
         const index = candles.length;
@@ -35,15 +35,24 @@ test('estudio separa retenidas, descartadas y sin historial sin cambiar los cont
   const candles = sample();
   const slot = 20;
   const early = 5 * 78 + slot, kept = 21 * 78 + slot, dropped = 22 * 78 + slot;
+  const laterKept = 28 * 78 + slot, laterDropped = 29 * 78 + slot;
   candles[kept]!.volume = 150;
-  candles[dropped]!.volume = 149;
-  const study = evaluateVolumeFilter(candles, [signal(candles, early), signal(candles, kept), signal(candles, dropped)]);
-  assert.deepEqual([study.originalSignals, study.retainedSignals, study.discardedSignals, study.insufficientSignals],
-    [3, 1, 1, 1]);
+  candles[laterKept]!.volume = 160; // El 150 anterior eleva la media móvil de esta sesión.
+  for (const index of [dropped, laterDropped]) candles[index]!.volume = 149;
+  const study = evaluateVolumeFilter(candles,
+    [early, kept, dropped, laterKept, laterDropped].map(index => signal(candles, index)));
+  assert.deepEqual([study.originalSignals, study.withHistorySignals,
+    study.retainedSignals, study.discardedSignals, study.insufficientSignals],
+  [5, 4, 2, 2, 1]);
   assert.equal(study.original.splitIndex, study.retained.splitIndex);
+  assert.equal(study.withHistory.splitIndex, study.retained.splitIndex);
   const row = (group: typeof study.original, segment: 'exploracion' | 'evaluacion') =>
     group.rows.find(r => r.segment === segment && r.direction === 'CALL_CONTEXT' && r.horizonMinutes === 15)!;
   assert.equal(row(study.insufficient, 'exploracion').signals, 1);
+  assert.equal(row(study.original, 'exploracion').signals, 3);
+  assert.equal(row(study.withHistory, 'exploracion').signals, 2);
+  assert.equal(row(study.retained, 'exploracion').signals, 1);
+  assert.equal(row(study.discarded, 'exploracion').signals, 1);
   assert.equal(row(study.retained, 'evaluacion').signals, 1);
   assert.equal(row(study.discarded, 'evaluacion').signals, 1);
   const original = row(study.original, 'evaluacion');
@@ -53,15 +62,41 @@ test('estudio separa retenidas, descartadas y sin historial sin cambiar los cont
   assert.equal(original.baselineObservations,
     row(study.retained, 'evaluacion').baselineObservations +
     row(study.discarded, 'evaluacion').baselineObservations);
+  assert.equal(row(study.withHistory, 'exploracion').eligible.count,
+    row(study.retained, 'exploracion').eligible.count + row(study.discarded, 'exploracion').eligible.count);
+  assert.equal(row(study.withHistory, 'exploracion').baselineObservations,
+    row(study.retained, 'exploracion').baselineObservations +
+    row(study.discarded, 'exploracion').baselineObservations);
   const comparison = study.comparisons.find(c => c.segment === 'evaluacion' &&
     c.direction === 'CALL_CONTEXT' && c.horizonMinutes === 15)!;
   assert.equal(comparison.originalEligible, 2);
   assert.equal(comparison.retainedEligible, 1);
   assert.equal(comparison.interval99Percent, null);
+  const firstOriginal = study.comparisons.find(c => c.segment === 'exploracion' &&
+    c.direction === 'CALL_CONTEXT' && c.horizonMinutes === 15)!;
+  const firstWithHistory = study.comparisonsWithHistory.find(c => c.segment === 'exploracion' &&
+    c.direction === 'CALL_CONTEXT' && c.horizonMinutes === 15)!;
+  assert.equal(firstOriginal.originalEligible, 3);
+  assert.equal(firstWithHistory.historyEligible, 2);
+  assert.equal(firstWithHistory.retainedEligible, 1);
+  assert.ok(Math.abs(firstWithHistory.retainedMinusHistoryMeanPercent! -
+    (row(study.retained, 'exploracion').eligible.meanSignedPercent! -
+      row(study.withHistory, 'exploracion').eligible.meanSignedPercent!)) < 1e-12);
   const report = renderVolumeReport(study, 'controlado.csv');
-  assert.match(report, /conserva \*\*1 \(33\.3%\)\*\*/);
+  assert.match(report, /conserva \*\*2 \(40\.0%\)\*\*/);
+  assert.match(report, /Bollinger con historial suficiente/);
   assert.match(report, /sin historial suficiente/);
   assert.match(report, /Todo el estudio es exploratorio/);
+});
+
+test('la conclusión cuenta las seis diferencias de movimiento medio calculadas', () => {
+  const candles = sample();
+  const study = evaluateVolumeFilter(candles, []);
+  let position = 0;
+  const controlled = {...study, comparisonsWithHistory: study.comparisonsWithHistory.map(comparison =>
+    comparison.segment === 'evaluacion' ? {...comparison,
+      retainedMinusHistoryMeanPercent: position++ < 4 ? 0.01 : -0.01} : comparison)};
+  assert.match(renderVolumeReport(controlled, 'controlado.csv'), /en 4 de 6 combinaciones/);
 });
 
 test('comando de volumen rechaza el CSV ficticio sin escribir reporte real', () => {
