@@ -1,7 +1,17 @@
 {
   "input": "data/QQQ_FICTICIO_5min.csv",
   "data_type": "synthetic",
+  "data": {
+    "asset": "QQQ",
+    "provider": "generador deterministico del POC",
+    "bar_minutes": 5,
+    "data_class": "synthetic",
+    "session": "regular",
+    "exchange_timezone": "America/New_York"
+  },
   "bar_size_minutes": 5,
+  "timestamp_semantics": "bar_start_utc",
+  "signal_available_at": "bar_end_utc",
   "model": "bollinger_squeeze_expansion_v0",
   "horizons": [
     3,

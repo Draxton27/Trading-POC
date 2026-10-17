@@ -1,5 +1,5 @@
 export type Candle = {
-  timestamp: string;
+  timestamp: string; // inicio de la vela, normalizado a UTC
   open: number;
   high: number;
   low: number;
@@ -19,7 +19,9 @@ export type BollingerPoint = {
 export type Direction = 'CALL_CONTEXT' | 'PUT_CONTEXT';
 export type Signal = {
   index: number;
-  timestamp: string;
+  timestamp: string; // inicio de la vela que genero la señal
+  candleEndTimestamp: string; // fin de esa vela
+  availableAt: string; // primera vez que puede conocerse la señal
   direction: Direction;
   close: number;
   previousBandwidthPercent: number;

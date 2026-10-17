@@ -1,8 +1,10 @@
 # POC 001: Bollinger y movimientos posteriores
 
 Archivo: `QQQ_FICTICIO_5min.csv`
-**ATENCIÓN: DATOS FICTICIOS. Los resultados NO representan QQQ ni sirven para operar.**
+**ATENCIÓN: DATOS FICTICIOS. Los resultados no representan el mercado ni sirven para operar.**
 
+Activo: QQQ; proveedor declarado: generador deterministico del POC; sesión: regular (America/New_York).
+Cada timestamp CSV marca el inicio de una vela de 5 minutos en UTC. Una señal solo está disponible al terminar su vela; no se supone ejecución a ese precio de cierre.
 Velas: 7800; rango 2026-06-01T13:30:00.000Z a 2026-10-16T19:55:00.000Z.
 Parámetros: Bollinger 20 períodos, 2 desviaciones; referencia histórica 100 velas; percentil 20; expansión relativa mínima 5%; ruptura de banda; máximo una señal cada 12 velas.
 Separación temporal: primeras 5460 velas para exploración y últimas 2340 velas para validación. Los parámetros se eligieron antes de conocer los resultados del ejemplo.

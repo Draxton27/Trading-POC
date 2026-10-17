@@ -1,0 +1,8 @@
+{
+  "asset": "QQQ",
+  "provider": "generador deterministico del POC",
+  "bar_minutes": 5,
+  "data_class": "synthetic",
+  "session": "regular",
+  "exchange_timezone": "America/New_York"
+}
