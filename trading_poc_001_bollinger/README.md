@@ -77,7 +77,7 @@ Una vela iniciada a las `13:30:00Z` cubre el intervalo **13:30–13:35 UTC**. Su
 
 El CSV se rechaza si faltan campos, hay fechas imposibles o sin zona, precios no positivos, OHLC incoherente, volumen negativo o no entero, o valores no finitos. Se admite volumen cero. Si existe una suspensión o un intervalo intradía sin barras, hay que resolverlo en los datos antes de analizarlos; no se rellenan precios automáticamente.
 
-Pruebas automáticas (tras `npm ci`, incluyen la comparación con `trading-signals@8.3.0`):
+Pruebas automáticas (tras `npm ci`, comprueban tipos y comparan con `trading-signals@8.3.0`):
 
 ```bash
 npm test
