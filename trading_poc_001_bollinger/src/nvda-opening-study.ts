@@ -71,8 +71,8 @@ const mean = (values: number[]): number | null => values.length ?
 const belongs = (event: OpeningEvent, group: OpeningGroup) =>
   group === event.direction || (group === `alta_vol_${event.direction}` && event.highVolatility);
 
-function observe(bars: readonly Candle[], openTime: number, requiredBars: number, direction: OpeningDirection,
-  band: number): ReturnObservation {
+function observe(bars: readonly Candle[], openTime: number, requiredBars: number,
+  lower: number, upper: number): ReturnObservation {
   for (let i = 0; i < requiredBars; i++) {
     if (Date.parse(bars[i]?.timestamp ?? '') !== openTime + i * BAR_MS) {
       return {evaluable: false, rangeReturned: null, closeConfirmed: null,
@@ -80,9 +80,9 @@ function observe(bars: readonly Candle[], openTime: number, requiredBars: number
     }
   }
   const rangeIndex = bars.slice(0, requiredBars).findIndex(bar =>
-    direction === 'encima' ? bar.low < band : bar.high > band);
+    bar.low < upper && bar.high > lower);
   const closeIndex = bars.slice(0, requiredBars).findIndex(bar =>
-    direction === 'encima' ? bar.close < band : bar.close > band);
+    lower < bar.close && bar.close < upper);
   return {evaluable: true, rangeReturned: rangeIndex >= 0, closeConfirmed: closeIndex >= 0,
     firstRangeByMinutes: rangeIndex < 0 ? null : (rangeIndex + 1) * 15,
     firstCloseByMinutes: closeIndex < 0 ? null : (closeIndex + 1) * 15};
@@ -162,7 +162,7 @@ export function studyNvdaOpening(candles: readonly Candle[], calendar: MarketCal
     for (const horizon of OPENING_HORIZONS) {
       const requiredBars = horizon === 'sesion' ? expectedBars : Number(horizon) / 15;
       outcomes[horizon] = requiredBars <= expectedBars ?
-        observe(observed!.bars, openTime, requiredBars, direction, band) :
+        observe(observed!.bars, openTime, requiredBars, lower, upper) :
         {evaluable: false, rangeReturned: null, closeConfirmed: null,
           firstRangeByMinutes: null, firstCloseByMinutes: null};
     }

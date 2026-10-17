@@ -31,12 +31,13 @@ function twoSessions(options: {
 
 const monday = (minute: number, open: number, high = open, low = open, close = open) =>
   bar(new Date(Date.UTC(2026, 2, 9, 13, 30 + minute)).toISOString(), open, high, low, close);
+const variableBandCloses = (index: number) => index < 6 ? 200 : index % 2 === 0 ? 99.5 : 100.5;
 
 test('usa solo los 20 cierres previos y congela bandas; rango y cierre tienen tiempos distintos', () => {
   const input = twoSessions({
-    previousCloses: index => index < 6 ? 200 : 100,
-    opening: monday(0, 110, 112, 99, 105),
-    following: [monday(15, 105, 106, 98, 99)], closeMinute: 780,
+    previousCloses: variableBandCloses,
+    opening: monday(0, 110, 112, 100, 105),
+    following: [monday(15, 105, 106, 99.5, 100)], closeMinute: 780,
   });
   const study = studyNvdaOpening(input.candles, input.calendar);
   assert.equal(study.splitDate, '2026-03-09');
@@ -44,9 +45,9 @@ test('usa solo los 20 cierres previos y congela bandas; rango y cierre tienen ti
   assert.equal(study.events.length, 1);
   const event = study.events[0]!;
   assert.equal(event.direction, 'encima');
-  assert.equal(event.upper, 100);
-  assert.equal(event.lower, 100);
-  assert.equal(event.distanceToBandPercent, 10);
+  assert.equal(event.upper, 101);
+  assert.equal(event.lower, 99);
+  assert.ok(Math.abs(event.distanceToBandPercent - (9 / 101 * 100)) < 1e-10);
   assert.equal(event.highVolatility, false);
   assert.deepEqual([event.outcomes['15'].rangeReturned, event.outcomes['15'].closeConfirmed,
     event.outcomes['15'].firstRangeByMinutes, event.outcomes['30'].firstCloseByMinutes],
@@ -57,21 +58,77 @@ test('usa solo los 20 cierres previos y congela bandas; rango y cierre tienen ti
     row.horizon === 'sesion')!.neverReturned, null);
   assert.equal(study.sessions[1]!.completeSession, false);
   const changed = structuredClone(input.candles);
-  changed[27] = monday(15, 105, 500, 98, 400);
+  changed[27] = monday(15, 105, 500, 99.5, 400);
   const after = studyNvdaOpening(changed, input.calendar).events[0]!;
   assert.deepEqual([after.direction, after.upper, after.lower, after.distanceToBandPercent],
     [event.direction, event.upper, event.lower, event.distanceToBandPercent]);
 });
 
-test('apertura debajo regresa por máximo y solo confirma cuando el cierre cruza la banda', () => {
-  const input = twoSessions({opening: monday(0, 90, 101, 89, 95),
-    following: [monday(15, 95, 102, 94, 101)]});
+test('apertura debajo regresa por máximo y solo confirma cuando el cierre entra entre ambas bandas', () => {
+  const input = twoSessions({previousCloses: variableBandCloses,
+    opening: monday(0, 90, 100, 89, 95),
+    following: [monday(15, 95, 101, 94, 100)]});
   const event = studyNvdaOpening(input.candles, input.calendar).events[0]!;
   assert.equal(event.direction, 'debajo');
   assert.equal(event.outcomes['15'].rangeReturned, true);
   assert.equal(event.outcomes['15'].closeConfirmed, false);
   assert.equal(event.outcomes['30'].closeConfirmed, true);
   assert.equal(event.outcomes['30'].firstCloseByMinutes, 30);
+});
+
+test('atraviesa ambas bandas desde arriba y cierra debajo: rango sí, cierre no', () => {
+  const input = twoSessions({previousCloses: variableBandCloses,
+    opening: monday(0, 110, 112, 95, 96),
+    following: [monday(15, 96, 100, 95, 100)]});
+  const event = studyNvdaOpening(input.candles, input.calendar).events[0]!;
+  assert.deepEqual([event.lower, event.upper, event.direction], [99, 101, 'encima']);
+  assert.deepEqual([event.outcomes['15'].rangeReturned, event.outcomes['15'].closeConfirmed,
+    event.outcomes['15'].firstRangeByMinutes, event.outcomes['15'].firstCloseByMinutes],
+  [true, false, 15, null]);
+  assert.deepEqual([event.outcomes['30'].rangeReturned, event.outcomes['30'].closeConfirmed,
+    event.outcomes['30'].firstRangeByMinutes, event.outcomes['30'].firstCloseByMinutes],
+  [true, true, 15, 30]);
+});
+
+test('atraviesa ambas bandas desde abajo y cierra encima: rango sí, cierre no', () => {
+  const input = twoSessions({previousCloses: variableBandCloses,
+    opening: monday(0, 90, 105, 89, 104),
+    following: [monday(15, 104, 105, 99, 100)]});
+  const event = studyNvdaOpening(input.candles, input.calendar).events[0]!;
+  assert.deepEqual([event.lower, event.upper, event.direction], [99, 101, 'debajo']);
+  assert.deepEqual([event.outcomes['15'].rangeReturned, event.outcomes['15'].closeConfirmed,
+    event.outcomes['15'].firstRangeByMinutes, event.outcomes['15'].firstCloseByMinutes],
+  [true, false, 15, null]);
+  assert.deepEqual([event.outcomes['30'].rangeReturned, event.outcomes['30'].closeConfirmed,
+    event.outcomes['30'].firstRangeByMinutes, event.outcomes['30'].firstCloseByMinutes],
+  [true, true, 15, 30]);
+});
+
+test('un hueco al lado opuesto sin intersección no cuenta como regreso por rango', () => {
+  const above = twoSessions({previousCloses: variableBandCloses,
+    opening: monday(0, 110, 112, 105, 106),
+    following: [monday(15, 96, 98, 95, 96)]});
+  const below = twoSessions({previousCloses: variableBandCloses,
+    opening: monday(0, 90, 95, 89, 94),
+    following: [monday(15, 104, 105, 102, 104)]});
+  for (const input of [above, below]) {
+    const outcome = studyNvdaOpening(input.candles, input.calendar).events[0]!.outcomes['30'];
+    assert.equal(outcome.rangeReturned, false);
+    assert.equal(outcome.closeConfirmed, false);
+  }
+});
+
+test('un cierre exactamente en cualquiera de las bandas no confirma regreso', () => {
+  const input = twoSessions({previousCloses: variableBandCloses,
+    opening: monday(0, 110, 112, 100, 101),
+    following: [monday(15, 101, 101, 99, 99), monday(30, 99, 100, 99, 100),
+      monday(45, 100)]});
+  const event = studyNvdaOpening(input.candles, input.calendar).events[0]!;
+  assert.equal(event.outcomes['15'].closeConfirmed, false);
+  assert.equal(event.outcomes['30'].closeConfirmed, false);
+  assert.equal(event.outcomes['60'].evaluable, true);
+  assert.equal(event.outcomes['60'].closeConfirmed, true);
+  assert.equal(event.outcomes['60'].firstCloseByMinutes, 45);
 });
 
 test('tocar la banda no es regreso ni apertura fuera; sesión completa puede no regresar', () => {
