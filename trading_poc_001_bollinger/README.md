@@ -38,6 +38,8 @@ Para utilizar tus propios datos:
 npm run analyze -- data/QQQ_REAL_5min.csv
 ```
 
+Los análisis con metadatos `data_class: "real"` guardan `report.md`, `report.json` y `signals.csv` en `output/real/`, excluida de Git. La elección se hace por los metadatos validados, no por el nombre del CSV. Los datos `synthetic` y `npm run demo` siguen usando los archivos versionados de `output/`. Así, analizar QQQ real no reemplaza los resultados ficticios de la demostración.
+
 Tu archivo debe tener exactamente las columnas `timestamp,open,high,low,close,volume` (se permite otro orden de columnas). `timestamp` identifica **el inicio de la vela**, exige fecha y zona horaria explícita en ISO 8601 (`Z` u offset) y se normaliza a UTC. Cada inicio debe coincidir con un límite UTC de cinco minutos. Ejemplo:
 
 ```csv
@@ -115,6 +117,8 @@ El resultado se guarda en `data/QQQ_ALPACA_SIP_5min.csv` y su archivo contiguo `
 ```bash
 npm run analyze -- data/QQQ_ALPACA_SIP_5min.csv
 ```
+
+Este comando genera los informes reales en `output/real/`; el CSV importado y los informes reales permanecen locales y excluidos de Git.
 
 Alpaca pagina sus respuestas; el importador recorre todas las páginas, limita las solicitudes a un máximo nominal de 120 por minuto, reintenta temporalmente `429` y errores de servidor, y detiene la importación ante `401` o `403` (credenciales o permiso de datos). No cambia automáticamente a IEX. Si el plan de la cuenta no permite la consulta SIP histórica solicitada, se informa el error de acceso. Según la [documentación de Alpaca sobre planes de datos](https://docs.alpaca.markets/us/docs/about-market-data-api) y su [FAQ de datos de mercado](https://docs.alpaca.markets/us/docs/market-data-faq), Basic tiene límite de 200 solicitudes por minuto y acceso SIP histórico con retraso de al menos 15 minutos; la disponibilidad efectiva depende de la cuenta y sus permisos.
 
