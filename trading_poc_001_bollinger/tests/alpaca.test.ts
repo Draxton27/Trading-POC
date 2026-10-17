@@ -4,7 +4,8 @@ import {mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {spawnSync} from 'node:child_process';
-import {alpacaMetadata, fetchAlpacaBars, historicalWindow, type HttpGet} from '../src/alpaca.ts';
+import {alpacaMetadata, fetchAlpacaBars, historicalWindow, parseHistoryMonths, type HttpGet} from '../src/alpaca.ts';
+import {fetchAlpacaCalendar, isCalendarBar} from '../src/alpaca-calendar.ts';
 import {parseCandlesCsv, serializeCandles} from '../src/csv.ts';
 import {validateMetadata} from '../src/data-contract.ts';
 
@@ -41,6 +42,58 @@ test('ventana inicial cubre 90 días y excluye velas recientes con margen de 20 
   assert.equal(window.end, '2026-06-10T19:35:00.000Z');
   assert.equal(Date.parse(window.end) - Date.parse(window.start), 90 * 24 * 60 * 60_000);
   assert.ok(Date.parse(window.end) + 300_000 <= time - 20 * 60_000);
+});
+
+test('historial configurable permite doce meses sin alterar el valor predeterminado', () => {
+  const time = Date.parse('2026-10-17T20:03:00Z');
+  assert.equal(parseHistoryMonths([]), 3);
+  assert.equal(parseHistoryMonths(['--months', '12']), 12);
+  assert.equal(historicalWindow(time, 3).start, historicalWindow(time).start);
+  const twelve = historicalWindow(time, 12);
+  assert.equal(twelve.start, '2025-10-17T19:35:00.000Z');
+  assert.equal(historicalWindow(Date.parse('2026-03-31T20:03:00Z'), 1).start,
+    '2026-02-28T19:35:00.000Z');
+  assert.ok(Date.parse(twelve.end) + 300_000 <= time - 20 * 60_000);
+  for (const args of [['--months', '0'], ['--months', '13'], ['--months', '1.5'], ['--unknown', '12']]) {
+    assert.throws(() => parseHistoryMonths(args));
+  }
+});
+
+test('calendario Alpaca elimina barras tras cierre temprano y en festivos sin inventarlas', async () => {
+  const calendar = await fetchAlpacaCalendar({apiKey: 'test', secretKey: 'test',
+    start: '2025-12-24T00:00:00Z', end: '2025-12-26T23:55:00Z',
+    httpGet: async url => {
+      assert.equal(url.pathname, '/v2/calendar');
+      return new Response(JSON.stringify([
+        {date: '2025-12-24', open: '09:30', close: '13:00'},
+        {date: '2025-12-26', open: '09:30', close: '16:00'},
+      ]));
+    }});
+  assert.equal(isCalendarBar(Date.parse('2025-12-24T17:55:00Z'), calendar), true);
+  assert.equal(isCalendarBar(Date.parse('2025-12-24T20:20:00Z'), calendar), false);
+  assert.equal(isCalendarBar(Date.parse('2025-12-25T14:30:00Z'), calendar), false);
+  const candles = await fetchAlpacaBars({
+    ...options(async () => page([
+      bar('2025-12-24T17:55:00Z'), bar('2025-12-24T20:20:00Z'),
+      bar('2025-12-24T20:30:00Z'), bar('2025-12-26T14:30:00Z'),
+    ])),
+    start: '2025-12-24T17:55:00Z', end: '2025-12-26T14:30:00Z', calendar,
+  });
+  assert.equal(candles.length, 2);
+  assert.equal(candles[1]!.timestamp, '2025-12-26T14:30:00.000Z');
+});
+
+test('calendario reintenta límites temporales y falla por credenciales inválidas', async () => {
+  let calls = 0;
+  const waits: number[] = [];
+  const base = {apiKey: 'test', secretKey: 'test', start: '2025-12-24T00:00:00Z', end: '2025-12-24T23:55:00Z'};
+  const calendar = await fetchAlpacaCalendar({...base, pause: async ms => {waits.push(ms);},
+    httpGet: async () => ++calls === 1 ? new Response('', {status: 429, headers: {'retry-after': '2'}}) :
+      new Response(JSON.stringify([{date: '2025-12-24', open: '09:30', close: '13:00'}]))});
+  assert.equal(calls, 2);
+  assert.deepEqual(waits, [2000]);
+  assert.equal(calendar.size, 1);
+  await assert.rejects(fetchAlpacaCalendar({...base, httpGet: async () => new Response('', {status: 401})}), /401/);
 });
 
 test('consulta SIP split, pagina, filtra sesión regular y conserva precisión CSV y procedencia', async () => {

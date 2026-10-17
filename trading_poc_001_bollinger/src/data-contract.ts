@@ -108,6 +108,6 @@ export function validateBarTime(instant: number, previousInstant: number | null,
   }
   if (previousInstant !== null && exchangeParts(previousInstant).day === current.day &&
       instant - previousInstant !== BAR_MS) {
-    throw new Error('Faltan velas de 5 minutos dentro de la sesión declarada.');
+    throw new Error(`Faltan velas de 5 minutos dentro de la sesión declarada: ${new Date(previousInstant).toISOString()} a ${new Date(instant).toISOString()}.`);
   }
 }
