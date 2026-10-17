@@ -3,7 +3,6 @@ import {parseCandlesCsv, serializeCandles} from './csv.ts';
 import {isBarInSession, parseBarStart, type DataMetadata} from './data-contract.ts';
 import {isCalendarBar, type MarketCalendar} from './alpaca-calendar.ts';
 
-const BAR_MS = 5 * 60_000;
 const SAFETY_MS = 20 * 60_000;
 const ENDPOINT = 'https://data.alpaca.markets/v2/stocks/bars';
 
@@ -11,6 +10,9 @@ export const alpacaMetadata: DataMetadata = {
   asset: 'QQQ', provider: 'Alpaca Market Data API', bar_minutes: 5,
   data_class: 'real', session: 'regular', exchange_timezone: 'America/New_York',
   feed: 'sip', adjustment: 'split',
+};
+export const alpacaNvdaMetadata: DataMetadata = {
+  ...alpacaMetadata, asset: 'NVDA', bar_minutes: 15,
 };
 
 export type HttpGet = (url: URL, headers: Record<string, string>) => Promise<Response>;
@@ -24,6 +26,7 @@ export type ImportOptions = {
   pause?: (milliseconds: number) => Promise<void>;
   minIntervalMs?: number;
   calendar?: MarketCalendar;
+  metadata?: DataMetadata;
 };
 
 export function parseHistoryMonths(args: readonly string[]): number {
@@ -35,9 +38,10 @@ export function parseHistoryMonths(args: readonly string[]): number {
 }
 
 /** End is the start of the newest permitted bar; that bar closes at least 20 minutes ago. */
-export function historicalWindow(now = Date.now(), months = 3): {start: string; end: string} {
+export function historicalWindow(now = Date.now(), months = 3, barMinutes: 5 | 15 = 5): {start: string; end: string} {
   if (!Number.isInteger(months) || months < 1 || months > 12) throw new Error('Meses históricos deben estar entre 1 y 12.');
-  const end = Math.floor((now - SAFETY_MS - BAR_MS) / BAR_MS) * BAR_MS;
+  const duration = barMinutes * 60_000;
+  const end = Math.floor((now - SAFETY_MS - duration) / duration) * duration;
   let start: number;
   if (months === 3) {
     start = end - 90 * 24 * 60 * 60_000; // preserves phase-3 default
@@ -60,7 +64,7 @@ const defaultPause = (ms: number) => new Promise<void>(resolve => setTimeout(res
 
 function alpacaTimestamp(value: unknown): string {
   if (typeof value !== 'string') throw new Error('Alpaca devolvió un timestamp inválido.');
-  // Alpaca can emit RFC3339 nanoseconds. A 5-minute bar has zero fractional seconds.
+  // Alpaca can emit RFC3339 nanoseconds. These aggregate bars start on whole minutes.
   const normalized = value.replace(/\.0+Z$/, 'Z');
   return new Date(parseBarStart(normalized)).toISOString();
 }
@@ -98,11 +102,20 @@ function retryWait(response: Response, attempt: number): number {
 /** Read sequential pages, validate all bars, then hand complete data to the caller. */
 export async function fetchAlpacaBars(options: ImportOptions): Promise<Candle[]> {
   const {apiKey, secretKey, httpGet = defaultGet, pause = defaultPause} = options;
+  const metadata = options.metadata ?? alpacaMetadata;
+  if (metadata.provider !== alpacaMetadata.provider || metadata.data_class !== 'real' ||
+      metadata.feed !== 'sip' || metadata.adjustment !== 'split' || metadata.session !== 'regular' ||
+      (metadata.asset !== 'QQQ' && metadata.asset !== 'NVDA') ||
+      (metadata.asset === 'QQQ' && metadata.bar_minutes !== 5) ||
+      (metadata.asset === 'NVDA' && metadata.bar_minutes !== 15)) {
+    throw new Error('Configuración de importación Alpaca no admitida.');
+  }
+  const duration = metadata.bar_minutes * 60_000;
   if (!apiKey.trim() || !secretKey.trim()) throw new Error('Faltan APCA_API_KEY_ID o APCA_API_SECRET_KEY.');
   const start = parseBarStart(options.start);
   const end = parseBarStart(options.end);
   const now = options.now ?? Date.now();
-  if (start > end || end + BAR_MS > now - SAFETY_MS) {
+  if (start > end || end + duration > now - SAFETY_MS) {
     throw new Error('El rango es inválido o incluye velas demasiado recientes para SIP gratuito.');
   }
   const minIntervalMs = options.minIntervalMs ?? 500; // <= 120 requests/min, below Basic's 200/min.
@@ -117,8 +130,8 @@ export async function fetchAlpacaBars(options: ImportOptions): Promise<Candle[]>
   let lastRequestAt = -Infinity;
   do {
     const url = new URL(ENDPOINT);
-    url.searchParams.set('symbols', 'QQQ');
-    url.searchParams.set('timeframe', '5Min');
+    url.searchParams.set('symbols', metadata.asset);
+    url.searchParams.set('timeframe', `${metadata.bar_minutes}Min`);
     url.searchParams.set('feed', 'sip');
     url.searchParams.set('adjustment', 'split');
     url.searchParams.set('start', new Date(start).toISOString());
@@ -156,17 +169,17 @@ export async function fetchAlpacaBars(options: ImportOptions): Promise<Candle[]>
     if (typeof body !== 'object' || body === null || Array.isArray(body)) throw new Error('Formato de página inválido.');
     const page = body as Record<string, unknown>;
     const bars = page.bars as Record<string, unknown> | undefined;
-    if (typeof bars !== 'object' || bars === null || Array.isArray(bars) || !Array.isArray(bars.QQQ)) {
-      throw new Error('Alpaca no devolvió bars.QQQ como lista.');
+    if (typeof bars !== 'object' || bars === null || Array.isArray(bars) || !Array.isArray(bars[metadata.asset])) {
+      throw new Error(`Alpaca no devolvió bars.${metadata.asset} como lista.`);
     }
-    for (const raw of bars.QQQ) {
+    for (const raw of bars[metadata.asset] as unknown[]) {
       const candle = alpacaCandle(raw);
       const time = Date.parse(candle.timestamp);
       if (time < start || time > end || time <= lastRawTime) {
         throw new Error(`Vela de Alpaca fuera de rango, duplicada o desordenada: ${candle.timestamp}.`);
       }
       lastRawTime = time;
-      if (isBarInSession(time, alpacaMetadata) &&
+      if (isBarInSession(time, metadata) &&
           (!options.calendar || isCalendarBar(time, options.calendar))) candles.push(candle);
     }
     const next = page.next_page_token;
@@ -176,7 +189,7 @@ export async function fetchAlpacaBars(options: ImportOptions): Promise<Candle[]>
     pageToken = typeof next === 'string' ? next : null;
     if (pageToken) seenTokens.add(pageToken);
   } while (pageToken);
-  if (!candles.length) throw new Error('Alpaca no devolvió velas QQQ de sesión regular en el rango.');
+  if (!candles.length) throw new Error(`Alpaca no devolvió velas ${metadata.asset} de sesión regular en el rango.`);
   // The existing CSV contract rejects missing intraday bars; no synthetic fill is made.
-  return parseCandlesCsv(serializeCandles(candles), alpacaMetadata);
+  return parseCandlesCsv(serializeCandles(candles), metadata);
 }

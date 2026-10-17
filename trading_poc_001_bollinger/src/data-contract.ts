@@ -3,7 +3,7 @@ import {readFileSync, writeFileSync} from 'node:fs';
 export type DataMetadata = {
   asset: string;
   provider: string;
-  bar_minutes: 5;
+  bar_minutes: 5 | 15;
   data_class: 'synthetic' | 'real';
   session: 'regular' | 'extended';
   exchange_timezone: 'America/New_York';
@@ -51,16 +51,16 @@ export function validateMetadata(value: unknown): DataMetadata {
   const data = value as Record<string, unknown>;
   if (typeof data.asset !== 'string' || !data.asset.trim() ||
       typeof data.provider !== 'string' || !data.provider.trim() ||
-      data.bar_minutes !== 5 || !['synthetic', 'real'].includes(String(data.data_class)) ||
+      (data.bar_minutes !== 5 && data.bar_minutes !== 15) || !['synthetic', 'real'].includes(String(data.data_class)) ||
       !['regular', 'extended'].includes(String(data.session)) ||
       data.exchange_timezone !== 'America/New_York' ||
       (data.feed !== undefined && data.feed !== 'sip') ||
       (data.adjustment !== undefined && data.adjustment !== 'split') ||
       ((data.feed === undefined) !== (data.adjustment === undefined))) {
-    throw new Error('Metadatos requieren asset, provider, bar_minutes=5, data_class, session y exchange_timezone=America/New_York.');
+    throw new Error('Metadatos requieren asset, provider, bar_minutes=5 o 15, data_class, session y exchange_timezone=America/New_York.');
   }
   const metadata: DataMetadata = {
-    asset: data.asset.trim(), provider: data.provider.trim(), bar_minutes: 5,
+    asset: data.asset.trim(), provider: data.provider.trim(), bar_minutes: data.bar_minutes as 5 | 15,
     data_class: data.data_class as DataMetadata['data_class'],
     session: data.session as DataMetadata['session'], exchange_timezone: 'America/New_York',
   };
@@ -103,11 +103,13 @@ export function isBarInSession(instant: number, metadata: DataMetadata): boolean
 /** Reject gaps inside the declared market session; allow overnight, holidays and partial days. */
 export function validateBarTime(instant: number, previousInstant: number | null, metadata: DataMetadata): void {
   const current = exchangeParts(instant);
+  const duration = metadata.bar_minutes * 60_000;
+  if (instant % duration !== 0) throw new Error(`Vela no alineada a ${metadata.bar_minutes} minutos UTC.`);
   if (!isBarInSession(instant, metadata)) {
     throw new Error(`Vela fuera de sesión ${metadata.session} en America/New_York.`);
   }
   if (previousInstant !== null && exchangeParts(previousInstant).day === current.day &&
-      instant - previousInstant !== BAR_MS) {
-    throw new Error(`Faltan velas de 5 minutos dentro de la sesión declarada: ${new Date(previousInstant).toISOString()} a ${new Date(instant).toISOString()}.`);
+      instant - previousInstant !== duration) {
+    throw new Error(`Faltan velas de ${metadata.bar_minutes} minutos dentro de la sesión declarada: ${new Date(previousInstant).toISOString()} a ${new Date(instant).toISOString()}.`);
   }
 }

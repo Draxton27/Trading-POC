@@ -3,4 +3,5 @@ node_modules/
 **/.env.*
 data/*_ALPACA_*.csv
 data/*_ALPACA_*.csv.meta.json
+data/*_ALPACA_*.csv.calendar.json
 /output/real/
