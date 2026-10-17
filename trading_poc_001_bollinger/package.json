@@ -9,5 +9,10 @@
     "analyze": "node --experimental-strip-types src/main.ts",
     "test": "node --experimental-strip-types --test tests/*.test.ts"
   },
-  "engines": {"node": ">=22.16.0"}
+  "engines": {
+    "node": ">=22.16.0"
+  },
+  "devDependencies": {
+    "trading-signals": "8.3.0"
+  }
 }
