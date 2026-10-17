@@ -24,11 +24,13 @@ npm run demo
 
 Esto crea un archivo con **7,800 velas de demostración inventadas** y ejecuta el análisis. Sus resultados son **100% ficticios y NO deben utilizarse para operar**.
 
+El CSV de demostración lleva un archivo contiguo `data/QQQ_FICTICIO_5min.csv.meta.json` con su procedencia. El programa identifica los datos ficticios por ese metadato, nunca por el nombre del archivo.
+
 Se generan estos archivos:
 
 - `output/report.md`: resumen legible y estadísticas.
 - `output/report.json`: resultados para una futura interfaz.
-- `output/signals.csv`: momentos concretos en que se detectó una señal.
+- `output/signals.csv`: inicio y fin de cada vela con señal, y momento en que la señal estuvo disponible.
 
 Para utilizar tus propios datos:
 
@@ -36,7 +38,7 @@ Para utilizar tus propios datos:
 npm run analyze -- data/QQQ_REAL_5min.csv
 ```
 
-Tu archivo debe tener exactamente las columnas `timestamp,open,high,low,close,volume`; los tiempos deben estar en orden, con intervalo de 5 minutos dentro de cada sesión y formato ISO con zona horaria. Ejemplo:
+Tu archivo debe tener exactamente las columnas `timestamp,open,high,low,close,volume` (se permite otro orden de columnas). `timestamp` identifica **el inicio de la vela**, exige fecha y zona horaria explícita en ISO 8601 (`Z` u offset) y se normaliza a UTC. Cada inicio debe coincidir con un límite UTC de cinco minutos. Ejemplo:
 
 ```csv
 timestamp,open,high,low,close,volume
@@ -44,7 +46,36 @@ timestamp,open,high,low,close,volume
 2026-06-01T13:35:00.000Z,600.15,600.30,599.99,600.23,14000
 ```
 
-Se requieren al menos 300 velas y muchas más para intentar estimaciones de utilidad práctica. Usa barras de sesión regular ajustadas por splits. Revisa zona horaria, procedencia de datos, calidad y derechos de uso.
+Junto al CSV crea `data/QQQ_REAL_5min.csv.meta.json`:
+
+```json
+{
+  "asset": "QQQ",
+  "provider": "nombre del proveedor de los datos",
+  "bar_minutes": 5,
+  "data_class": "real",
+  "session": "regular",
+  "exchange_timezone": "America/New_York"
+}
+```
+
+`data_class` es `synthetic` o `real`, según la declaración del usuario; el programa no verifica que los datos declarados reales provengan del mercado. `session` es `regular` o `extended`. La temporalidad admitida en esta fase es de cinco minutos para acciones estadounidenses cotizadas en horario de Nueva York.
+
+Se requieren al menos 300 velas y muchas más para intentar estimaciones de utilidad práctica. Para datos reales, revisa ajustes por splits, procedencia, cobertura, calidad y derechos de uso.
+
+## Tiempo de las velas y disponibilidad de señales
+
+Una vela iniciada a las `13:30:00Z` cubre el intervalo **13:30–13:35 UTC**. Su cierre, y cualquier señal que dependa de él, solo se conocen **a partir de las 13:35:00Z**. En `signals.csv`, `bar_start_utc` es el timestamp original normalizado, `bar_end_utc` es el final de la vela y `available_at_utc` es el primer instante en que puede conocerse la señal. En este POC los últimos dos coinciden. Estos campos no representan hora ni precio de una operación. El rendimiento histórico sigue usando el cierre de la vela de señal como referencia estadística, sin afirmar que se pudiera ejecutar una operación a ese precio.
+
+## Sesiones y huecos de datos
+
+- Horario regular: inicio de barras desde **09:30 hasta 15:55**, hora `America/New_York` (la última termina a las 16:00).
+- Horario extendido: inicio de barras desde **04:00 hasta 19:55**, hora `America/New_York` (la última termina a las 20:00). Declarar `extended` permite ese horario, pero no garantiza que el archivo contenga todas sus barras.
+- La conversión de UTC a `America/New_York` tiene en cuenta el horario de verano. No debe suponerse una hora UTC fija para la apertura durante todo el año.
+- Se rechazan timestamps repetidos o desordenados y huecos de más de cinco minutos **entre barras del mismo día local**. Se admiten intervalos entre días, incluidos cierres normales, fines de semana, festivos y días de cierre temprano. El archivo puede cubrir solo parte de una sesión. Esta versión no incorpora un calendario bursátil oficial y no detecta días completos ausentes ni certifica cierres tempranos.
+- Las bandas y el historial de compresión utilizan las últimas barras presentes aunque crucen sesiones; no se reinician cada mañana. La evaluación de movimientos futuros sigue exigiendo barras consecutivas. No se modificaron las reglas de señales ni los cálculos de rendimiento en esta fase.
+
+El CSV se rechaza si faltan campos, hay fechas imposibles o sin zona, precios no positivos, OHLC incoherente, volumen negativo o no entero, o valores no finitos. Se admite volumen cero. Si existe una suspensión o un intervalo intradía sin barras, hay que resolverlo en los datos antes de analizarlos; no se rellenan precios automáticamente.
 
 Pruebas automáticas:
 
@@ -62,7 +93,7 @@ npm test
 
 Los parámetros de señales son hipótesis iniciales arbitrarias, no configuraciones optimizadas ni verificadas. Se evita usar precios futuros al detectar una señal, se restringen resultados a barras consecutivas dentro de sesión y se utiliza un descanso de 12 velas tras cada señal para reducir duplicaciones.
 
-El generador de prueba omite fines de semana, pero no festivos bursátiles y usa una hora UTC fija para simplificar. **No es un calendario de mercado real**.
+El generador de prueba omite fines de semana, pero no festivos bursátiles. Sus 100 días ficticios permanecen en horario de verano de Nueva York y usan una hora UTC fija para simplificar. **No es un calendario de mercado real**.
 
 ## Relación con la investigación de GitHub
 

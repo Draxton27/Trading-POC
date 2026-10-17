@@ -1,4 +1,5 @@
 import type {BollingerPoint, Signal} from './domain.ts';
+import {barEndTimestamp} from './data-contract.ts';
 
 function quantile(values: number[], q: number): number {
   const sorted = [...values].sort((a, b) => a - b);
@@ -42,6 +43,8 @@ export function detectSignals(
     results.push({
       index: i,
       timestamp: current.timestamp,
+      candleEndTimestamp: barEndTimestamp(current.timestamp),
+      availableAt: barEndTimestamp(current.timestamp),
       direction,
       close: current.close,
       previousBandwidthPercent: previous.bandwidth * 100,

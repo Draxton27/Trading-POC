@@ -28,7 +28,7 @@ test('ancho se calcula como (banda superior - inferior) / media',()=>{
 
 test('deteccion no utiliza velas futuras',()=>{
   const closes=Array.from({length:500},(_,i)=>100+Math.sin(i/12)*0.7+(i>300?(i-300)*0.02:0));
-  const bars=closes.map(bar);
+  const bars=closes.map((close,i)=>bar(i,close));
   const series=calculateBollinger(bars);
   const sigs=detectSignals(series);
   const altered=bars.map((b,i)=>i>390?{...b,close:b.close*1.1}:b);
@@ -38,7 +38,7 @@ test('deteccion no utiliza velas futuras',()=>{
 
 test('no se evalua una senal que salte de un dia bursatil a otro',()=>{
   const bars=[...Array.from({length:20},(_,i)=>bar(i,100+i*.1)),bar(300,120)];
-  const sign={index:18,timestamp:bars[18]!.timestamp,close:101.8,direction:'CALL_CONTEXT' as const,previousBandwidthPercent:2,currentBandwidthPercent:4,squeezeThresholdPercent:3};
+  const sign={index:18,timestamp:bars[18]!.timestamp,candleEndTimestamp:bars[19]!.timestamp,availableAt:bars[19]!.timestamp,close:101.8,direction:'CALL_CONTEXT' as const,previousBandwidthPercent:2,currentBandwidthPercent:4,squeezeThresholdPercent:3};
   assert.equal(evaluateSignals(bars,[sign],[3]).length,0);
   assert.equal(evaluateSignals(bars,[sign],[1]).length,1);
 });

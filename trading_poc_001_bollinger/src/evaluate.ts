@@ -1,4 +1,5 @@
 import type {Candle, Direction, Outcome, Signal} from './domain.ts';
+import {barEndTimestamp} from './data-contract.ts';
 
 /** Evita evaluar una vela futura si hubo un salto de sesion o falta alguna vela 5-min. */
 function hasContiguousBars(candles: readonly Candle[], at: number, horizon: number): boolean {
@@ -31,7 +32,7 @@ export function evaluateBaseline(candles: readonly Candle[], horizon: number, di
   let sum = 0;
   const all = [] as Signal[];
   for (let i = fromIndex; i + horizon < toIndex; i++) {
-    all.push({index:i,timestamp:candles[i]!.timestamp,direction,close:candles[i]!.close,previousBandwidthPercent:0,currentBandwidthPercent:0,squeezeThresholdPercent:0});
+    all.push({index:i,timestamp:candles[i]!.timestamp,candleEndTimestamp:barEndTimestamp(candles[i]!.timestamp),availableAt:barEndTimestamp(candles[i]!.timestamp),direction,close:candles[i]!.close,previousBandwidthPercent:0,currentBandwidthPercent:0,squeezeThresholdPercent:0});
   }
   const observations = evaluateSignals(candles,all,[horizon],fromIndex,toIndex);
   for (const obs of observations) {samples++; positive += Number(obs.favored); sum += obs.signedReturnPercent;}

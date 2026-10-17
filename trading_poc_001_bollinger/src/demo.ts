@@ -1,4 +1,5 @@
 import {saveCandles} from './csv.ts';
+import {saveMetadata} from './data-contract.ts';
 import type {Candle} from './domain.ts';
 
 // Serie enteramente FICTICIA. No representa precios, operaciones ni probabilidades reales de QQQ.
@@ -32,4 +33,8 @@ while (completed < 100) {
   day = new Date(day.getTime()+86400_000);
 }
 saveCandles('data/QQQ_FICTICIO_5min.csv',candles);
+saveMetadata('data/QQQ_FICTICIO_5min.csv', {
+  asset: 'QQQ', provider: 'generador deterministico del POC', bar_minutes: 5,
+  data_class: 'synthetic', session: 'regular', exchange_timezone: 'America/New_York',
+});
 console.log(`Generado data/QQQ_FICTICIO_5min.csv con ${candles.length} velas FICTICIAS.`);
