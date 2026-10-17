@@ -1,6 +1,32 @@
+import {readFileSync, writeFileSync} from 'node:fs';
 import type {HttpGet} from './alpaca.ts';
 
 export type MarketCalendar = Map<string, {open: number; close: number}>;
+export function saveMarketCalendar(path: string, calendar: MarketCalendar): void {
+  const sessions = [...calendar].sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, hours]) => ({date, ...hours}));
+  writeFileSync(path, JSON.stringify({provider: 'Alpaca Market Calendar', sessions}, null, 2) + '\n');
+}
+
+export function loadMarketCalendar(path: string): MarketCalendar {
+  const data: unknown = JSON.parse(readFileSync(path, 'utf8'));
+  if (typeof data !== 'object' || data === null || Array.isArray(data)) throw new Error('Calendario local inválido.');
+  const document = data as Record<string, unknown>;
+  if (document.provider !== 'Alpaca Market Calendar' || !Array.isArray(document.sessions) ||
+      !document.sessions.length) throw new Error('Calendario local inválido.');
+  const calendar: MarketCalendar = new Map();
+  for (const entry of document.sessions) {
+    if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) throw new Error('Sesión local inválida.');
+    const row = entry as Record<string, unknown>;
+    if (typeof row.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(row.date) ||
+        calendar.has(row.date) || !Number.isInteger(row.open) || !Number.isInteger(row.close) ||
+        (row.open as number) < 0 || (row.close as number) > 1440 || (row.open as number) >= (row.close as number)) {
+      throw new Error('Sesión local inválida.');
+    }
+    calendar.set(row.date, {open: row.open as number, close: row.close as number});
+  }
+  return calendar;
+}
 const clock = new Intl.DateTimeFormat('en-US', {
   timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit',
   hour: '2-digit', minute: '2-digit', hourCycle: 'h23',

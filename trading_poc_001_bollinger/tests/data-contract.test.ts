@@ -65,7 +65,7 @@ test('regular y extendido tienen límites distintos; no se inventa calendario fe
 
 test('metadatos explícitos rechazan campos ausentes o clasificaciones inválidas', () => {
   assert.equal(regular.data_class, 'synthetic');
-  for (const value of [{...regular, provider: ''}, {...regular, bar_minutes: 15},
+  for (const value of [{...regular, provider: ''}, {...regular, bar_minutes: 7},
     {...regular, data_class: 'unknown'}, {...regular, exchange_timezone: 'UTC'}]) {
     assert.throws(() => validateMetadata(value));
   }
