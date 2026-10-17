@@ -38,6 +38,8 @@ Para utilizar tus propios datos:
 npm run analyze -- data/QQQ_REAL_5min.csv
 ```
 
+Los análisis con metadatos `data_class: "real"` guardan `report.md`, `report.json` y `signals.csv` en `output/real/`, excluida de Git. La elección se hace por los metadatos validados, no por el nombre del CSV. Los datos `synthetic` y `npm run demo` siguen usando los archivos versionados de `output/`. Así, analizar QQQ real no reemplaza los resultados ficticios de la demostración.
+
 Tu archivo debe tener exactamente las columnas `timestamp,open,high,low,close,volume` (se permite otro orden de columnas). `timestamp` identifica **el inicio de la vela**, exige fecha y zona horaria explícita en ISO 8601 (`Z` u offset) y se normaliza a UTC. Cada inicio debe coincidir con un límite UTC de cinco minutos. Ejemplo:
 
 ```csv
@@ -83,6 +85,47 @@ Pruebas automáticas (tras `npm ci`, comprueban tipos y comparan con `trading-si
 npm test
 ```
 
+## Importar QQQ histórico de Alpaca (fase 3)
+
+El importador solicita aproximadamente **90 días** de velas de QQQ a la API de datos de Alpaca. Usa `timeframe=5Min`, `feed=sip`, `adjustment=split` y solo conserva los inicios de vela del horario regular de Nueva York. El extremo final solicitado es el inicio de una vela que **terminó al menos 20 minutos antes** de ejecutar la importación. Ese margen supera los 15 minutos de retraso exigidos para SIP histórico en el plan Basic. Nunca solicita el precio actual ni hace operaciones.
+
+Puede guardar las credenciales en un archivo `.env` dentro de `trading_poc_001_bollinger`, junto a `package.json` (está excluido de Git):
+
+```dotenv
+APCA_API_KEY_ID=su-clave
+APCA_API_SECRET_KEY=su-secreto
+```
+
+Desde esa carpeta, ejecute `npm run import:alpaca`. El comando carga `.env` si existe; las variables ya definidas en la terminal tienen prioridad. También puede configurar las credenciales solo en la terminal, sin archivo. En PowerShell:
+
+```powershell
+$env:APCA_API_KEY_ID = 'su-clave'
+$env:APCA_API_SECRET_KEY = 'su-secreto'
+npm run import:alpaca
+```
+
+En Bash:
+
+```bash
+export APCA_API_KEY_ID='su-clave'
+export APCA_API_SECRET_KEY='su-secreto'
+npm run import:alpaca
+```
+
+El resultado se guarda en `data/QQQ_ALPACA_SIP_5min.csv` y su archivo contiguo `.meta.json`; ambos se excluyen de Git. Los metadatos declaran `asset=QQQ`, `provider=Alpaca Market Data API`, `data_class=real`, `bar_minutes=5`, `session=regular`, `exchange_timezone=America/New_York`, `feed=sip` y `adjustment=split`. Son declaraciones de procedencia de la importación, no una auditoría independiente del proveedor. Para analizarlo:
+
+```bash
+npm run analyze -- data/QQQ_ALPACA_SIP_5min.csv
+```
+
+Este comando genera los informes reales en `output/real/`; el CSV importado y los informes reales permanecen locales y excluidos de Git.
+
+Alpaca pagina sus respuestas; el importador recorre todas las páginas, limita las solicitudes a un máximo nominal de 120 por minuto, reintenta temporalmente `429` y errores de servidor, y detiene la importación ante `401` o `403` (credenciales o permiso de datos). No cambia automáticamente a IEX. Si el plan de la cuenta no permite la consulta SIP histórica solicitada, se informa el error de acceso. Según la [documentación de Alpaca sobre planes de datos](https://docs.alpaca.markets/us/docs/about-market-data-api) y su [FAQ de datos de mercado](https://docs.alpaca.markets/us/docs/market-data-faq), Basic tiene límite de 200 solicitudes por minuto y acceso SIP histórico con retraso de al menos 15 minutos; la disponibilidad efectiva depende de la cuenta y sus permisos.
+
+Cada `timestamp` del CSV es el **inicio UTC** de la vela. La selección de 09:30 a 15:55 se calcula en `America/New_York`, por lo que cambia automáticamente entre EST y EDT. La API puede no devolver barras en días festivos, cierres anticipados o intervalos sin operaciones. El importador no crea barras para suplirlas; acepta saltos entre fechas locales, pero el contrato actual **rechaza huecos entre barras del mismo día** y deja sin archivo nuevo esa descarga. No hay un calendario bursátil oficial en el POC: no certifica días completos ausentes ni que un cierre temprano sea legítimo. Tampoco verifica revisiones tardías de datos del proveedor. El ajuste por split altera precios y volumen de acuerdo con el proveedor, por lo que no debe mezclarse esta serie con otra sin el mismo ajuste.
+
+Las pruebas de Alpaca usan solo respuestas simuladas y no requieren credenciales. En este repositorio no se publica un conjunto real de QQQ; ejecute la importación con su propia cuenta y respete las condiciones de uso de datos del proveedor. Las reglas de señales, los umbrales de Bollinger y las estadísticas del POC siguen iguales.
+
 ## ¿Qué significan los resultados?
 
 - **Señales válidas:** cuántas veces ocurrió la condición definida.
@@ -101,7 +144,7 @@ La [validación documentada en RESEARCH.md](RESEARCH.md) compara nuestro cálcul
 
 ## Próximos pasos
 
-1. Incorporar datos históricos auténticos de QQQ y compararlos con los gráficos de TC2000.
+1. Importar datos históricos auténticos de QQQ con una cuenta Alpaca autorizada y comparar su cobertura con los gráficos de TC2000.
 2. Evaluar una eventual sustitución del cálculo local solo si aparece una necesidad concreta; la paridad de indicadores no valida por sí misma la estrategia.
 3. Estudiar si la señal supera una referencia razonable en datos nuevos, con costos, falsos positivos y otras condiciones del mercado.
 4. Solo más adelante estudiar el precio real de contratos CALL y PUT.

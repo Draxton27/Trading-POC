@@ -46,3 +46,9 @@ export function loadDataset(filePath: string): {candles: Candle[]; metadata: Dat
 export function saveCandles(path: string, candles: readonly Candle[]) {
   writeFileSync(path, FIELDS.join(',') + '\n' + candles.map(c=>`${c.timestamp},${c.open.toFixed(4)},${c.high.toFixed(4)},${c.low.toFixed(4)},${c.close.toFixed(4)},${Math.round(c.volume)}`).join('\n') + '\n');
 }
+
+/** Conserva la precisión numérica recibida; el generador ficticio mantiene su formato anterior. */
+export function serializeCandles(candles: readonly Candle[]): string {
+  return FIELDS.join(',') + '\n' + candles.map(c =>
+    [c.timestamp, c.open, c.high, c.low, c.close, c.volume].join(',')).join('\n') + '\n';
+}

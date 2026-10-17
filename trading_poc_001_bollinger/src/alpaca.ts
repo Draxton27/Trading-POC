@@ -1,0 +1,159 @@
+import type {Candle} from './domain.ts';
+import {parseCandlesCsv, serializeCandles} from './csv.ts';
+import {isBarInSession, parseBarStart, type DataMetadata} from './data-contract.ts';
+
+const BAR_MS = 5 * 60_000;
+const SAFETY_MS = 20 * 60_000;
+const ENDPOINT = 'https://data.alpaca.markets/v2/stocks/bars';
+
+export const alpacaMetadata: DataMetadata = {
+  asset: 'QQQ', provider: 'Alpaca Market Data API', bar_minutes: 5,
+  data_class: 'real', session: 'regular', exchange_timezone: 'America/New_York',
+  feed: 'sip', adjustment: 'split',
+};
+
+export type HttpGet = (url: URL, headers: Record<string, string>) => Promise<Response>;
+export type ImportOptions = {
+  apiKey: string;
+  secretKey: string;
+  start: string;
+  end: string;
+  now?: number;
+  httpGet?: HttpGet;
+  pause?: (milliseconds: number) => Promise<void>;
+  minIntervalMs?: number;
+};
+
+/** End is the start of the newest permitted bar; that bar closes at least 20 minutes ago. */
+export function historicalWindow(now = Date.now()): {start: string; end: string} {
+  const end = Math.floor((now - SAFETY_MS - BAR_MS) / BAR_MS) * BAR_MS;
+  return {
+    start: new Date(end - 90 * 24 * 60 * 60_000).toISOString(),
+    end: new Date(end).toISOString(),
+  };
+}
+
+const defaultGet: HttpGet = (url, headers) => fetch(url, {headers});
+const defaultPause = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
+
+function alpacaTimestamp(value: unknown): string {
+  if (typeof value !== 'string') throw new Error('Alpaca devolvió un timestamp inválido.');
+  // Alpaca can emit RFC3339 nanoseconds. A 5-minute bar has zero fractional seconds.
+  const normalized = value.replace(/\.0+Z$/, 'Z');
+  return new Date(parseBarStart(normalized)).toISOString();
+}
+
+function alpacaCandle(value: unknown): Candle {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new Error('Alpaca devolvió una vela inválida.');
+  }
+  const bar = value as Record<string, unknown>;
+  const candle: Candle = {
+    timestamp: alpacaTimestamp(bar.t), open: bar.o as number, high: bar.h as number,
+    low: bar.l as number, close: bar.c as number, volume: bar.v as number,
+  };
+  const {open, high, low, close, volume} = candle;
+  if ([open, high, low, close, volume].some(n => typeof n !== 'number' || !Number.isFinite(n)) ||
+      open <= 0 || high <= 0 || low <= 0 || close <= 0 ||
+      high < Math.max(open, close, low) || low > Math.min(open, close) ||
+      volume < 0 || !Number.isSafeInteger(volume)) {
+    throw new Error(`Alpaca devolvió OHLCV inválido en ${candle.timestamp}.`);
+  }
+  return candle;
+}
+
+function retryWait(response: Response, attempt: number): number {
+  const raw = response.headers.get('retry-after');
+  if (raw !== null) {
+    const seconds = Number(raw);
+    if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1000;
+    const date = Date.parse(raw);
+    if (Number.isFinite(date)) return Math.max(0, date - Date.now());
+  }
+  return Math.min(1000 * 2 ** attempt, 30_000);
+}
+
+/** Read sequential pages, validate all bars, then hand complete data to the caller. */
+export async function fetchAlpacaBars(options: ImportOptions): Promise<Candle[]> {
+  const {apiKey, secretKey, httpGet = defaultGet, pause = defaultPause} = options;
+  if (!apiKey.trim() || !secretKey.trim()) throw new Error('Faltan APCA_API_KEY_ID o APCA_API_SECRET_KEY.');
+  const start = parseBarStart(options.start);
+  const end = parseBarStart(options.end);
+  const now = options.now ?? Date.now();
+  if (start > end || end + BAR_MS > now - SAFETY_MS) {
+    throw new Error('El rango es inválido o incluye velas demasiado recientes para SIP gratuito.');
+  }
+  const minIntervalMs = options.minIntervalMs ?? 500; // <= 120 requests/min, below Basic's 200/min.
+  if (!Number.isFinite(minIntervalMs) || minIntervalMs < 500) {
+    throw new Error('El intervalo mínimo entre solicitudes debe ser >= 500 ms.');
+  }
+
+  const candles: Candle[] = [];
+  const seenTokens = new Set<string>();
+  let pageToken: string | null = null;
+  let lastRawTime = -Infinity;
+  let lastRequestAt = -Infinity;
+  do {
+    const url = new URL(ENDPOINT);
+    url.searchParams.set('symbols', 'QQQ');
+    url.searchParams.set('timeframe', '5Min');
+    url.searchParams.set('feed', 'sip');
+    url.searchParams.set('adjustment', 'split');
+    url.searchParams.set('start', new Date(start).toISOString());
+    url.searchParams.set('end', new Date(end).toISOString());
+    url.searchParams.set('limit', '10000');
+    url.searchParams.set('sort', 'asc');
+    if (pageToken) url.searchParams.set('page_token', pageToken);
+    let response: Response | undefined;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const delay = lastRequestAt + minIntervalMs - Date.now();
+      if (delay > 0) await pause(delay);
+      lastRequestAt = Date.now();
+      try {
+        response = await httpGet(url, {'APCA-API-KEY-ID': apiKey, 'APCA-API-SECRET-KEY': secretKey});
+      } catch (error) {
+        if (attempt === 3) throw new Error(`Error de red de Alpaca tras 4 intentos: ${String(error)}`);
+        await pause(1000 * 2 ** attempt);
+        continue;
+      }
+      if (response.status === 401 || response.status === 403) {
+        throw new Error(`Alpaca respondió ${response.status}: revise credenciales o permiso para SIP histórico.`);
+      }
+      if (response.status === 429 || response.status >= 500) {
+        if (attempt === 3) throw new Error(`Alpaca respondió ${response.status} tras 4 intentos.`);
+        await pause(retryWait(response, attempt));
+        continue;
+      }
+      if (!response.ok) throw new Error(`Alpaca respondió HTTP ${response.status}.`);
+      break;
+    }
+    if (!response?.ok) throw new Error('No se obtuvo una página válida de Alpaca.');
+    let body: unknown;
+    try { body = await response.json(); }
+    catch { throw new Error('Alpaca devolvió JSON inválido.'); }
+    if (typeof body !== 'object' || body === null || Array.isArray(body)) throw new Error('Formato de página inválido.');
+    const page = body as Record<string, unknown>;
+    const bars = page.bars as Record<string, unknown> | undefined;
+    if (typeof bars !== 'object' || bars === null || Array.isArray(bars) || !Array.isArray(bars.QQQ)) {
+      throw new Error('Alpaca no devolvió bars.QQQ como lista.');
+    }
+    for (const raw of bars.QQQ) {
+      const candle = alpacaCandle(raw);
+      const time = Date.parse(candle.timestamp);
+      if (time < start || time > end || time <= lastRawTime) {
+        throw new Error(`Vela de Alpaca fuera de rango, duplicada o desordenada: ${candle.timestamp}.`);
+      }
+      lastRawTime = time;
+      if (isBarInSession(time, alpacaMetadata)) candles.push(candle);
+    }
+    const next = page.next_page_token;
+    if (next !== null && next !== undefined && (typeof next !== 'string' || !next || seenTokens.has(next))) {
+      throw new Error('Token de paginación inválido o repetido.');
+    }
+    pageToken = typeof next === 'string' ? next : null;
+    if (pageToken) seenTokens.add(pageToken);
+  } while (pageToken);
+  if (!candles.length) throw new Error('Alpaca no devolvió velas QQQ de sesión regular en el rango.');
+  // The existing CSV contract rejects missing intraday bars; no synthetic fill is made.
+  return parseCandlesCsv(serializeCandles(candles), alpacaMetadata);
+}

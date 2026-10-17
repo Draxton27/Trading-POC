@@ -1,10 +1,10 @@
-import {mkdirSync, writeFileSync} from 'node:fs';
-import {basename} from 'node:path';
+import {basename, join} from 'node:path';
 import {loadDataset} from './csv.ts';
 import {calculateBollinger} from './bollinger.ts';
 import {detectSignals} from './signals.ts';
 import {evaluateBaseline, evaluateSignals, wilson95} from './evaluate.ts';
 import type {Direction, Outcome, Signal} from './domain.ts';
+import {saveReportArtifacts} from './report-output.ts';
 
 const file = process.argv[2];
 if (!file) {console.error('Uso: node --experimental-strip-types src/main.ts ruta/al/archivo.csv');process.exit(1);}
@@ -55,10 +55,11 @@ for (const segment of segments) {
   lines.push('');
 }
 lines.push('**Lectura correcta:** las cifras dependen de los datos, del período y de las reglas seleccionadas. El intervalo de confianza supone observaciones independientes, que no siempre ocurre en series financieras. Una tasa histórica alta no demuestra una ventaja real.', '', '**Próximo paso:** analizar velas reales de QQQ y después investigar si las diferencias persisten fuera de muestra y tras costos de ejecución.', '');
-mkdirSync('output',{recursive:true});
 const metadata={input:file,data_type:dataMetadata.data_class === 'synthetic' ? 'synthetic' : 'user_supplied_unverified',data:dataMetadata,bar_size_minutes:5,timestamp_semantics:'bar_start_utc',signal_available_at:'bar_end_utc',model:'bollinger_squeeze_expansion_v0',horizons,indicators:{bollinger_periods:20,sd_multiples:2,bandwidth_lookback:100,lowest_bandwidth_quantile:.2,minimum_bandwidth_expansion:1.05,signal_cooldown_bars:12},split_index:split,split_timestamp:candles[split]?.timestamp,total_signals:signals.length,stats:results};
-writeFileSync('output/report.json',JSON.stringify(metadata,null,2)+'\n');
-writeFileSync('output/report.md',lines.join('\n'));
-writeFileSync('output/signals.csv',['bar_start_utc,bar_end_utc,available_at_utc,direction,close,previous_bandwidth_percent,current_bandwidth_percent,threshold_percent,segment',...signals.map(s=>`${s.timestamp},${s.candleEndTimestamp},${s.availableAt},${s.direction},${s.close.toFixed(4)},${s.previousBandwidthPercent.toFixed(4)},${s.currentBandwidthPercent.toFixed(4)},${s.squeezeThresholdPercent.toFixed(4)},${s.index>=split?'validacion':'exploracion'}`)].join('\n')+'\n');
+const outputDirectory = saveReportArtifacts(dataMetadata, {
+  reportJson: JSON.stringify(metadata,null,2)+'\n',
+  reportMarkdown: lines.join('\n'),
+  signalsCsv: ['bar_start_utc,bar_end_utc,available_at_utc,direction,close,previous_bandwidth_percent,current_bandwidth_percent,threshold_percent,segment',...signals.map(s=>`${s.timestamp},${s.candleEndTimestamp},${s.availableAt},${s.direction},${s.close.toFixed(4)},${s.previousBandwidthPercent.toFixed(4)},${s.currentBandwidthPercent.toFixed(4)},${s.squeezeThresholdPercent.toFixed(4)},${s.index>=split?'validacion':'exploracion'}`)].join('\n')+'\n',
+});
 console.log('\n'+lines.join('\n'));
-console.log('Guardados: output/report.md, output/report.json y output/signals.csv');
+console.log(`Guardados: ${join(outputDirectory,'report.md')}, ${join(outputDirectory,'report.json')} y ${join(outputDirectory,'signals.csv')}`);
