@@ -1,1 +1,5 @@
 node_modules/
+**/.env
+**/.env.*
+data/*_ALPACA_*.csv
+data/*_ALPACA_*.csv.meta.json

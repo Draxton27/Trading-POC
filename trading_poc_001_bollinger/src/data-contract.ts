@@ -7,6 +7,8 @@ export type DataMetadata = {
   data_class: 'synthetic' | 'real';
   session: 'regular' | 'extended';
   exchange_timezone: 'America/New_York';
+  feed?: 'sip';
+  adjustment?: 'split';
 };
 
 const BAR_MS = 300_000;
@@ -51,14 +53,22 @@ export function validateMetadata(value: unknown): DataMetadata {
       typeof data.provider !== 'string' || !data.provider.trim() ||
       data.bar_minutes !== 5 || !['synthetic', 'real'].includes(String(data.data_class)) ||
       !['regular', 'extended'].includes(String(data.session)) ||
-      data.exchange_timezone !== 'America/New_York') {
+      data.exchange_timezone !== 'America/New_York' ||
+      (data.feed !== undefined && data.feed !== 'sip') ||
+      (data.adjustment !== undefined && data.adjustment !== 'split') ||
+      ((data.feed === undefined) !== (data.adjustment === undefined))) {
     throw new Error('Metadatos requieren asset, provider, bar_minutes=5, data_class, session y exchange_timezone=America/New_York.');
   }
-  return {
+  const metadata: DataMetadata = {
     asset: data.asset.trim(), provider: data.provider.trim(), bar_minutes: 5,
     data_class: data.data_class as DataMetadata['data_class'],
     session: data.session as DataMetadata['session'], exchange_timezone: 'America/New_York',
   };
+  if (data.feed === 'sip' && data.adjustment === 'split') {
+    metadata.feed = 'sip';
+    metadata.adjustment = 'split';
+  }
+  return metadata;
 }
 
 export function loadMetadata(csvPath: string): DataMetadata {
@@ -82,13 +92,18 @@ function exchangeParts(instant: number) {
   };
 }
 
-/** Reject gaps inside the declared market session; allow overnight, holidays and partial days. */
-export function validateBarTime(instant: number, previousInstant: number | null, metadata: DataMetadata): void {
+export function isBarInSession(instant: number, metadata: DataMetadata): boolean {
   const current = exchangeParts(instant);
   const open = metadata.session === 'regular' ? 9 * 60 + 30 : 4 * 60;
   const close = metadata.session === 'regular' ? 16 * 60 : 20 * 60;
-  if (current.weekday === 'Sat' || current.weekday === 'Sun' ||
-      current.minuteOfDay < open || current.minuteOfDay >= close) {
+  return current.weekday !== 'Sat' && current.weekday !== 'Sun' &&
+    current.minuteOfDay >= open && current.minuteOfDay < close;
+}
+
+/** Reject gaps inside the declared market session; allow overnight, holidays and partial days. */
+export function validateBarTime(instant: number, previousInstant: number | null, metadata: DataMetadata): void {
+  const current = exchangeParts(instant);
+  if (!isBarInSession(instant, metadata)) {
     throw new Error(`Vela fuera de sesión ${metadata.session} en America/New_York.`);
   }
   if (previousInstant !== null && exchangeParts(previousInstant).day === current.day &&
