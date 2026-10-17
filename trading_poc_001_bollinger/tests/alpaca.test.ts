@@ -1,5 +1,9 @@
 import {test} from 'node:test';
 import {strict as assert} from 'node:assert';
+import {mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {spawnSync} from 'node:child_process';
 import {alpacaMetadata, fetchAlpacaBars, historicalWindow, type HttpGet} from '../src/alpaca.ts';
 import {parseCandlesCsv, serializeCandles} from '../src/csv.ts';
 import {validateMetadata} from '../src/data-contract.ts';
@@ -10,6 +14,26 @@ const bar = (t: string, o = 100.123456) => ({t, o, h: 101.123456, l: 99.123456, 
 const page = (bars: unknown[], next: string | null = null) => new Response(JSON.stringify({bars: {QQQ: bars}, next_page_token: next}), {status: 200});
 const options = (httpGet: HttpGet) => ({...range, apiKey: 'test-key', secretKey: 'test-secret', httpGet,
   pause: async (_ms: number) => {}});
+
+test('el comando de importación carga .env local sin credenciales reales', () => {
+  const packagePath = new URL('../package.json', import.meta.url);
+  const pkg = JSON.parse(readFileSync(packagePath, 'utf8')) as {scripts: Record<string, string>};
+  assert.match(pkg.scripts['import:alpaca'] ?? '', /--env-file-if-exists=\.env/);
+  const dir = mkdtempSync(join(tmpdir(), 'alpaca-env-test-'));
+  try {
+    writeFileSync(join(dir, '.env'), 'APCA_API_KEY_ID=simulated-key\nAPCA_API_SECRET_KEY=simulated-secret\n');
+    const env = {...process.env};
+    delete env.APCA_API_KEY_ID;
+    delete env.APCA_API_SECRET_KEY;
+    const result = spawnSync(process.execPath,
+      ['--env-file-if-exists=.env', '-p', 'process.env.APCA_API_KEY_ID + ":" + process.env.APCA_API_SECRET_KEY'],
+      {cwd: dir, env, encoding: 'utf8'});
+    assert.equal(result.status, 0);
+    assert.equal(result.stdout.trim(), 'simulated-key:simulated-secret');
+  } finally {
+    rmSync(dir, {recursive: true, force: true});
+  }
+});
 
 test('ventana inicial cubre 90 días y excluye velas recientes con margen de 20 minutos tras el cierre', () => {
   const time = Date.parse('2026-06-10T20:03:00Z');

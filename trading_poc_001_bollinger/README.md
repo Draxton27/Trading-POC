@@ -87,7 +87,14 @@ npm test
 
 El importador solicita aproximadamente **90 días** de velas de QQQ a la API de datos de Alpaca. Usa `timeframe=5Min`, `feed=sip`, `adjustment=split` y solo conserva los inicios de vela del horario regular de Nueva York. El extremo final solicitado es el inicio de una vela que **terminó al menos 20 minutos antes** de ejecutar la importación. Ese margen supera los 15 minutos de retraso exigidos para SIP histórico en el plan Basic. Nunca solicita el precio actual ni hace operaciones.
 
-Configure las credenciales como variables de entorno en su terminal, sin guardarlas en el repositorio. En PowerShell:
+Puede guardar las credenciales en un archivo `.env` dentro de `trading_poc_001_bollinger`, junto a `package.json` (está excluido de Git):
+
+```dotenv
+APCA_API_KEY_ID=su-clave
+APCA_API_SECRET_KEY=su-secreto
+```
+
+Desde esa carpeta, ejecute `npm run import:alpaca`. El comando carga `.env` si existe; las variables ya definidas en la terminal tienen prioridad. También puede configurar las credenciales solo en la terminal, sin archivo. En PowerShell:
 
 ```powershell
 $env:APCA_API_KEY_ID = 'su-clave'
