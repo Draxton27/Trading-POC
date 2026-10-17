@@ -74,7 +74,7 @@ Una vela iniciada a las `13:30:00Z` cubre el intervalo **13:30–13:35 UTC**. Su
 - Horario regular: inicio de barras desde **09:30 hasta 15:55**, hora `America/New_York` (la última termina a las 16:00).
 - Horario extendido: inicio de barras desde **04:00 hasta 19:55**, hora `America/New_York` (la última termina a las 20:00). Declarar `extended` permite ese horario, pero no garantiza que el archivo contenga todas sus barras.
 - La conversión de UTC a `America/New_York` tiene en cuenta el horario de verano. No debe suponerse una hora UTC fija para la apertura durante todo el año.
-- Se rechazan timestamps repetidos o desordenados y huecos de más de cinco minutos **entre barras del mismo día local**. Se admiten intervalos entre días, incluidos cierres normales, fines de semana, festivos y días de cierre temprano. El archivo puede cubrir solo parte de una sesión. Esta versión no incorpora un calendario bursátil oficial y no detecta días completos ausentes ni certifica cierres tempranos.
+- Se rechazan timestamps repetidos o desordenados y huecos de más de cinco minutos **entre barras del mismo día local**. Se admiten intervalos entre días, incluidos cierres normales, fines de semana, festivos y días de cierre temprano. El archivo puede cubrir solo parte de una sesión. El lector CSV general no incorpora un calendario bursátil oficial y no detecta días completos ausentes ni certifica cierres tempranos; la importación ampliada de Alpaca sí aplica el calendario del proveedor, como se explica más abajo.
 - Las bandas y el historial de compresión utilizan las últimas barras presentes aunque crucen sesiones; no se reinician cada mañana. La evaluación de movimientos futuros sigue exigiendo barras consecutivas. No se modificaron las reglas de señales ni los cálculos de rendimiento en esta fase.
 
 El CSV se rechaza si faltan campos, hay fechas imposibles o sin zona, precios no positivos, OHLC incoherente, volumen negativo o no entero, o valores no finitos. Se admite volumen cero. Si existe una suspensión o un intervalo intradía sin barras, hay que resolverlo en los datos antes de analizarlos; no se rellenan precios automáticamente.
@@ -125,6 +125,25 @@ Alpaca pagina sus respuestas; el importador recorre todas las páginas, limita l
 Cada `timestamp` del CSV es el **inicio UTC** de la vela. La selección de 09:30 a 15:55 se calcula en `America/New_York`, por lo que cambia automáticamente entre EST y EDT. La API puede no devolver barras en días festivos, cierres anticipados o intervalos sin operaciones. El importador no crea barras para suplirlas; acepta saltos entre fechas locales, pero el contrato actual **rechaza huecos entre barras del mismo día** y deja sin archivo nuevo esa descarga. No hay un calendario bursátil oficial en el POC: no certifica días completos ausentes ni que un cierre temprano sea legítimo. Tampoco verifica revisiones tardías de datos del proveedor. El ajuste por split altera precios y volumen de acuerdo con el proveedor, por lo que no debe mezclarse esta serie con otra sin el mismo ajuste.
 
 Las pruebas de Alpaca usan solo respuestas simuladas y no requieren credenciales. En este repositorio no se publica un conjunto real de QQQ; ejecute la importación con su propia cuenta y respete las condiciones de uso de datos del proveedor. Las reglas de señales, los umbrales de Bollinger y las estadísticas del POC siguen iguales.
+
+## Validación estadística histórica de la estrategia (fase 4)
+
+El importador mantiene **90 días por defecto**. Para pedir 12 meses de calendario y conservar el CSV anterior:
+
+```bash
+npm run import:alpaca -- --months 12
+npm run validate:strategy -- data/QQQ_ALPACA_SIP_5min_12m.csv
+```
+
+También se puede validar el archivo de 90 días con `npm run validate:strategy -- data/QQQ_ALPACA_SIP_5min.csv`. Los resultados se guardan en `output/real/strategy-validation.md` y `.json`, excluidos de Git. El comando exige metadatos de QQQ real, Alpaca, SIP, ajuste por split y sesión regular; no clasifica un CSV ficticio como real por el nombre del archivo.
+
+Para la descarga ampliada, el importador consulta además el [calendario bursátil de Alpaca](https://docs.alpaca.markets/us/reference/legacycalendar) y conserva solo barras dentro de la apertura y el cierre de cada fecha, incluidos cierres anticipados. La descarga de 12 meses encontró barras posteriores al cierre de las 13:00 ET del 24 de diciembre de 2025; el calendario las excluyó, de acuerdo con el [calendario de NYSE](https://www.nyse.com/trade/hours-calendars). No se rellenan intervalos ni se descartan huecos intradía válidos en silencio: la validación de CSV sigue rechazándolos. Este filtro de calendario no cambia la importación predeterminada de 90 días. El plan Basic permite datos históricos desde 2016, con SIP retrasado al menos 15 minutos y 200 solicitudes por minuto según [Alpaca](https://docs.alpaca.markets/us/docs/about-market-data-api); la disponibilidad depende de la cuenta.
+
+El reporte nuevo reutiliza **sin cambios** las reglas de detección Bollinger. Cada señal se conoce al final de su vela y la entrada hipotética usa la **apertura de la siguiente vela contigua**. La salida usa el cierre de las velas 3, 6 y 12 posteriores: 15, 30 y 60 minutos desde que la señal estuvo disponible. No se presume que esa apertura pueda ejecutarse. Se excluyen señales sin siguiente vela válida u horizonte continuo. Para señales bajistas se invierte el signo del movimiento de QQQ; no se calcula rendimiento de contratos PUT.
+
+La referencia son velas **sin señal**, del mismo intervalo local de cinco minutos en Nueva York y del mismo segmento temporal. Se compara cada señal con el promedio de esas observaciones; las referencias pueden reutilizarse. Se informan frecuencia favorable, ganancia media de los movimientos favorables, pérdida media de los desfavorables, magnitud absoluta media y diferencia de movimiento medio frente a la referencia. Los datos se dividen aproximadamente 70/30 en orden cronológico, comenzando la evaluación en una nueva sesión. No se optimizan los parámetros con el período posterior.
+
+Las comparaciones con menos de 30 señales o menos de 10 días distintos se marcan como muestras pequeñas. Para las demás, el intervalo aproximado remuestrea días de señales 2.000 veces y usa 99,17% por comparación para seis combinaciones. El intervalo condiciona la referencia observada y no elimina la dependencia entre sesiones o señales. Tampoco incluye spreads, comisiones, deslizamiento, liquidez ni precios de opciones. Las frecuencias históricas **no son probabilidades garantizadas**.
 
 ## ¿Qué significan los resultados?
 

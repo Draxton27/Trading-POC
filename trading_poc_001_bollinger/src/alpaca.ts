@@ -1,6 +1,7 @@
 import type {Candle} from './domain.ts';
 import {parseCandlesCsv, serializeCandles} from './csv.ts';
 import {isBarInSession, parseBarStart, type DataMetadata} from './data-contract.ts';
+import {isCalendarBar, type MarketCalendar} from './alpaca-calendar.ts';
 
 const BAR_MS = 5 * 60_000;
 const SAFETY_MS = 20 * 60_000;
@@ -22,13 +23,34 @@ export type ImportOptions = {
   httpGet?: HttpGet;
   pause?: (milliseconds: number) => Promise<void>;
   minIntervalMs?: number;
+  calendar?: MarketCalendar;
 };
 
+export function parseHistoryMonths(args: readonly string[]): number {
+  if (args.length === 0) return 3;
+  if (args.length !== 2 || args[0] !== '--months' || !/^(?:[1-9]|1[0-2])$/.test(args[1] ?? '')) {
+    throw new Error('Uso: npm run import:alpaca -- [--months N], con N entre 1 y 12.');
+  }
+  return Number(args[1]);
+}
+
 /** End is the start of the newest permitted bar; that bar closes at least 20 minutes ago. */
-export function historicalWindow(now = Date.now()): {start: string; end: string} {
+export function historicalWindow(now = Date.now(), months = 3): {start: string; end: string} {
+  if (!Number.isInteger(months) || months < 1 || months > 12) throw new Error('Meses históricos deben estar entre 1 y 12.');
   const end = Math.floor((now - SAFETY_MS - BAR_MS) / BAR_MS) * BAR_MS;
+  let start: number;
+  if (months === 3) {
+    start = end - 90 * 24 * 60 * 60_000; // preserves phase-3 default
+  } else {
+    const date = new Date(end);
+    const first = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() - months, 1,
+      date.getUTCHours(), date.getUTCMinutes()));
+    const lastDay = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 0)).getUTCDate();
+    first.setUTCDate(Math.min(date.getUTCDate(), lastDay));
+    start = first.getTime();
+  }
   return {
-    start: new Date(end - 90 * 24 * 60 * 60_000).toISOString(),
+    start: new Date(start).toISOString(),
     end: new Date(end).toISOString(),
   };
 }
@@ -144,7 +166,8 @@ export async function fetchAlpacaBars(options: ImportOptions): Promise<Candle[]>
         throw new Error(`Vela de Alpaca fuera de rango, duplicada o desordenada: ${candle.timestamp}.`);
       }
       lastRawTime = time;
-      if (isBarInSession(time, alpacaMetadata)) candles.push(candle);
+      if (isBarInSession(time, alpacaMetadata) &&
+          (!options.calendar || isCalendarBar(time, options.calendar))) candles.push(candle);
     }
     const next = page.next_page_token;
     if (next !== null && next !== undefined && (typeof next !== 'string' || !next || seenTokens.has(next))) {

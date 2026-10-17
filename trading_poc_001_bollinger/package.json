@@ -8,6 +8,7 @@
     "demo": "node --experimental-strip-types src/demo.ts && node --experimental-strip-types src/main.ts data/QQQ_FICTICIO_5min.csv",
     "analyze": "node --experimental-strip-types src/main.ts",
     "import:alpaca": "node --env-file-if-exists=.env --experimental-strip-types src/import-alpaca.ts",
+    "validate:strategy": "node --experimental-strip-types src/validate-strategy.ts",
     "typecheck": "tsc --noEmit",
     "test": "npm run typecheck && node --experimental-strip-types --test tests/*.test.ts"
   },
