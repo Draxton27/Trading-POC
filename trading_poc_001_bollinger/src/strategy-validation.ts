@@ -45,12 +45,12 @@ const exchangeClock = new Intl.DateTimeFormat('en-US', {
   year: 'numeric', month: '2-digit', day: '2-digit', hourCycle: 'h23',
 });
 
-function localParts(timestamp: string): {slot: string; day: string} {
+export function newYorkBarParts(timestamp: string): {slot: string; day: string} {
   const parts = Object.fromEntries(exchangeClock.formatToParts(new Date(timestamp)).map(p => [p.type, p.value]));
   return {slot: `${parts.hour}:${parts.minute}`, day: `${parts.year}-${parts.month}-${parts.day}`};
 }
 
-function movement(candles: readonly Candle[], index: number, horizon: number, end: number,
+export function hypotheticalMovement(candles: readonly Candle[], index: number, horizon: number, end: number,
   direction: Direction): {value: number; reason: null} | {value: null; reason: 'next' | 'horizon'} {
   if (index + 1 >= end || Date.parse(candles[index + 1]!.timestamp) - Date.parse(candles[index]!.timestamp) !== BAR_MS) {
     return {value: null, reason: 'next'};
@@ -102,9 +102,9 @@ function dayBootstrap(differences: readonly {day: string; value: number}[]): [nu
 }
 
 export function evaluateStrategy(candles: readonly Candle[], signals: readonly Signal[],
-  splitIndex = Math.floor(candles.length * 0.7)): ValidationStudy {
+  splitIndex = Math.floor(candles.length * 0.7), excludedControlIndices?: ReadonlySet<number>): ValidationStudy {
   if (candles.length < 2 || splitIndex < 1 || splitIndex >= candles.length) throw new Error('División cronológica inválida.');
-  const signalIndices = new Set(signals.map(s => s.index));
+  const signalIndices = excludedControlIndices ?? new Set(signals.map(s => s.index));
   const rows: ValidationRow[] = [];
   for (const [segment, from, to] of [
     ['exploracion', 0, splitIndex], ['evaluacion', splitIndex, candles.length],
@@ -114,9 +114,9 @@ export function evaluateStrategy(candles: readonly Candle[], signals: readonly S
         const controls = new Map<string, number[]>();
         for (let i = from; i < to; i++) {
           if (signalIndices.has(i)) continue;
-          const result = movement(candles, i, horizon, to, direction);
+          const result = hypotheticalMovement(candles, i, horizon, to, direction);
           if (result.value === null) continue;
-          const slot = localParts(candles[i]!.timestamp).slot;
+          const slot = newYorkBarParts(candles[i]!.timestamp).slot;
           controls.set(slot, [...(controls.get(slot) ?? []), result.value]);
         }
         const selected = signals.filter(s => s.direction === direction && s.index >= from && s.index < to);
@@ -128,14 +128,14 @@ export function evaluateStrategy(candles: readonly Candle[], signals: readonly S
         const differences: {day: string; value: number}[] = [];
         let excludedNoNextBar = 0, excludedIncompleteHorizon = 0, unmatched = 0, baselineObservations = 0;
         for (const signal of selected) {
-          const result = movement(candles, signal.index, horizon, to, direction);
+          const result = hypotheticalMovement(candles, signal.index, horizon, to, direction);
           if (result.value === null) {
             if (result.reason === 'next') excludedNoNextBar++;
             else excludedIncompleteHorizon++;
             continue;
           }
           eligible.push(result.value);
-          const {slot, day} = localParts(candles[signal.index]!.timestamp);
+          const {slot, day} = newYorkBarParts(candles[signal.index]!.timestamp);
           const pool = controls.get(slot) ?? [];
           if (!pool.length) {unmatched++; continue;}
           const base = summary(pool);
@@ -165,12 +165,16 @@ export function evaluateStrategy(candles: readonly Candle[], signals: readonly S
     splitTimestamp: candles[splitIndex]!.timestamp, totalSignals: signals.length, rows};
 }
 
-export function validateBollingerStrategy(candles: readonly Candle[]): ValidationStudy {
+export function chronologicalSplitIndex(candles: readonly Candle[]): number {
   const tentative = Math.floor(candles.length * 0.7);
   let split = tentative;
-  while (split < candles.length && localParts(candles[split - 1]!.timestamp).day === localParts(candles[split]!.timestamp).day) {
+  while (split < candles.length && newYorkBarParts(candles[split - 1]!.timestamp).day === newYorkBarParts(candles[split]!.timestamp).day) {
     split++;
   }
   if (split >= candles.length) split = tentative;
-  return evaluateStrategy(candles, detectSignals(calculateBollinger(candles)), split);
+  return split;
+}
+
+export function validateBollingerStrategy(candles: readonly Candle[]): ValidationStudy {
+  return evaluateStrategy(candles, detectSignals(calculateBollinger(candles)), chronologicalSplitIndex(candles));
 }
