@@ -194,6 +194,22 @@ El subgrupo fijo de **volatilidad elevada** exige que el ancho de las bandas ya 
 
 En la ejecución local con **6.497 velas** hubo **251 sesiones de calendario**, **250 días evaluados** y **139 aperturas fuera de banda** (81 encima, 58 debajo). La primera fecha de la ventana se solicitó después de las 09:30 y no se evaluó como apertura; no es una sesión perdida del proveedor. En sesiones completas, el regreso por rango ocurrió en **52/81 (64,2%)** aperturas encima y **35/58 (60,3%)** debajo; por cierre se confirmó en **39/81 (48,1%)** y **29/58 (50,0%)**, respectivamente. Frente al criterio anterior de cierre por una sola banda, hubo **una confirmación menos por encima y una menos por debajo**; las tasas por rango no cambiaron. **29** aperturas encima y **23** debajo nunca regresaron durante su sesión. El tiempo medio hasta la primera vela que mostró regreso fue de **61,7** y **57,9 minutos**; la distancia inicial media a la banda fue **0,86%** y **0,96%**. Solo **2 aperturas** cumplieron el criterio de volatilidad elevada, por lo que ese subgrupo no permite concluir nada. Las tasas describen este historial, no probabilidades garantizadas, operaciones ejecutables ni ganancias de opciones.
 
+## NVDA: volumen de 09:30–09:45 y regreso en la primera vela (fase 8)
+
+Esta investigación conserva el importador, los cálculos de Bollinger y los resultados de Fase 7. Utiliza el **mismo CSV real NVDA de 15 minutos** y su calendario local. No requiere otra consulta a Alpaca:
+
+```bash
+npm run validate:nvda-volume
+```
+
+El comando genera localmente `output/real/nvda-opening-volume.md` y `output/real/nvda-opening-volume.json`, ambos ignorados por Git. El JSON incluye por día el volumen absoluto de la vela 09:30–09:45, el promedio de referencia, RVOL, el grupo descriptivo y los resultados de regreso por rango y por cierre. El Markdown muestra esos datos para las aperturas fuera de banda, además de tablas de frecuencia y tamaños de muestra.
+
+La referencia usa la vela de **09:30–09:45 de las 20 sesiones observadas inmediatamente anteriores**, en horario `America/New_York`. No incluye la sesión actual; si alguna de las 20 carece de apertura, el RVOL queda sin dato y no se busca una sesión más antigua. RVOL es el volumen absoluto dividido entre ese promedio. Un promedio cero también deja RVOL sin dato. La clasificación de apertura fuera de las bandas congeladas es conocida a las **09:30**; el volumen final de la primera vela y su regreso por rango o cierre se conocen como máximo a las **09:45**. Por ello, el estudio de volumen es **retrospectivo** y no presenta RVOL como condición para actuar a las 09:30.
+
+Para describir diferencias sin escoger un volumen mínimo, el reporte divide el RVOL en tres grupos según terciles calculados con su distribución en el primer 70% de sesiones con referencia; aplica las mismas fronteras al último 30%. Los terciles **no son filtros ni umbrales de entrada**. Se informan aperturas fuera de banda entre todos los días de cada grupo y, por separado, regreso durante los primeros 15 minutos para aperturas encima y debajo. Se mantienen los casos sin RVOL en el total, con sus causas de falta de referencia.
+
+En la ejecución local con **6.497 velas**, hubo **250 aperturas evaluadas** y **230 con RVOL**. Las fronteras retrospectivas, calculadas con **154 días** del primer 70%, fueron **0,811** y **0,990**. En el historial completo, el tercil bajo tuvo **38/85 (44,7%)** aperturas fuera y el alto **51/79 (64,6%)**. Entre aperturas por encima, el regreso por rango en la primera vela ocurrió en **15/20** casos del tercil bajo y **12/33** del alto; entre aperturas por debajo, **9/18** y **4/18**. El último 30% tiene subgrupos de regreso pequeños; además, el resultado ocurre durante la misma vela cuyo volumen se mide. **Estas asociaciones no prueban causalidad, una ventaja estadística ni una oportunidad operable a las 09:30.** Los datos reales, credenciales y reportes permanecen fuera de Git.
+
 ## ¿Qué significan los resultados?
 
 - **Señales válidas:** cuántas veces ocurrió la condición definida.
