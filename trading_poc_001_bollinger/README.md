@@ -145,6 +145,22 @@ La referencia son velas **sin señal**, del mismo intervalo local de cinco minut
 
 Las comparaciones con menos de 30 señales o menos de 10 días distintos se marcan como muestras pequeñas. Para las demás, el intervalo aproximado remuestrea días de señales 2.000 veces y usa 99,17% por comparación para seis combinaciones. El intervalo condiciona la referencia observada y no elimina la dependencia entre sesiones o señales. Tampoco incluye spreads, comisiones, deslizamiento, liquidez ni precios de opciones. Las frecuencias históricas **no son probabilidades garantizadas**.
 
+## Investigación del filtro EMA 9 (fase 5)
+
+Con el CSV real de 12 meses ya importado:
+
+```bash
+npm run validate:ema9 -- data/QQQ_ALPACA_SIP_5min_12m.csv
+```
+
+El informe en español se crea en `output/real/ema9-filter-validation.md` y `.json`, ambos excluidos de Git. El comando solo acepta metadatos de QQQ real de Alpaca SIP, con ajuste por split y sesión regular; no ejecuta operaciones.
+
+La EMA 9 usa los cierres de velas de cinco minutos. Los primeros ocho valores no están disponibles; el noveno es la media simple de los primeros nueve cierres. Después se calcula `EMA_actual = EMA_anterior + 0,2 × (cierre_actual − EMA_anterior)`. Continúa entre sesiones, como las bandas de Bollinger de este POC. El único filtro estudiado conserva una señal Bollinger alcista si `EMA_actual > EMA_anterior` y una bajista si `EMA_actual < EMA_anterior`. Una igualdad descarta la señal. Ambas EMA se conocen al cierre de la vela que genera la señal; no se consulta una vela futura para decidir.
+
+Se muestran **Bollinger original**, **Bollinger con EMA 9** y las **señales descartadas**. Todos conservan la regla original y el descanso de 12 velas entre señales; el filtro se aplica después de detectarlas. La comparación usa la misma división cronológica, apertura de la siguiente vela como entrada hipotética, horizontes de 15/30/60 minutos y referencias de velas sin señal Bollinger en el mismo horario local de Nueva York. También se informa el cambio del grupo filtrado frente al original con intervalos aproximados por remuestreo de días cuando hay al menos 30 señales retenidas y 10 días distintos.
+
+En la ejecución local con las 19.506 velas QQQ de octubre de 2025 a octubre de 2026, el filtro conservó **293 de 293 señales**. Por tanto, los grupos original y filtrado tuvieron idénticos resultados: **EMA 9 no mejoró este historial**. El grupo descartado quedó vacío. No debe interpretarse un intervalo de diferencia 0 a 0 como prueba estadística; es una identidad entre muestras. La investigación de EMA se realizó después de examinar la Fase 4 sobre los mismos datos, de modo que los intervalos ajustados para seis direcciones y horizontes no corrigen por completo la selección secuencial de hipótesis. Se necesitan datos posteriores nuevos. Los movimientos de QQQ no son ganancias de opciones ni precios de ejecución garantizados.
+
 ## ¿Qué significan los resultados?
 
 - **Señales válidas:** cuántas veces ocurrió la condición definida.
