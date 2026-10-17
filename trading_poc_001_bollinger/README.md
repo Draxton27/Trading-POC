@@ -14,7 +14,7 @@ Este es **el primer experimento técnico** de nuestro proyecto. No es un robot d
 
 ## Cómo ejecutarlo
 
-Requisito: **Node.js 22.16+**. No necesita instalar paquetes de terceros ni claves de API para esta prueba.
+Requisito: **Node.js 22.16+**. La demostración no necesita paquetes de terceros ni claves de API; las pruebas de comparación sí requieren `npm ci`.
 
 En una terminal, dentro de la carpeta del proyecto:
 
@@ -77,7 +77,7 @@ Una vela iniciada a las `13:30:00Z` cubre el intervalo **13:30–13:35 UTC**. Su
 
 El CSV se rechaza si faltan campos, hay fechas imposibles o sin zona, precios no positivos, OHLC incoherente, volumen negativo o no entero, o valores no finitos. Se admite volumen cero. Si existe una suspensión o un intervalo intradía sin barras, hay que resolverlo en los datos antes de analizarlos; no se rellenan precios automáticamente.
 
-Pruebas automáticas:
+Pruebas automáticas (tras `npm ci`, comprueban tipos y comparan con `trading-signals@8.3.0`):
 
 ```bash
 npm test
@@ -97,12 +97,12 @@ El generador de prueba omite fines de semana, pero no festivos bursátiles. Sus 
 
 ## Relación con la investigación de GitHub
 
-Verificamos en el código de [`trading-signals`](https://github.com/bennycode/trading-signals/tree/main/packages/trading-signals/src/volatility) que proporciona `BollingerBands` y `BollingerBandsWidth`, con pruebas. Este prototipo incluye un cálculo **independiente** para que la primera ejecución funcione sin Internet ni instalaciones. **El siguiente paso es comparar sus valores uno por uno con `trading-signals` y, si coinciden, sustituirlo por esa dependencia.**
+La [validación documentada en RESEARCH.md](RESEARCH.md) compara nuestro cálculo con `trading-signals@8.3.0` vela por vela. En las 7.800 velas ficticias hubo igualdad numérica exacta de bandas y ancho donde ambos producen resultados. `trading-signals` está fijada como dependencia de **pruebas**; el análisis sigue usando el cálculo local. La biblioteca tiene un método propio de señales con otra regla, que no se utiliza aquí.
 
 ## Próximos pasos
 
 1. Incorporar datos históricos auténticos de QQQ y compararlos con los gráficos de TC2000.
-2. Instalar `trading-signals`, ejecutar sus pruebas y comparar sus fórmulas.
+2. Evaluar una eventual sustitución del cálculo local solo si aparece una necesidad concreta; la paridad de indicadores no valida por sí misma la estrategia.
 3. Estudiar si la señal supera una referencia razonable en datos nuevos, con costos, falsos positivos y otras condiciones del mercado.
 4. Solo más adelante estudiar el precio real de contratos CALL y PUT.
 
