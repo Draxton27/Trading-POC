@@ -10,6 +10,7 @@
     "import:alpaca": "node --env-file-if-exists=.env --experimental-strip-types src/import-alpaca.ts",
     "validate:strategy": "node --experimental-strip-types src/validate-strategy.ts",
     "validate:ema9": "node --experimental-strip-types src/validate-ema9.ts",
+    "validate:volume": "node --experimental-strip-types src/validate-volume.ts",
     "typecheck": "tsc --noEmit",
     "test": "npm run typecheck && node --experimental-strip-types --test tests/*.test.ts"
   },

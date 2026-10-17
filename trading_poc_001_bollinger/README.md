@@ -161,6 +161,22 @@ Se muestran **Bollinger original**, **Bollinger con EMA 9** y las **señales des
 
 En la ejecución local con las 19.506 velas QQQ de octubre de 2025 a octubre de 2026, el filtro conservó **293 de 293 señales**. Por tanto, los grupos original y filtrado tuvieron idénticos resultados: **EMA 9 no mejoró este historial**. El grupo descartado quedó vacío. No debe interpretarse un intervalo de diferencia 0 a 0 como prueba estadística; es una identidad entre muestras. La investigación de EMA se realizó después de examinar la Fase 4 sobre los mismos datos, de modo que los intervalos ajustados para seis direcciones y horizontes no corrigen por completo la selección secuencial de hipótesis. Se necesitan datos posteriores nuevos. Los movimientos de QQQ no son ganancias de opciones ni precios de ejecución garantizados.
 
+## Investigación del filtro de volumen (fase 6)
+
+Con el CSV real local de 12 meses:
+
+```bash
+npm run validate:volume -- data/QQQ_ALPACA_SIP_5min_12m.csv
+```
+
+El comando exige metadatos de QQQ real, Alpaca SIP, ajuste por split y sesión regular. Escribe `output/real/volume-filter-validation.md` y `.json`, excluidos de Git junto al CSV y las credenciales. No modifica el análisis EMA 9 ni las reglas de Bollinger.
+
+Se prueba **una sola regla**, sin ajustar su umbral: el volumen de la vela que genera la señal debe ser **al menos 1,5 veces** el promedio del volumen de las velas del **mismo horario local de Nueva York** en las **20 sesiones observadas inmediatamente anteriores**. Todas esas sesiones deben tener una vela en ese horario. Si falta una, la señal se clasifica por separado como **sin historial suficiente**; no se busca una sesión más antigua ni se crea una vela. La sesión actual no entra en el promedio. La decisión solo queda disponible al cierre de la vela de señal, cuando se conoce su volumen. Los horarios se agrupan en `America/New_York`, incluidos los cambios de horario de verano. El POC no puede detectar una sesión completa ausente en el CSV.
+
+El estudio muestra Bollinger original, señales conservadas por volumen, señales descartadas por quedar por debajo del umbral y, para transparencia, señales sin historial suficiente. Reutiliza el corte cronológico 70/30, controles sin señal Bollinger del mismo horario, apertura hipotética de la siguiente vela contigua y horizontes de 15, 30 y 60 minutos. Informa conteos, frecuencia favorable, movimientos medios, ganancias y pérdidas medias de QQQ, magnitudes y los intervalos exploratorios de Fase 4. Para el cambio del grupo filtrado frente al original se remuestrean días completos; con menos de 30 señales retenidas o 10 días distintos no se calcula intervalo. Los casos sin siguiente vela u horizonte continuo se excluyen de las métricas, pero siguen en el conteo de señales.
+
+En la ejecución local con **19.506 velas** de octubre de 2025 a octubre de 2026, Bollinger generó **293 señales**: el filtro conservó **56 (19,1%)**, descartó **185 (63,1%)** y dejó **52 (17,7%)** sin historial suficiente. Las 52 señales sin historial están en el primer 70%; comparar allí el grupo filtrado con todas las señales originales mezcla el efecto del filtro con la disponibilidad de datos. El resultado del grupo Bollinger original coincide exactamente con el de Fase 4. En el último 30% hubo solo **8 señales alcistas y 9 bajistas conservadas**; todas las comparaciones de 15, 30 y 60 minutos de ese tramo se marcan como muestras pequeñas. El movimiento medio del grupo filtrado superó al original en tres de las seis combinaciones de dirección y horizonte, y fue menor en las otras tres. **No hay base para afirmar una mejora estadística.** Ese último tramo ya se examinó en fases anteriores, así que esta fase completa es exploratoria y requeriría datos posteriores nuevos para evaluar la hipótesis independientemente. Los movimientos de QQQ no equivalen a rentabilidad de contratos CALL o PUT ni garantizan precios de ejecución.
+
 ## ¿Qué significan los resultados?
 
 - **Señales válidas:** cuántas veces ocurrió la condición definida.
