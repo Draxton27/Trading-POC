@@ -285,6 +285,19 @@ El comando no consulta Alpaca. Genera `output/real/nvda-pullback-breakout-study.
 
 Todos los resultados hasta octubre de 2026 son exploratorios. Una división 70/30 dentro de este archivo no constituye una validación prospectiva ni permite estimar rentabilidad de opciones.
 
+## Fase 12: rupturas fallidas del rango del día anterior
+
+El [protocolo](../docs/phase12-research-protocol.md) se registró antes de examinar estos resultados. El estudio usa el máximo y mínimo de la sesión bursátil programada inmediatamente anterior, siempre que esté completa. Una ruptura inicial solo se convierte en señal de reversión si la primera o segunda vela siguiente regresa estrictamente al otro lado del nivel. Las SMA se registran como contexto descriptivo y no filtran señales.
+
+Con el CSV SIP local de cinco años y sus archivos de metadatos, calendario y procedencia:
+
+```bash
+npm ci
+npm run validate:nvda-failed-breakouts -- data/NVDA_ALPACA_SIP_15min_20211017_20261017.csv
+```
+
+El comando comprueba los SHA-256 de las cuatro entradas, no llama a Alpaca y genera el informe, JSON, CSV de señales y episodios, auditoría y manifiesto de hashes en [`shared-artifacts/phase12-nvda-failed-breakouts/`](../shared-artifacts/phase12-nvda-failed-breakouts/README.md). Los resultados completos se versionan para revisión. El análisis de los cinco años es exploratorio; no estima operaciones de opciones.
+
 ## ¿Qué significan los resultados?
 
 - **Señales válidas:** cuántas veces ocurrió la condición definida.
