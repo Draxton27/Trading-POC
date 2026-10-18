@@ -1,12 +1,12 @@
 # Preguntas abiertas y auditoría de conocimiento
 
-No se dispone en esta rama de audios publicables, transcripción integral certificada, ejemplo operativo original ni operaciones reales. El usuario aportó un resumen y anexo de ocho respuestas; el [registro de evidencia](phase17-operator-evidence-register.csv) marca cada afirmación como `resumen_conversacional_de_audio_pendiente_de_cotejo`. Su revisión textual no sustituye cotejar los archivos originales autorizados ni prueba que el operador use un criterio en todas sus operaciones.
+No se dispone en esta rama de audios publicables, transcripción integral certificada, ejemplo operativo original ni operaciones reales. El usuario aportó un resumen y anexo de ocho respuestas; las 35 filas originales del [registro de evidencia](phase17-operator-evidence-register.csv) conservan `resumen_conversacional_de_audio_pendiente_de_cotejo`; `PRE07_V2` registra una aclaración posterior y una captura de esta conversación. Su revisión textual no sustituye cotejar los archivos originales autorizados ni prueba que el operador use un criterio en todas sus operaciones.
 
 ## Preguntas vigentes tras el resumen del operador
 
 | Afirmaciones | Conocido por el resumen | Falta confirmar antes de formalizar una regla |
 | --- | --- | --- |
-| `PRE01`–`PRE08` | Consulta empresa, sector, macro, bonos, resultados y Finviz. | Secuencia y horas reales; nombre, unidad y significado de la medida menor que 2,5. El precio objetivo de analistas no es un objetivo intradía. |
+| `PRE01`–`PRE08`, `PRE07_V2` | Consulta empresa, sector, macro, bonos, resultados y Finviz. `PRE07_V2` identifica Recom, escala 1–5, valor visible 1,21 y criterio declarado `Recom < 2,5`. | Secuencia y horas reales; fecha de mercado de la captura; si aplica a acciones, selección de opciones, CALL, PUT o exclusión de activos. El precio objetivo de analistas y Recom no son señales intradía. |
 | `TRE01`–`TRE06` | Examina SMA 20/40/100/200, orden, separación, precio y cierres en diario y horario. | Parámetros de gráfico, qué separación/pendiente considera suficiente, cómo distingue retroceso de cambio de tendencia. Los 80/90/95% son estimaciones personales no validadas. |
 | `LEV01`–`LEV04` | Dibuja techos, pisos y zonas; observa cierres y rupturas/rechazos. | Nivel original, hora de trazado, vigencia, invalidación y confirmación de entrada. |
 | `BOL01`–`BOL03` | Consulta Bollinger aproximadamente en 15 minutos junto al contexto mayor. | Parámetros exactos, combinación que observó y si una expansión fue continuación o regreso en cada caso. |

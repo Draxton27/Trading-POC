@@ -1,5 +1,7 @@
 # Fase 17 — informe de validación
 
+**Aclaración posterior (2026-10-18):** el indicador de `PRE07` fue identificado como Finviz Recom por el usuario y una captura, documentado en [`PRE07_V2`](phase17-operator-evidence-register.csv) y en el [anexo](phase17-recom-evidence-addendum.md). El estado anterior se conserva como historial. La captura muestra 1,21 y no permite fijar fecha de mercado; el umbral discrecional declarado es estrictamente menor que 2,5. No se modificó código de detección ni resultados históricos.
+
 **Actualización:** el corte inicial de 147 pruebas y commit `a0c7ff5` se conserva abajo como historial del PR. La ampliación solicitada después se probó sobre `54c6107af9065b904dd748ad51828fd6e184e760` con **159 pruebas**; véase la sección final y [resultados estructurados](phase17-import-test-results.json).
 
 **Base:** `main` en `3916adfc7c1924a89d577bbdcb4bf67788a694f4`. Antes de crear la rama se comprobó que los PR #21 y #22 estaban fusionados. **Versión exacta del código F17 probado:** `a0c7ff5afb69bbb280ab92c9138fd5ffe0668cf4`. La rama de entrega es `codex/phase17-human-strategy-specification`; no se fusionó ningún PR.
@@ -37,7 +39,7 @@ La prueba manual con datos **sintéticos** ejecutó dos veces `journal:phase17` 
 
 ## Ampliación de Fase 17 sobre `54c6107`
 
-Se incorporaron 35 afirmaciones de ocho respuestas resumidas por el usuario. Cada fila del [registro](phase17-operator-evidence-register.csv) conserva el marcador `resumen_conversacional_de_audio_pendiente_de_cotejo`, temporalidad, ambigüedad y prueba futura. Ninguna se presenta como transcripción literal verificada; el indicador Finviz menor que 2,5 sigue sin nombre y los 80/90/95% personales no son probabilidades calculadas.
+Se incorporaron 35 afirmaciones de ocho respuestas resumidas por el usuario. Cada una de esas 35 filas originales del [registro](phase17-operator-evidence-register.csv) conserva el marcador `resumen_conversacional_de_audio_pendiente_de_cotejo`, temporalidad, ambigüedad y prueba futura. Ninguna se presenta como transcripción literal verificada; en aquel corte el indicador Finviz menor que 2,5 seguía sin nombre y los 80/90/95% personales no son probabilidades calculadas.
 
 El importador reconstruye posiciones desde todos los sobres originales privados, identifica solapamientos sin doble conteo y permite compras/ventas parciales entre archivos. El diario agrega notas posteriores vinculadas a una decisión y a fills disponibles; la revisión privada separa contexto previo y resultado. Los campos antiguos F16/F17 se siguen aceptando. No se cambiaron detectores, protocolos ni resultados históricos F9–F16.
 
