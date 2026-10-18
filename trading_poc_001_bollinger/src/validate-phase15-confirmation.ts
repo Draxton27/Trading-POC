@@ -35,7 +35,7 @@ assert.deepEqual(phase14Audit.originalArtifactHashes, {phase11: hashes.phase11, 
 assert.equal(phase14Audit.sourceHashes.NVDA.csv, hashes.source);
 const sourceMap = new Map<string, any>();
 for (const event of f11) sourceMap.set(`phase11:${event.strategy}_${event.direction}:${event.index}`, event);
-for (const signal of f12) sourceMap.set(signal.episodeId, signal);
+for (const signal of f12) sourceMap.set(`phase12:${signal.episodeId}`, signal);
 assert.equal(sourceMap.size, f11.length + f12.length);
 
 export function parseTable(csv: string): Record<string, string>[] {
