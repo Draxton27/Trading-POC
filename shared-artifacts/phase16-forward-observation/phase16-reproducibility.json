@@ -1,10 +1,10 @@
 {
   "protocolCommit": "3afe2424e9f452faf6c79d9cca073f6366538221",
-  "codeVersion": "5c054dcd2c66b85fe2da10f56b48555aa545c0ef",
+  "codeVersion": "3c86e6603e145d87c8e3b71f4f4c64d21510526b",
   "detectorHash": "de1bb818aad18fc5d5680d36a708835b40c8b3cfd2a232fc16f29ea96ccc9205",
   "prospectStartUtc": "2026-10-19T13:30:00.000Z",
   "dryRunType": "historical_reconstruction_not_prospective",
-  "dryRunAtUtc": "2026-10-18T15:27:35.991Z",
+  "dryRunAtUtc": "2026-10-18T15:29:10.110Z",
   "sixFamilies": [
     "breakout_bullish",
     "pullback_bullish",
@@ -16,7 +16,7 @@
   "dryRunSignalCount": 6,
   "dryRunSettlementCount": 18,
   "dryRunLedgerRecords": 24,
-  "dryRunLedgerLastHash": "62f31c334195868957390b8e7dda793334678baeb4efb264a5bcc82fe0f32712",
+  "dryRunLedgerLastHash": "8b48dd1d7422570bcb0394ded65a95fa0b34c6d222f2af6ca5b34b429408aaef",
   "sourceHashes": {
     "NVDA": "7b06d0a493515b18a581963d2d2d488e73a7cd0dc2c961b60a99315e7a9b0ecc",
     "QQQ": "962696cb57499ecf0991b1915975f5fe5725e7df7185654bfa4a2f71775eb2fb",

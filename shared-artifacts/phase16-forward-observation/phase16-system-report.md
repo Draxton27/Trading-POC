@@ -14,4 +14,4 @@ El snapshot SIP dio HTTP 403, el snapshot IEX HTTP 200 y la consulta SIP histór
 
 ## Prueba manual
 
-La ejecución seca confirmó un ejemplo histórico de cada una de las seis familias y reprodujo sus resultados originales a 30 minutos, fijando primero señales y luego evaluaciones en un diario temporal con 24 registros y último hash `62f31c334195868957390b8e7dda793334678baeb4efb264a5bcc82fe0f32712`. Para la prueba real se necesitan credenciales Alpaca vigentes, reloj UTC correcto, red y persistencia GitHub tras la ejecución. Las primeras 60 sesiones registradas serán auditoría operativa; no se evaluó rentabilidad.
+La ejecución seca confirmó un ejemplo histórico de cada una de las seis familias y reprodujo sus resultados originales a 30 minutos, fijando primero señales y luego evaluaciones en un diario temporal con 24 registros y último hash `8b48dd1d7422570bcb0394ded65a95fa0b34c6d222f2af6ca5b34b429408aaef`. Para la prueba real se necesitan credenciales Alpaca vigentes, reloj UTC correcto, red y persistencia GitHub tras la ejecución. Las primeras 60 sesiones registradas serán auditoría operativa; no se evaluó rentabilidad.
