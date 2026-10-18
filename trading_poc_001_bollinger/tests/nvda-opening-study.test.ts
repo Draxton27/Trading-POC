@@ -145,7 +145,10 @@ test('tocar la banda no es regreso ni apertura fuera; sesión completa puede no 
   assert.equal(event.outcomes.sesion.closeConfirmed, false);
   assert.equal(study.rows.find(row => row.segment === 'total' && row.group === 'encima' &&
     row.horizon === 'sesion')!.neverReturned, 1);
-  assert.match(renderNvdaOpeningReport(study, 'ficticio.csv'), /no regresaron/);
+  const report = renderNvdaOpeningReport(study, 'ficticio.csv');
+  assert.match(report, /no regresaron/);
+  assert.match(report, /calendario local adjunto/);
+  assert.doesNotMatch(report, /calendario Alpaca/);
 });
 
 test('volatilidad elevada se decide con ancho anterior a la apertura y reconoce cierre temprano', () => {
