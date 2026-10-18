@@ -93,15 +93,17 @@ assert.equal(ledger.length, observed.length + settled.length);
 const csv = (values: unknown[]) => values.map(v => v === null || v === undefined ? '' :
   String(v).includes(',') ? `"${String(v).replaceAll('"','""')}"` : String(v)).join(',');
 writeFileSync(join(output, 'phase16-dry-run-signals.csv'),
-  'run_type,signal_id,family,direction,bar_start_utc,confirmation_utc,test_generated_at_utc,observability,market_group,regime,qqq_four_pct,smh_four_pct,prediction_state,record_hash\n' +
+  'run_type,signal_id,family,direction,bar_start_utc,confirmation_utc,test_generated_at_utc,primary_outcome_end_utc,first_detected_before_outcome,prospective_before_outcome,theoretical_entry_utc,execution_at_theoretical_open,observability,market_group,regime,qqq_four_pct,smh_four_pct,prediction_state,record_hash\n' +
   observed.map(s => csv(['dry_run',s.id,s.family,s.direction,s.barStartUtc,s.availableAtUtc,
-    dryAt,s.observability,s.marketGroup,s.regime,s.qqqFourReturnPercent,s.smhFourReturnPercent,
+    dryAt,s.primaryOutcomeEndUtc,s.firstDetectedBeforePrimaryOutcome,
+    s.prospectiveBeforePrimaryOutcome,s.nextEntryOpenUtc,s.executionAtTheoreticalOpen,
+    s.observability,s.marketGroup,s.regime,s.qqqFourReturnPercent,s.smhFourReturnPercent,
     s.result,ledger.find(r => r.id === `signal:${s.id}`)!.hash])).join('\n') + '\n');
 writeFileSync(join(output, 'phase16-dry-run-settlements.csv'),
-  'run_type,signal_id,horizon_minutes,state,reason,signed_return_pct,mfe_pct,mae_pct,operationally_available,record_hash\n' +
+  'run_type,signal_id,horizon_minutes,state,reason,signed_return_pct,mfe_pct,mae_pct,operationally_available,execution_at_theoretical_open,record_hash\n' +
   settled.map(item => csv(['dry_run',item.signal.id,item.horizon,item.result.state,
     item.result.reason ?? null,item.result.value ?? null,item.result.mfePercent ?? null,
-    item.result.maePercent ?? null,false,
+    item.result.maePercent ?? null,false,item.signal.executionAtTheoreticalOpen,
     ledger.find(r => r.id === `settlement:${item.signal.id}:${item.horizon}`)!.hash])).join('\n') + '\n');
 cpSync(join(repo, 'docs/phase16-forward-protocol.md'), join(output, 'phase16-protocol.md'));
 writeFileSync(join(output, 'phase16-operator-journal-template.csv'),
@@ -143,9 +145,9 @@ const reproducibility = {protocolCommit: '3afe2424e9f452faf6c79d9cca073f63665382
 writeFileSync(join(output, 'phase16-reproducibility.json'), JSON.stringify(reproducibility, null, 2) + '\n');
 writeFileSync(join(output, 'phase16-system-report.md'), `# Fase 16 — infraestructura de observación prospectiva\n\n`+
 `El protocolo se congeló en el commit \`3afe2424e9f452faf6c79d9cca073f6366538221\`, con inicio \`${FORWARD_START}\`. A la fecha de la prueba seca no existe ninguna observación prospectiva. Las ${observed.length} señales y ${settled.length} evaluaciones de estos CSV se reconstruyeron con datos históricos exclusivamente para comprobar código e integridad; **no son evidencia prospectiva ni disponibilidad operativa**.\n\n`+
-`## Funcionamiento\n\n\`observe:phase16\` solicita calendario real Alpaca y barras SIP split de NVDA, QQQ y SMH, registra recepción e integridad por barra, y ejecuta las reglas originales F11/F12 sobre prefijos causales. Cada señal se fija como \`pending\` antes de agregar desenlaces. \`settle:phase16\` agrega evaluaciones separadas de 15, 30 y 60 minutos; el resultado teórico y la disponibilidad operativa son campos distintos. Se conservan MFE, MAE y exclusiones. No existe código de órdenes.\n\n`+
+`## Funcionamiento\n\n\`observe:phase16\` solicita calendario real Alpaca y barras SIP split de NVDA, QQQ y SMH, registra recepción e integridad por barra, y ejecuta las reglas originales F11/F12 sobre prefijos causales. Cada señal se fija como \`pending\` antes de agregar desenlaces. La primera detección y su posición respecto al fin del horizonte principal se registran por separado. La apertura de la vela siguiente es una entrada teórica sin latencia, no un precio ejecutable demostrado. Los ETF tardíos producen entradas nuevas de contexto, sin editar la señal original. \`settle:phase16\` agrega evaluaciones separadas de 15, 30 y 60 minutos. Se conservan MFE, MAE y exclusiones. No existe código de órdenes.\n\n`+
 `El diario derivado está en \`shared-artifacts/phase16-forward-observation/live/ledger/\` y es de solo adición, con hash encadenado, IDs estables, reintentos idempotentes y correcciones por entrada adicional. Las barras completas SIP se guardan en \`trading_poc_001_bollinger/output/phase16-private/\`, excluido de Git. **Tras cada ejecución real, el operador debe auditar y hacer commit/push del nuevo lote derivado a GitHub**; hasta entonces el archivo local no garantiza persistencia entre entornos. No hay programación automática.\n\n`+
-`## Acceso y límites\n\nEl snapshot SIP dio HTTP 403, el snapshot IEX HTTP 200 y la consulta SIP histórica posterior al cierre HTTP 200 el domingo 2026-10-18. La latencia de un mercado abierto sigue sin medirse. El sistema solo solicita SIP; una recepción posterior a la apertura siguiente se marca no ejecutable. IEX no sustituye SIP. El calendario futuro de eventos económicos requiere un archivo verificado adicional; sin él se informa \`unavailable\`, nunca «sin noticias». La cuenta no se usó para órdenes.\n\n`+
+`## Acceso y límites\n\nEl snapshot SIP dio HTTP 403, el snapshot IEX HTTP 200 y la consulta SIP histórica posterior al cierre HTTP 200 el domingo 2026-10-18. La latencia de un mercado abierto sigue sin medirse. El sistema solo solicita SIP; toda entrada en la apertura teórica se marca no demostrada como ejecutable, incluso si una señal se registra antes del desenlace. IEX no sustituye SIP. El calendario futuro de eventos económicos requiere un archivo verificado adicional; sin él se informa \`unavailable\`, nunca «sin noticias». La cuenta no se usó para órdenes.\n\n`+
 `## Prueba manual\n\nLa ejecución seca confirmó un ejemplo histórico de cada una de las seis familias y reprodujo sus resultados originales a 30 minutos, fijando primero señales y luego evaluaciones en un diario temporal con ${ledger.length} registros y último hash \`${ledger.at(-1)!.hash}\`. Para la prueba real se necesitan credenciales Alpaca vigentes, reloj UTC correcto, red y persistencia GitHub tras la ejecución. Las primeras 60 sesiones registradas serán auditoría operativa; no se evaluó rentabilidad.\n`);
 writeFileSync(join(output, 'README.md'), `# Fase 16: observación prospectiva\n\n`+
 `Protocolo congelado: [phase16-protocol.md](phase16-protocol.md). Inicio: \`${FORWARD_START}\`. Los CSV dry-run son pruebas históricas, no observaciones nuevas.\n\n`+
