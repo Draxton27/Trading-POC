@@ -10,6 +10,10 @@ function table(rows: readonly StudyRow[]): string {
 }
 export function renderNvdaIndicatorsReport(study: NvdaIndicatorsStudy, source: string, provenance: string): string {
   const {calendarAudit: audit} = study;
+  const emaRetained = study.signals.filter(r => r.emaPass).length;
+  const volumeRetained = study.signals.filter(r => r.volumePass === true).length;
+  const combinedRetained = study.signals.filter(r => r.volumePass === true && r.emaPass).length;
+  const volumeInsufficient = study.signals.filter(r => r.volumePass === null).length;
   const sections = [
     '# Fase 9 — NVDA 15m: Bollinger, EMA 9 y RVOL',
     '',
@@ -27,6 +31,13 @@ export function renderNvdaIndicatorsReport(study: NvdaIndicatorsStudy, source: s
     '- A: todas las señales Bollinger. B: pendiente EMA. C: RVOL. D: ambos filtros. Para C y D, el referente A comparable usa únicamente señales con RVOL calculable del mismo tramo, dirección y horizonte; B usa el conjunto completo. La diferencia se calcula entre medias de grupos sobre esa cobertura, no es un efecto causal.',
     '- Control descriptivo: velas sin ninguna señal Bollinger del mismo intervalo local, dirección y tramo cronológico, con horizonte completo. Se promedia la media de control del intervalo para cada señal emparejada; los controles pueden repetirse.',
     '- IC descriptivos del 95% para diferencias de movimiento medio frente a A comparable y frente al control horario: 2.000 remuestreos deterministas de sesiones completas. Se omiten si hay menos de 30 señales evaluables o 10 sesiones. Un intervalo [0, 0] cuando el filtro conserva exactamente todo A refleja identidad de las muestras, no precisión predictiva. No se corrigen comparaciones múltiples.',
+    '',
+    '## Lectura de los filtros',
+    '',
+    `EMA 9 conserva ${emaRetained}/${study.signalCount}; RVOL conserva ${volumeRetained}/${study.signalCount} y deja ${volumeInsufficient} sin historial; ambos filtros conservan ${combinedRetained}/${study.signalCount}.`,
+    combinedRetained < 30 ? 'La combinación deja menos de 30 señales en todo el historial; cualquier diferencia de movimiento tiene muestra insuficiente.' :
+      'Las diferencias deben examinarse por dirección y horizonte, sin escoger retrospectivamente la combinación más favorable.',
+    'Estos recuentos y diferencias descriptivas no demuestran una mejora estadística ni una ventaja operativa.',
     '',
   ];
   for (const [segment, title] of [['total', 'Historial completo'], ['exploracion', 'Primer 70% de sesiones'], ['evaluacion', 'Último 30% de sesiones']] as const) {
