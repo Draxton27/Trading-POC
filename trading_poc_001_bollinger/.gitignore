@@ -8,3 +8,4 @@ data/*_ALPACA_*.csv.provenance.json
 data/*_ALPACA_*.csv.parts/
 data/phase14-source-cache/
 /output/real/
+/output/phase16-private/
