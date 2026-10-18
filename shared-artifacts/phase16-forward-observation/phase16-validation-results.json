@@ -1,10 +1,16 @@
 {
-  "reviewedAtUtc": "2026-10-18T16:27:04.000Z",
-  "implementationCommit": "1a55d95",
+  "reviewedAtUtc": "2026-10-18T16:33:38.000Z",
+  "implementationCommit": "d1bb784440bc02839900479eea4220d6a84c80b8",
   "prospectiveStartUtc": "2026-10-19T13:30:00.000Z",
   "installation": "npm ci passed",
   "typecheck": "npm run typecheck passed",
-  "unitTests": {"command": "npm test", "passed": 136, "failed": 0, "originalSuiteCount": 131, "newSpecificTests": 5},
+  "unitTests": {
+    "command": "npm test",
+    "passed": 136,
+    "failed": 0,
+    "originalSuiteCount": 131,
+    "newSpecificTests": 5
+  },
   "nvdaRegressionValidators": {
     "validate:nvda": "passed",
     "validate:nvda-volume": "passed",
@@ -17,7 +23,11 @@
     "validate:phase15-confirmation": "passed; 1242 classified signals"
   },
   "earlyQqqValidators": {
-    "commands": ["validate:strategy", "validate:ema9", "validate:volume"],
+    "commands": [
+      "validate:strategy",
+      "validate:ema9",
+      "validate:volume"
+    ],
     "status": "not_runnable_missing_local_input",
     "missingFile": "trading_poc_001_bollinger/data/QQQ_ALPACA_SIP_5min.csv.meta.json",
     "note": "No se descargaron ni fabricaron datos; sus pruebas unitarias correspondientes pasaron."
@@ -30,12 +40,12 @@
     "phase15ResultJson": "050ced91b77e95236a230be491bb1dfdd925633e5025e0db7ab2b802c0d16b98"
   },
   "phase16CodeSha256": {
-    "engine": "3db89699d535af90a89c4b04bd215b114fe0a29a3e4ec61b205a2a8b7bd169db",
+    "engine": "94a6304eeb683091a0d3ade02508bb439633d0a3ba2de0d2fee3332655301ba1",
     "cli": "6216f5cd2b1825105fd9a7433150906f2640784d4a2501e61b2383889f0b91d3",
     "ledger": "c0eccf6e567ab1eb3e1ea1350073d69114b7889b09585b61664f2fd0dc3bbc1a",
     "sessionSimulation": "ab11f5f99efb2de8157d81e8f4cee9fb57636248f95516044096cd5bc0d8b604"
   },
   "originalProtocolSha256": "9b86a5637999cd7bc5a69e3f91b5c80cdc9160f0e2e1e21291f92e2673190d59",
-  "reviewAddendumSha256": "0075017ba39dca0c183793dc5ee09f0e342426dc318c45ef659daf422e4347dc",
+  "reviewAddendumSha256": "99b848b544851c97f7640b64790eb6f24ce857823bd64366ac6f14013f4b5d5e",
   "simulation": "phase16-session-simulation.json"
 }
