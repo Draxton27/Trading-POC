@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Fase 17: futura observación histórica de un contrato de opciones",
+  "description": "Contrato de datos para investigación futura. No implica adquisición, ejecución ni permiso de redistribución. Una prima de fill del bróker no sustituye una cotización bid/ask histórica.",
+  "type": "object",
+  "required": ["occSymbol", "underlyingSymbol", "optionType", "strike", "expiration", "multiplier", "quoteTimestampUtc", "receivedAtUtc", "bid", "ask", "bidSize", "askSize", "lastTrade", "delta", "impliedVolatility", "feed", "provider", "provenanceUrl", "availabilityStatus", "licenseStatus"],
+  "properties": {
+    "occSymbol": {"type": "string", "minLength": 21, "maxLength": 21},
+    "underlyingSymbol": {"type": "string", "minLength": 1},
+    "optionType": {"enum": ["CALL", "PUT"]},
+    "strike": {"type": "number", "exclusiveMinimum": 0},
+    "expiration": {"type": "string", "format": "date"},
+    "multiplier": {"type": "integer", "minimum": 1},
+    "quoteTimestampUtc": {"type": "string", "format": "date-time"},
+    "receivedAtUtc": {"type": "string", "format": "date-time"},
+    "bid": {"type": ["number", "null"], "minimum": 0},
+    "ask": {"type": ["number", "null"], "minimum": 0},
+    "bidSize": {"type": ["integer", "null"], "minimum": 0},
+    "askSize": {"type": ["integer", "null"], "minimum": 0},
+    "lastTrade": {
+      "type": ["object", "null"],
+      "properties": {"price": {"type": "number", "minimum": 0}, "size": {"type": "integer", "minimum": 1}, "timestampUtc": {"type": "string", "format": "date-time"}},
+      "required": ["price", "size", "timestampUtc"],
+      "additionalProperties": false
+    },
+    "delta": {"type": ["number", "null"], "minimum": -1, "maximum": 1},
+    "deltaSourceOrMethod": {"type": ["string", "null"]},
+    "impliedVolatility": {"type": ["number", "null"], "minimum": 0},
+    "ivSourceOrMethod": {"type": ["string", "null"]},
+    "feed": {"type": "string", "minLength": 1},
+    "provider": {"type": "string", "minLength": 1},
+    "provenanceUrl": {"type": ["string", "null"], "format": "uri"},
+    "availabilityStatus": {"enum": ["verified_at_time", "delayed", "historical_only", "unknown"]},
+    "licenseStatus": {"enum": ["private_only", "derived_publication_allowed", "redistribution_allowed", "unknown"]},
+    "licenseReference": {"type": ["string", "null"]}
+  },
+  "additionalProperties": false,
+  "temporalRules": [
+    "Quote and derived metrics may be used at a decision only if receivedAtUtc is no later than documentedAtUtc.",
+    "Unknown bid/ask, sizes, delta or IV remain null; never fill from later trade profit.",
+    "If bid and ask are known, ask must be greater than or equal to bid; crossing or stale quotes require audit.",
+    "Delta and IV require their own source or estimation method; no unlabelled model values.",
+    "License status must be checked before any publication."
+  ]
+}
