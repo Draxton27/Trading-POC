@@ -233,6 +233,22 @@ La ejecución local con los archivos recibidos de octubre de 2025 a octubre de 2
 
 El calendario adjunto declara una **reconstrucción XNYS**, verificada frente al CSV observado, y no un calendario original certificado por Alpaca. El estudio informa sesiones enteras faltantes o parciales y rechaza velas fuera del horario programado. Las 251 sesiones del intervalo están presentes; la primera es parcial (21 de 26 velas). El volumen final y la señal no pueden utilizarse antes de terminar la vela.
 
+## NVDA: contexto SMA de una hora y un día (fase 10)
+
+Este estudio conserva exactamente las señales Bollinger de Fase 9 y añade contexto descriptivo de SMA 20, 40, 100 y 200 en una hora y un día:
+
+```bash
+npm run validate:nvda-sma-context
+```
+
+Genera `output/real/nvda-sma-context.md`, `.json` y `nvda-sma-context-signals.csv`, excluidos de Git. El CSV conserva Bollinger, EMA 9 y RVOL de 15 minutos, además de los valores, valores anteriores, pendientes y posiciones de las ocho SMA, las marcas de disponibilidad y los resultados posteriores de 15, 30 y 60 minutos.
+
+Las velas de una hora se anclan a las 09:30 de Nueva York. En una sesión normal se forman seis velas de 60 minutos y una vela final de 30 minutos, 15:30–16:00. La vela abreviada entra en las SMA si contiene sus dos velas de 15 minutos; los cierres anticipados siguen el mismo criterio según el calendario. Una vela abreviada programada se distingue de un intervalo incompleto por datos ausentes. Las velas diarias solo entran en las SMA cuando la sesión contiene todos sus intervalos esperados. No se presupone que esta agregación coincida con TC2000 sin contrastar la configuración de sus gráficos.
+
+Para evitar información futura, una señal usa la última vela superior que terminó antes o exactamente al comenzar su vela de 15 minutos. Por ello, no usa la hora parcial ni el cierre diario de su propia sesión. Cada SMA es simple y requiere 20, 40, 100 o 200 cierres superiores completos; no se rellenan valores faltantes.
+
+Con el archivo local actual se reconstruyeron **1.751 intervalos horarios**, 1.749 completos, y **251 sesiones diarias**, 250 completas. Se preservaron las **161 señales** de Fase 9 (78 alcistas y 83 bajistas). La SMA 200 diaria aparece por primera vez el 6 de agosto de 2026: solo 35 señales tienen disponibles las ocho SMA, todas en el último 30%. Por tanto, este archivo no permite una evaluación independiente de las condiciones que requieren SMA 200 diaria. El informe compara posición, pendiente, orden de medias y concordancia entre temporalidades con Bollinger sobre la misma cobertura. Son asociaciones exploratorias del precio de NVDA, no reglas de entrada ni rendimientos de opciones.
+
 ## ¿Qué significan los resultados?
 
 - **Señales válidas:** cuántas veces ocurrió la condición definida.
