@@ -1,0 +1,2875 @@
+{
+  "protocol": "docs/phase14-data-protocol.md",
+  "protocolCommit": "e10d01c4ba6011dd7ea6e183be83a283a469dc47",
+  "codeVersion": "01f3aaf1fa665ac41685a9a131e6315f0ae70156",
+  "sourceHashes": {
+    "NVDA": {
+      "csv": "7b06d0a493515b18a581963d2d2d488e73a7cd0dc2c961b60a99315e7a9b0ecc",
+      "meta.json": "123ff39326b3aa2eb16a0455a0b9652a77ea009363758353880761d524a014e2",
+      "calendar.json": "75c3228c9addae74242763927a18d6e206fc623f2204381894f2d162befbe37a",
+      "provenance.json": "90e3381b68308f8e3188ff2651f7c3432ecccc4872ee8d32181b3ac10b66ea94"
+    },
+    "QQQ": {
+      "csv": "962696cb57499ecf0991b1915975f5fe5725e7df7185654bfa4a2f71775eb2fb",
+      "meta.json": "9d5b16972f931f499b06f350cf5848168fab92f6f41c0425e30d964854aacbc3",
+      "calendar.json": "75c3228c9addae74242763927a18d6e206fc623f2204381894f2d162befbe37a",
+      "provenance.json": "2cf47ad1119da963b3ab5b3234ea2a5bf7167845d8a549d9154cebdfe660c508"
+    },
+    "SMH": {
+      "csv": "d517e4652e9f4e44c715b5580dd4fa6d303b0a9f3246169027d142b2aac0cb55",
+      "meta.json": "7b01f0e36071abbe9d52250606bb8b5d4169ed00aea87163dd6c83d328b2ff08",
+      "calendar.json": "75c3228c9addae74242763927a18d6e206fc623f2204381894f2d162befbe37a",
+      "provenance.json": "d960fe36c5759d326229f01ce246d6947067f3760b114f661e2ca1d8bd14dda5"
+    }
+  },
+  "originalArtifactHashes": {
+    "phase11": "05031c1371b2596efa7653e326cdad1325855454479a1e1f25c3aeff66f6ba1f",
+    "phase12": "3e1f2ddab92bee95c270a9f1f170574a4089c1d9bd3696287a343a30fc030f56",
+    "phase13": "45f15df045e7210651745919bbd7f22a9eb88cc199638a1a9c606a7ade40c0e7"
+  },
+  "corporateActionAudit": {
+    "requestedAdjustment": "split",
+    "metadataConfirmedForAllSymbols": true,
+    "largestAdjacentSessionGap": {
+      "NVDA": {
+        "fromDate": "2023-05-24",
+        "toDate": "2023-05-25",
+        "percent": 26.195153896529135
+      },
+      "QQQ": {
+        "fromDate": "2024-08-02",
+        "toDate": "2024-08-05",
+        "percent": -5.348666176372263
+      },
+      "SMH": {
+        "fromDate": "2024-08-02",
+        "toDate": "2024-08-05",
+        "percent": -8.018306636155614
+      }
+    },
+    "note": "Control de discontinuidad de apertura entre sesiones; no certifica cada acción corporativa del proveedor."
+  },
+  "calendarSessions": 1255,
+  "market": {
+    "scheduled": 32510,
+    "completeThree": 32510,
+    "present": {
+      "NVDA": 32510,
+      "QQQ": 32510,
+      "SMH": 32510
+    },
+    "missing": {
+      "NVDA": 0,
+      "QQQ": 0,
+      "SMH": 0
+    },
+    "completeSessions": {
+      "NVDA": 1255,
+      "QQQ": 1255,
+      "SMH": 1255
+    },
+    "partialSessions": {
+      "NVDA": 0,
+      "QQQ": 0,
+      "SMH": 0
+    },
+    "absentSessions": {
+      "NVDA": 0,
+      "QQQ": 0,
+      "SMH": 0
+    },
+    "missingByYear": {
+      "2021": {
+        "NVDA": 0,
+        "QQQ": 0,
+        "SMH": 0
+      },
+      "2022": {
+        "NVDA": 0,
+        "QQQ": 0,
+        "SMH": 0
+      },
+      "2023": {
+        "NVDA": 0,
+        "QQQ": 0,
+        "SMH": 0
+      },
+      "2024": {
+        "NVDA": 0,
+        "QQQ": 0,
+        "SMH": 0
+      },
+      "2025": {
+        "NVDA": 0,
+        "QQQ": 0,
+        "SMH": 0
+      },
+      "2026": {
+        "NVDA": 0,
+        "QQQ": 0,
+        "SMH": 0
+      }
+    },
+    "eventDays": 177,
+    "dateOnlyEventDays": 75,
+    "simultaneousEventDays": 50
+  },
+  "featureAvailability": {
+    "NVDA": {
+      "candleReturn": 32510,
+      "fourReturn": 28745,
+      "sessionReturn": 32510,
+      "relativeVolume": 29674,
+      "previousCloseDistance": 32484
+    },
+    "QQQ": {
+      "candleReturn": 32510,
+      "fourReturn": 28745,
+      "sessionReturn": 32510,
+      "relativeVolume": 29674,
+      "previousCloseDistance": 32484
+    },
+    "SMH": {
+      "candleReturn": 32510,
+      "fourReturn": 28745,
+      "sessionReturn": 32510,
+      "relativeVolume": 29674,
+      "previousCloseDistance": 32484
+    }
+  },
+  "economicEvents": 237,
+  "corporateEvents": 20,
+  "eventsWithVerifiedTime": 182,
+  "eventsWithoutVerifiedTime": 75,
+  "historicalConsensusCount": 0,
+  "historicalSurpriseCount": 0,
+  "eventCountsByCategoryYear": {
+    "FOMC": {
+      "2021": 5,
+      "2022": 23,
+      "2023": 24,
+      "2024": 24,
+      "2025": 26,
+      "2026": 17
+    },
+    "EMPLOYMENT_SITUATION": {
+      "2021": 2,
+      "2022": 12,
+      "2023": 12,
+      "2024": 12,
+      "2025": 11,
+      "2026": 10
+    },
+    "CPI": {
+      "2021": 2,
+      "2022": 12,
+      "2023": 12,
+      "2024": 12,
+      "2025": 11,
+      "2026": 10
+    },
+    "NVIDIA_EARNINGS": {
+      "2021": 1,
+      "2022": 4,
+      "2023": 4,
+      "2024": 4,
+      "2025": 4,
+      "2026": 3
+    }
+  },
+  "missingCorporatePages": [],
+  "signalCount": 1242,
+  "signalContextCompleteThree": 1242,
+  "distributions": [
+    {
+      "year": "all",
+      "hourBlock": "all",
+      "eventSession": false,
+      "intervals": 27920,
+      "sessions": 1078,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 27920,
+        "mean": 0.0011986232437064784,
+        "sd": 0.4825585348935716,
+        "p10": -0.49283154121863015,
+        "p50": 0,
+        "p90": 0.4871259568545616
+      },
+      "intrabarRangePercent": {
+        "count": 27920,
+        "mean": 0.6630358616063874,
+        "sd": 0.48194188497752594,
+        "p10": 0.25508344872822264,
+        "p50": 0.5312084993359898,
+        "p90": 1.221458250890386
+      }
+    },
+    {
+      "year": "all",
+      "hourBlock": "all",
+      "eventSession": true,
+      "intervals": 4590,
+      "sessions": 177,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 4590,
+        "mean": 0.007243261186824967,
+        "sd": 0.5305136671577507,
+        "p10": -0.5399151561897408,
+        "p50": 0.01064452605248345,
+        "p90": 0.5381332343662892
+      },
+      "intrabarRangePercent": {
+        "count": 4590,
+        "mean": 0.7282495983767846,
+        "sd": 0.5456533799116746,
+        "p10": 0.2658959537572136,
+        "p50": 0.5749668288368092,
+        "p90": 1.349920030422
+      }
+    },
+    {
+      "year": "all",
+      "hourBlock": 0,
+      "eventSession": false,
+      "intervals": 4312,
+      "sessions": 1078,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 4312,
+        "mean": -0.01017411129827479,
+        "sd": 0.828423050526346,
+        "p10": -0.9502090459901136,
+        "p50": 0,
+        "p90": 0.9105180533752089
+      },
+      "intrabarRangePercent": {
+        "count": 4312,
+        "mean": 1.2138526832391658,
+        "sd": 0.7061886447049862,
+        "p10": 0.5497603608683402,
+        "p50": 1.057579318448882,
+        "p90": 2.051860202931221
+      }
+    },
+    {
+      "year": "all",
+      "hourBlock": 0,
+      "eventSession": true,
+      "intervals": 708,
+      "sessions": 177,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 708,
+        "mean": 0.026887746725290436,
+        "sd": 0.8262918854696989,
+        "p10": -0.969618710674669,
+        "p50": 0.058706117177398376,
+        "p90": 0.9960695633446592
+      },
+      "intrabarRangePercent": {
+        "count": 708,
+        "mean": 1.2258254992507305,
+        "sd": 0.6829077861525684,
+        "p10": 0.5471124620060782,
+        "p50": 1.0585135135135095,
+        "p90": 2.11477786305107
+      }
+    },
+    {
+      "year": "all",
+      "hourBlock": 1,
+      "eventSession": false,
+      "intervals": 4312,
+      "sessions": 1078,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 4312,
+        "mean": 0.006343669067091229,
+        "sd": 0.4962946008355948,
+        "p10": -0.5581794761700287,
+        "p50": 0.0026638962145941747,
+        "p90": 0.5647438483259437
+      },
+      "intrabarRangePercent": {
+        "count": 4312,
+        "mean": 0.7349265582695617,
+        "sd": 0.3972687726593788,
+        "p10": 0.34738903876713767,
+        "p50": 0.6451612903225787,
+        "p90": 1.228978007761963
+      }
+    },
+    {
+      "year": "all",
+      "hourBlock": 1,
+      "eventSession": true,
+      "intervals": 708,
+      "sessions": 177,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 708,
+        "mean": -0.006876285754091574,
+        "sd": 0.5028171335916071,
+        "p10": -0.6090597639893391,
+        "p50": 0,
+        "p90": 0.5882897906244189
+      },
+      "intrabarRangePercent": {
+        "count": 708,
+        "mean": 0.7666426026122268,
+        "sd": 0.4557363047373496,
+        "p10": 0.35243138496583404,
+        "p50": 0.6469002695417844,
+        "p90": 1.2836970474967937
+      }
+    },
+    {
+      "year": "all",
+      "hourBlock": 2,
+      "eventSession": false,
+      "intervals": 4312,
+      "sessions": 1078,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 4312,
+        "mean": 0.0029991515086799266,
+        "sd": 0.3885521281290639,
+        "p10": -0.4431728935263002,
+        "p50": 0,
+        "p90": 0.44705110327289965
+      },
+      "intrabarRangePercent": {
+        "count": 4312,
+        "mean": 0.5753466176222825,
+        "sd": 0.31773238302602663,
+        "p10": 0.2689376961003977,
+        "p50": 0.5030743432084955,
+        "p90": 0.9735320961362954
+      }
+    },
+    {
+      "year": "all",
+      "hourBlock": 2,
+      "eventSession": true,
+      "intervals": 708,
+      "sessions": 177,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 708,
+        "mean": -0.006390742742853581,
+        "sd": 0.42703930374096744,
+        "p10": -0.4878048780487809,
+        "p50": 0,
+        "p90": 0.4663557628247883
+      },
+      "intrabarRangePercent": {
+        "count": 708,
+        "mean": 0.6063194226617089,
+        "sd": 0.4146871245468055,
+        "p10": 0.25668475101724364,
+        "p50": 0.49681429681429284,
+        "p90": 1.0025062656641612
+      }
+    },
+    {
+      "year": "all",
+      "hourBlock": 3,
+      "eventSession": false,
+      "intervals": 4294,
+      "sessions": 1078,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 4294,
+        "mean": 0.0026009668808566954,
+        "sd": 0.3554483581272924,
+        "p10": -0.39638846069147693,
+        "p50": 0.002794466955435837,
+        "p90": 0.3957783641161061
+      },
+      "intrabarRangePercent": {
+        "count": 4294,
+        "mean": 0.5093111892897724,
+        "sd": 0.3208788179269637,
+        "p10": 0.23162771109707186,
+        "p50": 0.4385899704137639,
+        "p90": 0.8554705087798347
+      }
+    },
+    {
+      "year": "all",
+      "hourBlock": 3,
+      "eventSession": true,
+      "intervals": 706,
+      "sessions": 177,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 706,
+        "mean": -0.007355035757518657,
+        "sd": 0.36820641950091126,
+        "p10": -0.4115048081088202,
+        "p50": 0.006669482670451643,
+        "p90": 0.3616636528028794
+      },
+      "intrabarRangePercent": {
+        "count": 706,
+        "mean": 0.5213271080846967,
+        "sd": 0.34001410808790283,
+        "p10": 0.2314033649905943,
+        "p50": 0.4346831388698349,
+        "p90": 0.8961158164441613
+      }
+    },
+    {
+      "year": "all",
+      "hourBlock": 4,
+      "eventSession": false,
+      "intervals": 4276,
+      "sessions": 1069,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 4276,
+        "mean": 0.006964536561891069,
+        "sd": 0.3240733655799212,
+        "p10": -0.34940600978337066,
+        "p50": 0,
+        "p90": 0.3653507807345413
+      },
+      "intrabarRangePercent": {
+        "count": 4276,
+        "mean": 0.47952221869072686,
+        "sd": 0.2972658928142858,
+        "p10": 0.2125342047235606,
+        "p50": 0.4063538973032857,
+        "p90": 0.8130081300812946
+      }
+    },
+    {
+      "year": "all",
+      "hourBlock": 4,
+      "eventSession": true,
+      "intervals": 704,
+      "sessions": 176,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 704,
+        "mean": 0.019008485240812802,
+        "sd": 0.41663126690097335,
+        "p10": -0.41200706297820355,
+        "p50": 0.013424620754465266,
+        "p90": 0.44464206313918897
+      },
+      "intrabarRangePercent": {
+        "count": 704,
+        "mean": 0.5968469208494214,
+        "sd": 0.4689530866673119,
+        "p10": 0.22160231509242714,
+        "p50": 0.4637887977167412,
+        "p90": 1.104166666666669
+      }
+    },
+    {
+      "year": "all",
+      "hourBlock": 5,
+      "eventSession": false,
+      "intervals": 4276,
+      "sessions": 1069,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 4276,
+        "mean": -0.0039037105826448377,
+        "sd": 0.33070241132267286,
+        "p10": -0.3799071338117299,
+        "p50": 0,
+        "p90": 0.3609293931874591
+      },
+      "intrabarRangePercent": {
+        "count": 4276,
+        "mean": 0.4893351562221009,
+        "sd": 0.30425519241711185,
+        "p10": 0.20931063221812576,
+        "p50": 0.41138985238363385,
+        "p90": 0.8492204756492419
+      }
+    },
+    {
+      "year": "all",
+      "hourBlock": 5,
+      "eventSession": true,
+      "intervals": 704,
+      "sessions": 176,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 704,
+        "mean": 0.018836044643863917,
+        "sd": 0.5277542074628107,
+        "p10": -0.4896505675495155,
+        "p50": 0,
+        "p90": 0.475493782004377
+      },
+      "intrabarRangePercent": {
+        "count": 704,
+        "mean": 0.6665607715788764,
+        "sd": 0.5638460854776554,
+        "p10": 0.2369298062903627,
+        "p50": 0.5184554669968178,
+        "p90": 1.2341669373173192
+      }
+    },
+    {
+      "year": "all",
+      "hourBlock": 6,
+      "eventSession": false,
+      "intervals": 2138,
+      "sessions": 1069,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 2138,
+        "mean": 0.005983836710039854,
+        "sd": 0.41618285997066407,
+        "p10": -0.4630820684332404,
+        "p50": 0,
+        "p90": 0.45062850818247124
+      },
+      "intrabarRangePercent": {
+        "count": 2138,
+        "mean": 0.6071628482414037,
+        "sd": 0.34800123136269223,
+        "p10": 0.2596559558584935,
+        "p50": 0.522144522144511,
+        "p90": 1.0271158586688578
+      }
+    },
+    {
+      "year": "all",
+      "hourBlock": 6,
+      "eventSession": true,
+      "intervals": 352,
+      "sessions": 176,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 352,
+        "mean": 0.006117064056403001,
+        "sd": 0.497462516710329,
+        "p10": -0.5341246290801127,
+        "p50": 0.02079866888520243,
+        "p90": 0.46109345018183756
+      },
+      "intrabarRangePercent": {
+        "count": 352,
+        "mean": 0.6966708392291326,
+        "sd": 0.4662426142738239,
+        "p10": 0.28414545175287376,
+        "p50": 0.5668882052852332,
+        "p90": 1.254675810473804
+      }
+    },
+    {
+      "year": "2021",
+      "hourBlock": "all",
+      "eventSession": false,
+      "intervals": 1184,
+      "sessions": 46,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 1184,
+        "mean": -0.0022767372765724663,
+        "sd": 0.5659287529681714,
+        "p10": -0.587507730364889,
+        "p50": 0,
+        "p90": 0.6094906399651823
+      },
+      "intrabarRangePercent": {
+        "count": 1184,
+        "mean": 0.7725527194638239,
+        "sd": 0.5668101244894069,
+        "p10": 0.27333073018352316,
+        "p50": 0.6311992786293984,
+        "p90": 1.4612452350698883
+      }
+    },
+    {
+      "year": "2021",
+      "hourBlock": "all",
+      "eventSession": true,
+      "intervals": 182,
+      "sessions": 7,
+      "smallSample": true,
+      "candleReturnPercent": {
+        "count": 182,
+        "mean": 0.013885729931427131,
+        "sd": 0.6475969862127537,
+        "p10": -0.8623922009748819,
+        "p50": 0.030618493570133687,
+        "p90": 0.6341789052069391
+      },
+      "intrabarRangePercent": {
+        "count": 182,
+        "mean": 1.0186997403346554,
+        "sd": 0.7095995538601467,
+        "p10": 0.38882997525627233,
+        "p50": 0.8308408109006314,
+        "p90": 1.8428372739916465
+      }
+    },
+    {
+      "year": "2021",
+      "hourBlock": 0,
+      "eventSession": false,
+      "intervals": 184,
+      "sessions": 46,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 184,
+        "mean": 0.013886305591287229,
+        "sd": 0.986350721787077,
+        "p10": -1.0305343511450404,
+        "p50": 0.033795201081443516,
+        "p90": 1.149897330595473
+      },
+      "intrabarRangePercent": {
+        "count": 184,
+        "mean": 1.4243070955930066,
+        "sd": 0.8497141791124108,
+        "p10": 0.6314390162844842,
+        "p50": 1.2284196547144788,
+        "p90": 2.446300715990454
+      }
+    },
+    {
+      "year": "2021",
+      "hourBlock": 0,
+      "eventSession": true,
+      "intervals": 28,
+      "sessions": 7,
+      "smallSample": true,
+      "candleReturnPercent": {
+        "count": 28,
+        "mean": 0.03684859286319031,
+        "sd": 0.9592947843101186,
+        "p10": -1.1760966306420872,
+        "p50": 0.29431000654023265,
+        "p90": 1.1904761904761862
+      },
+      "intrabarRangePercent": {
+        "count": 28,
+        "mean": 1.7838612515394867,
+        "sd": 0.9471685671672616,
+        "p10": 0.7595898214964028,
+        "p50": 1.4998125234345785,
+        "p90": 3.380281690140848
+      }
+    },
+    {
+      "year": "2021",
+      "hourBlock": 1,
+      "eventSession": false,
+      "intervals": 184,
+      "sessions": 46,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 184,
+        "mean": 0.0058232186781139944,
+        "sd": 0.5705413172131906,
+        "p10": -0.7237256135934511,
+        "p50": 0.06695681285571187,
+        "p90": 0.6745904272406067
+      },
+      "intrabarRangePercent": {
+        "count": 184,
+        "mean": 0.8367192315408616,
+        "sd": 0.42751245557982936,
+        "p10": 0.39164490861618734,
+        "p50": 0.7593457943925175,
+        "p90": 1.4363230130864963
+      }
+    },
+    {
+      "year": "2021",
+      "hourBlock": 1,
+      "eventSession": true,
+      "intervals": 28,
+      "sessions": 7,
+      "smallSample": true,
+      "candleReturnPercent": {
+        "count": 28,
+        "mean": -0.05463943069603992,
+        "sd": 0.5638805761534446,
+        "p10": -1.0278514588859422,
+        "p50": -0.03323363243602495,
+        "p90": 0.6241787122207576
+      },
+      "intrabarRangePercent": {
+        "count": 28,
+        "mean": 1.0353559749798447,
+        "sd": 0.3906662825759289,
+        "p10": 0.4176157934700189,
+        "p50": 0.9746588693957138,
+        "p90": 1.6628627323117102
+      }
+    },
+    {
+      "year": "2021",
+      "hourBlock": 2,
+      "eventSession": false,
+      "intervals": 184,
+      "sessions": 46,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 184,
+        "mean": -0.03520120982889429,
+        "sd": 0.48612070289793397,
+        "p10": -0.5743243243243268,
+        "p50": -0.03303600925007588,
+        "p90": 0.512070226773953
+      },
+      "intrabarRangePercent": {
+        "count": 184,
+        "mean": 0.7024306436509066,
+        "sd": 0.4179753796948868,
+        "p10": 0.2839756592292101,
+        "p50": 0.5797985962770758,
+        "p90": 1.2403100775193754
+      }
+    },
+    {
+      "year": "2021",
+      "hourBlock": 2,
+      "eventSession": true,
+      "intervals": 28,
+      "sessions": 7,
+      "smallSample": true,
+      "candleReturnPercent": {
+        "count": 28,
+        "mean": -0.041100458926059326,
+        "sd": 0.5687481134553576,
+        "p10": -0.8799718409010948,
+        "p50": 0.03078817733992434,
+        "p90": 0.6776379477250849
+      },
+      "intrabarRangePercent": {
+        "count": 28,
+        "mean": 0.8405553437081349,
+        "sd": 0.48672744514746014,
+        "p10": 0.37835792659855416,
+        "p50": 0.6465517241379337,
+        "p90": 1.3552758954501394
+      }
+    },
+    {
+      "year": "2021",
+      "hourBlock": 3,
+      "eventSession": false,
+      "intervals": 182,
+      "sessions": 46,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 182,
+        "mean": -0.004281315756549599,
+        "sd": 0.36063029051844986,
+        "p10": -0.4401131719584894,
+        "p50": 0,
+        "p90": 0.406366407043679
+      },
+      "intrabarRangePercent": {
+        "count": 182,
+        "mean": 0.5706121987638498,
+        "sd": 0.31004215618279923,
+        "p10": 0.24291497975707985,
+        "p50": 0.49594229035168164,
+        "p90": 0.9250398724082907
+      }
+    },
+    {
+      "year": "2021",
+      "hourBlock": 3,
+      "eventSession": true,
+      "intervals": 28,
+      "sessions": 7,
+      "smallSample": true,
+      "candleReturnPercent": {
+        "count": 28,
+        "mean": -0.17285504516186237,
+        "sd": 0.4846047714058464,
+        "p10": -1.100366788929641,
+        "p50": 0,
+        "p90": 0.2629848783694877
+      },
+      "intrabarRangePercent": {
+        "count": 28,
+        "mean": 0.7265852037604406,
+        "sd": 0.4246750159385652,
+        "p10": 0.22675736961452106,
+        "p50": 0.6056527590847904,
+        "p90": 1.3363754889178623
+      }
+    },
+    {
+      "year": "2021",
+      "hourBlock": 4,
+      "eventSession": false,
+      "intervals": 180,
+      "sessions": 45,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 180,
+        "mean": 0.027324652622887444,
+        "sd": 0.35546268996639374,
+        "p10": -0.37511722413253734,
+        "p50": 0.03274394237067213,
+        "p90": 0.44142614601019314
+      },
+      "intrabarRangePercent": {
+        "count": 180,
+        "mean": 0.5462625917689666,
+        "sd": 0.2986866351809144,
+        "p10": 0.2021835826930882,
+        "p50": 0.4667081518357143,
+        "p90": 0.9621353196772041
+      }
+    },
+    {
+      "year": "2021",
+      "hourBlock": 4,
+      "eventSession": true,
+      "intervals": 28,
+      "sessions": 7,
+      "smallSample": true,
+      "candleReturnPercent": {
+        "count": 28,
+        "mean": 0.0002327619951515108,
+        "sd": 0.6602133751802365,
+        "p10": -0.5571943625040987,
+        "p50": -0.03313452617627055,
+        "p90": 0.3805175038051667
+      },
+      "intrabarRangePercent": {
+        "count": 28,
+        "mean": 0.9485906241266856,
+        "sd": 0.864183556150407,
+        "p10": 0.39975399753998325,
+        "p50": 0.6449631449631475,
+        "p90": 1.8880647336480065
+      }
+    },
+    {
+      "year": "2021",
+      "hourBlock": 5,
+      "eventSession": false,
+      "intervals": 180,
+      "sessions": 45,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 180,
+        "mean": -0.015069929299925492,
+        "sd": 0.4026511655106775,
+        "p10": -0.44308111792773497,
+        "p50": -0.0329055610398199,
+        "p90": 0.4276550249465494
+      },
+      "intrabarRangePercent": {
+        "count": 180,
+        "mean": 0.581510586116989,
+        "sd": 0.4197952725695805,
+        "p10": 0.2245172878311662,
+        "p50": 0.45662100456622734,
+        "p90": 1.009463722397466
+      }
+    },
+    {
+      "year": "2021",
+      "hourBlock": 5,
+      "eventSession": true,
+      "intervals": 28,
+      "sessions": 7,
+      "smallSample": true,
+      "candleReturnPercent": {
+        "count": 28,
+        "mean": 0.2511375913467736,
+        "sd": 0.5404577352582501,
+        "p10": -0.29910269192422456,
+        "p50": 0.19834710743800166,
+        "p90": 0.6511309115832864
+      },
+      "intrabarRangePercent": {
+        "count": 28,
+        "mean": 0.7987708342947776,
+        "sd": 0.4828735925558189,
+        "p10": 0.33872788859616054,
+        "p50": 0.6868131868131844,
+        "p90": 1.302261823166549
+      }
+    },
+    {
+      "year": "2021",
+      "hourBlock": 6,
+      "eventSession": false,
+      "intervals": 90,
+      "sessions": 45,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 90,
+        "mean": -0.014131528032846896,
+        "sd": 0.5016160919952408,
+        "p10": -0.49261083743841194,
+        "p50": 0,
+        "p90": 0.5421686746987842
+      },
+      "intrabarRangePercent": {
+        "count": 90,
+        "mean": 0.695286055847518,
+        "sd": 0.39717595584276366,
+        "p10": 0.2722676001555826,
+        "p50": 0.5766621438263166,
+        "p90": 1.2812499999999893
+      }
+    },
+    {
+      "year": "2021",
+      "hourBlock": 6,
+      "eventSession": true,
+      "intervals": 14,
+      "sessions": 7,
+      "smallSample": true,
+      "candleReturnPercent": {
+        "count": 14,
+        "mean": 0.14126646626624487,
+        "sd": 0.6032495987009884,
+        "p10": -0.4666666666666708,
+        "p50": 0,
+        "p90": 1.1195258478762016
+      },
+      "intrabarRangePercent": {
+        "count": 14,
+        "mean": 0.9756581595317796,
+        "sd": 0.5458926893855134,
+        "p10": 0.2634550244636819,
+        "p50": 0.8220979940808945,
+        "p90": 1.6792887718142837
+      }
+    },
+    {
+      "year": "2022",
+      "hourBlock": "all",
+      "eventSession": false,
+      "intervals": 5552,
+      "sessions": 214,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 5552,
+        "mean": 0.00042771970790102265,
+        "sd": 0.6117115970968497,
+        "p10": -0.6795422031473541,
+        "p50": 0,
+        "p90": 0.6630265210608277
+      },
+      "intrabarRangePercent": {
+        "count": 5552,
+        "mean": 0.8931637357889758,
+        "sd": 0.5377403459337896,
+        "p10": 0.4092769440654877,
+        "p50": 0.7471049682480362,
+        "p90": 1.5748031496062969
+      }
+    },
+    {
+      "year": "2022",
+      "hourBlock": "all",
+      "eventSession": true,
+      "intervals": 962,
+      "sessions": 37,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 962,
+        "mean": 0.0058985688473603935,
+        "sd": 0.6783292889603671,
+        "p10": -0.7076755579749738,
+        "p50": 0,
+        "p90": 0.7189072609633307
+      },
+      "intrabarRangePercent": {
+        "count": 962,
+        "mean": 0.9762137962807681,
+        "sd": 0.641183134823209,
+        "p10": 0.4360465116279106,
+        "p50": 0.7879185817465594,
+        "p90": 1.7652250661959337
+      }
+    },
+    {
+      "year": "2022",
+      "hourBlock": 0,
+      "eventSession": false,
+      "intervals": 856,
+      "sessions": 214,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 856,
+        "mean": -0.009617051540481689,
+        "sd": 1.0463578632660981,
+        "p10": -1.2644889357218192,
+        "p50": 0,
+        "p90": 1.3059701492537323
+      },
+      "intrabarRangePercent": {
+        "count": 856,
+        "mean": 1.613310148085321,
+        "sd": 0.7175917968176093,
+        "p10": 0.8688783570300113,
+        "p50": 1.4492753623188432,
+        "p90": 2.5365103766333594
+      }
+    },
+    {
+      "year": "2022",
+      "hourBlock": 0,
+      "eventSession": true,
+      "intervals": 148,
+      "sessions": 37,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 148,
+        "mean": 0.03799969119042123,
+        "sd": 0.9908808805230369,
+        "p10": -1.2779552715655007,
+        "p50": 0.08507018290089263,
+        "p90": 1.189189189189177
+      },
+      "intrabarRangePercent": {
+        "count": 148,
+        "mean": 1.571857975011352,
+        "sd": 0.6877460481142835,
+        "p10": 0.8757961783439445,
+        "p50": 1.4254385964912368,
+        "p90": 2.520435967302447
+      }
+    },
+    {
+      "year": "2022",
+      "hourBlock": 1,
+      "eventSession": false,
+      "intervals": 856,
+      "sessions": 214,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 856,
+        "mean": 0.0009029648575503701,
+        "sd": 0.6469358136818875,
+        "p10": -0.7966011683483765,
+        "p50": 0,
+        "p90": 0.8124076809453484
+      },
+      "intrabarRangePercent": {
+        "count": 856,
+        "mean": 1.0031449389937983,
+        "sd": 0.4111227714266587,
+        "p10": 0.5726556907659275,
+        "p50": 0.921658986175112,
+        "p90": 1.4908256880734034
+      }
+    },
+    {
+      "year": "2022",
+      "hourBlock": 1,
+      "eventSession": true,
+      "intervals": 148,
+      "sessions": 37,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 148,
+        "mean": -0.03870175552786626,
+        "sd": 0.6346765199982929,
+        "p10": -0.7860262008733576,
+        "p50": -0.11316484345530453,
+        "p90": 0.7851534618129818
+      },
+      "intrabarRangePercent": {
+        "count": 148,
+        "mean": 1.006604576070492,
+        "sd": 0.45339789183324736,
+        "p10": 0.5491488193300267,
+        "p50": 0.9285714285714215,
+        "p90": 1.45468108914583
+      }
+    },
+    {
+      "year": "2022",
+      "hourBlock": 2,
+      "eventSession": false,
+      "intervals": 856,
+      "sessions": 214,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 856,
+        "mean": -0.034601662365533005,
+        "sd": 0.47718950977669367,
+        "p10": -0.6184291898577721,
+        "p50": -0.03645643456069436,
+        "p90": 0.5810200129115595
+      },
+      "intrabarRangePercent": {
+        "count": 856,
+        "mean": 0.7754326917414446,
+        "sd": 0.31881624314645257,
+        "p10": 0.43336944745394523,
+        "p50": 0.710108604845454,
+        "p90": 1.1993146773272463
+      }
+    },
+    {
+      "year": "2022",
+      "hourBlock": 2,
+      "eventSession": true,
+      "intervals": 148,
+      "sessions": 37,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 148,
+        "mean": -0.01395872170747841,
+        "sd": 0.5035999557161678,
+        "p10": -0.5942275042444711,
+        "p50": 0,
+        "p90": 0.5833333333333357
+      },
+      "intrabarRangePercent": {
+        "count": 148,
+        "mean": 0.8088486893428704,
+        "sd": 0.4412629454743194,
+        "p10": 0.4393190554640409,
+        "p50": 0.7249660172179435,
+        "p90": 1.2077294685990296
+      }
+    },
+    {
+      "year": "2022",
+      "hourBlock": 3,
+      "eventSession": false,
+      "intervals": 854,
+      "sessions": 214,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 854,
+        "mean": -0.001326071925338699,
+        "sd": 0.4397467029924711,
+        "p10": -0.5252525252525175,
+        "p50": 0,
+        "p90": 0.5256241787122251
+      },
+      "intrabarRangePercent": {
+        "count": 854,
+        "mean": 0.6717893697275906,
+        "sd": 0.3000431178274029,
+        "p10": 0.3802281368821325,
+        "p50": 0.6069802731411235,
+        "p90": 1.0476689366160257
+      }
+    },
+    {
+      "year": "2022",
+      "hourBlock": 3,
+      "eventSession": true,
+      "intervals": 148,
+      "sessions": 37,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 148,
+        "mean": -0.002190424434361868,
+        "sd": 0.42944461895065894,
+        "p10": -0.462768195204033,
+        "p50": 0,
+        "p90": 0.49413218035823103
+      },
+      "intrabarRangePercent": {
+        "count": 148,
+        "mean": 0.6721899349108938,
+        "sd": 0.29554131498542036,
+        "p10": 0.35190615835776373,
+        "p50": 0.6146281499692774,
+        "p90": 1.043932144410622
+      }
+    },
+    {
+      "year": "2022",
+      "hourBlock": 4,
+      "eventSession": false,
+      "intervals": 852,
+      "sessions": 213,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 852,
+        "mean": 0.005284317863529511,
+        "sd": 0.42800891038990124,
+        "p10": -0.4901960784313819,
+        "p50": 0,
+        "p90": 0.4897959183673528
+      },
+      "intrabarRangePercent": {
+        "count": 852,
+        "mean": 0.661400976496881,
+        "sd": 0.357810907333821,
+        "p10": 0.3355704697986506,
+        "p50": 0.5600497822028616,
+        "p90": 1.1072664359861601
+      }
+    },
+    {
+      "year": "2022",
+      "hourBlock": 4,
+      "eventSession": true,
+      "intervals": 148,
+      "sessions": 37,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 148,
+        "mean": 0.02584562529739165,
+        "sd": 0.5601414533608533,
+        "p10": -0.49261083743842304,
+        "p50": 0.05571030640669772,
+        "p90": 0.6138735420503361
+      },
+      "intrabarRangePercent": {
+        "count": 148,
+        "mean": 0.8492939961418728,
+        "sd": 0.6199872990987382,
+        "p10": 0.3706449221645716,
+        "p50": 0.6610576923076888,
+        "p90": 1.4313346228239883
+      }
+    },
+    {
+      "year": "2022",
+      "hourBlock": 5,
+      "eventSession": false,
+      "intervals": 852,
+      "sessions": 213,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 852,
+        "mean": 0.029227942504288625,
+        "sd": 0.440202655524475,
+        "p10": -0.5028284098051561,
+        "p50": 0.058548009367687115,
+        "p90": 0.5501481168006972
+      },
+      "intrabarRangePercent": {
+        "count": 852,
+        "mean": 0.6880789342863306,
+        "sd": 0.341837085312302,
+        "p10": 0.3590664272890408,
+        "p50": 0.6052141527001815,
+        "p90": 1.1085450346420416
+      }
+    },
+    {
+      "year": "2022",
+      "hourBlock": 5,
+      "eventSession": true,
+      "intervals": 148,
+      "sessions": 37,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 148,
+        "mean": 0.04573415223270032,
+        "sd": 0.8680802842481665,
+        "p10": -0.7606787595084818,
+        "p50": 0,
+        "p90": 0.7601351351351315
+      },
+      "intrabarRangePercent": {
+        "count": 148,
+        "mean": 1.0408464749869661,
+        "sd": 0.871286055968271,
+        "p10": 0.4089979550102308,
+        "p50": 0.7042253521126725,
+        "p90": 2.437999159310628
+      }
+    },
+    {
+      "year": "2022",
+      "hourBlock": 6,
+      "eventSession": false,
+      "intervals": 426,
+      "sessions": 213,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 426,
+        "mean": 0.026246480269037892,
+        "sd": 0.4865029892313603,
+        "p10": -0.5524861878452914,
+        "p50": 0,
+        "p90": 0.593667546174137
+      },
+      "intrabarRangePercent": {
+        "count": 426,
+        "mean": 0.7791645931815242,
+        "sd": 0.3536007584735538,
+        "p10": 0.4137931034482793,
+        "p50": 0.6974041069352953,
+        "p90": 1.241534988713312
+      }
+    },
+    {
+      "year": "2022",
+      "hourBlock": 6,
+      "eventSession": true,
+      "intervals": 74,
+      "sessions": 37,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 74,
+        "mean": -0.03277573908592795,
+        "sd": 0.47446734262499024,
+        "p10": -0.5858230814294152,
+        "p50": -0.052770448548800086,
+        "p90": 0.5673758865248235
+      },
+      "intrabarRangePercent": {
+        "count": 74,
+        "mean": 0.7914960587211187,
+        "sd": 0.3659174296590922,
+        "p10": 0.4389173372348244,
+        "p50": 0.7121661721068308,
+        "p90": 1.1898323418063759
+      }
+    },
+    {
+      "year": "2023",
+      "hourBlock": "all",
+      "eventSession": false,
+      "intervals": 5540,
+      "sessions": 214,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 5540,
+        "mean": 0.005367674451948103,
+        "sd": 0.4055975397690523,
+        "p10": -0.4324324324324391,
+        "p50": 0,
+        "p90": 0.4419191919192045
+      },
+      "intrabarRangePercent": {
+        "count": 5540,
+        "mean": 0.5906878387113783,
+        "sd": 0.36872282288213115,
+        "p10": 0.26535253980288204,
+        "p50": 0.4909365558912349,
+        "p90": 1.0270270270270339
+      }
+    },
+    {
+      "year": "2023",
+      "hourBlock": "all",
+      "eventSession": true,
+      "intervals": 936,
+      "sessions": 36,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 936,
+        "mean": 0.038221346179030495,
+        "sd": 0.4554399988030282,
+        "p10": -0.43940795559668233,
+        "p50": 0.035688793718779976,
+        "p90": 0.49516623437868557
+      },
+      "intrabarRangePercent": {
+        "count": 936,
+        "mean": 0.6293973294169264,
+        "sd": 0.4177984725395265,
+        "p10": 0.2732240437158524,
+        "p50": 0.5085120495246606,
+        "p90": 1.1111111111111038
+      }
+    },
+    {
+      "year": "2023",
+      "hourBlock": 0,
+      "eventSession": false,
+      "intervals": 856,
+      "sessions": 214,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 856,
+        "mean": 0.003302254067826675,
+        "sd": 0.6745370054469049,
+        "p10": -0.7838745800671898,
+        "p50": 0,
+        "p90": 0.8202653799758597
+      },
+      "intrabarRangePercent": {
+        "count": 856,
+        "mean": 1.0744523586634416,
+        "sd": 0.5220222143749693,
+        "p10": 0.5473684210526424,
+        "p50": 0.9507711810690954,
+        "p90": 1.739130434782612
+      }
+    },
+    {
+      "year": "2023",
+      "hourBlock": 0,
+      "eventSession": true,
+      "intervals": 144,
+      "sessions": 36,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 144,
+        "mean": 0.10423786937972418,
+        "sd": 0.8033744139233286,
+        "p10": -0.7060572277963639,
+        "p50": 0.10986596352451361,
+        "p90": 1.097237987135835
+      },
+      "intrabarRangePercent": {
+        "count": 144,
+        "mean": 1.1187446150162417,
+        "sd": 0.5833065427708308,
+        "p10": 0.5621621621621579,
+        "p50": 0.9674134419552,
+        "p90": 2.005297010972384
+      }
+    },
+    {
+      "year": "2023",
+      "hourBlock": 1,
+      "eventSession": false,
+      "intervals": 856,
+      "sessions": 214,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 856,
+        "mean": -0.00027369496337906066,
+        "sd": 0.43319687528271217,
+        "p10": -0.501043841336124,
+        "p50": 0,
+        "p90": 0.49140049140048436
+      },
+      "intrabarRangePercent": {
+        "count": 856,
+        "mean": 0.6583891170691791,
+        "sd": 0.28988257922670446,
+        "p10": 0.354777672658464,
+        "p50": 0.5982292414453219,
+        "p90": 1.016154247003649
+      }
+    },
+    {
+      "year": "2023",
+      "hourBlock": 1,
+      "eventSession": true,
+      "intervals": 144,
+      "sessions": 36,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 144,
+        "mean": 0.08480023430229115,
+        "sd": 0.40877274692207066,
+        "p10": -0.4120313143798793,
+        "p50": 0.08691873098651826,
+        "p90": 0.6054960409874299
+      },
+      "intrabarRangePercent": {
+        "count": 144,
+        "mean": 0.6510204954043353,
+        "sd": 0.2838992781753121,
+        "p10": 0.3678929765886388,
+        "p50": 0.5545752457776628,
+        "p90": 1.0942956926658878
+      }
+    },
+    {
+      "year": "2023",
+      "hourBlock": 2,
+      "eventSession": false,
+      "intervals": 856,
+      "sessions": 214,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 856,
+        "mean": 0.012316046912291326,
+        "sd": 0.3355227469596658,
+        "p10": -0.38593481989708245,
+        "p50": 0.02142245072835891,
+        "p90": 0.4005826656955591
+      },
+      "intrabarRangePercent": {
+        "count": 856,
+        "mean": 0.5144481810726028,
+        "sd": 0.23632421344811286,
+        "p10": 0.2799160251924529,
+        "p50": 0.4598662207357984,
+        "p90": 0.800000000000008
+      }
+    },
+    {
+      "year": "2023",
+      "hourBlock": 2,
+      "eventSession": true,
+      "intervals": 144,
+      "sessions": 36,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 144,
+        "mean": 0.003618252139835462,
+        "sd": 0.3048963972133605,
+        "p10": -0.38368336025849104,
+        "p50": 0.020777062123422674,
+        "p90": 0.3361721201255108
+      },
+      "intrabarRangePercent": {
+        "count": 144,
+        "mean": 0.48393686577959677,
+        "sd": 0.1999939974586362,
+        "p10": 0.27672085783466566,
+        "p50": 0.4447409384033706,
+        "p90": 0.7772020725388561
+      }
+    },
+    {
+      "year": "2023",
+      "hourBlock": 3,
+      "eventSession": false,
+      "intervals": 852,
+      "sessions": 214,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 852,
+        "mean": 0.012082593976039266,
+        "sd": 0.31207351803733197,
+        "p10": -0.3548196333530429,
+        "p50": 0.021819768710473753,
+        "p90": 0.3822629969419067
+      },
+      "intrabarRangePercent": {
+        "count": 852,
+        "mean": 0.4607068324473042,
+        "sd": 0.22313169815526146,
+        "p10": 0.25167785234898793,
+        "p50": 0.40798797509125556,
+        "p90": 0.7231638418079103
+      }
+    },
+    {
+      "year": "2023",
+      "hourBlock": 3,
+      "eventSession": true,
+      "intervals": 144,
+      "sessions": 36,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 144,
+        "mean": 0.0031232842598069885,
+        "sd": 0.2695904513975251,
+        "p10": -0.3082342580361108,
+        "p50": 0.03462603878117143,
+        "p90": 0.2880460873739832
+      },
+      "intrabarRangePercent": {
+        "count": 144,
+        "mean": 0.4238880345165353,
+        "sd": 0.19868278684103483,
+        "p10": 0.21934634788331084,
+        "p50": 0.3746969363015246,
+        "p90": 0.7453416149068312
+      }
+    },
+    {
+      "year": "2023",
+      "hourBlock": 4,
+      "eventSession": false,
+      "intervals": 848,
+      "sessions": 212,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 848,
+        "mean": 0.01548247172420872,
+        "sd": 0.2764023759208267,
+        "p10": -0.3199606202313632,
+        "p50": 0.020222446916062786,
+        "p90": 0.33917467495758746
+      },
+      "intrabarRangePercent": {
+        "count": 848,
+        "mean": 0.42523759805021166,
+        "sd": 0.20494564830122478,
+        "p10": 0.22357723577235655,
+        "p50": 0.382734424835211,
+        "p90": 0.6594441827602476
+      }
+    },
+    {
+      "year": "2023",
+      "hourBlock": 4,
+      "eventSession": true,
+      "intervals": 144,
+      "sessions": 36,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 144,
+        "mean": 0.03746446495341105,
+        "sd": 0.3446469630283843,
+        "p10": -0.3816793893129833,
+        "p50": 0.02222716159145932,
+        "p90": 0.4176904176903973
+      },
+      "intrabarRangePercent": {
+        "count": 144,
+        "mean": 0.526544305907075,
+        "sd": 0.32437705256515936,
+        "p10": 0.24660912453760264,
+        "p50": 0.4344228382292115,
+        "p90": 0.9376465072667571
+      }
+    },
+    {
+      "year": "2023",
+      "hourBlock": 5,
+      "eventSession": false,
+      "intervals": 848,
+      "sessions": 212,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 848,
+        "mean": -0.009591330080872432,
+        "sd": 0.2916468916251973,
+        "p10": -0.38103302286197627,
+        "p50": 0,
+        "p90": 0.3389830508474523
+      },
+      "intrabarRangePercent": {
+        "count": 848,
+        "mean": 0.45192321240415634,
+        "sd": 0.20108548152513953,
+        "p10": 0.24298652529268705,
+        "p50": 0.4047720494247928,
+        "p90": 0.7299270072992632
+      }
+    },
+    {
+      "year": "2023",
+      "hourBlock": 5,
+      "eventSession": true,
+      "intervals": 144,
+      "sessions": 36,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 144,
+        "mean": 0.022084512666874837,
+        "sd": 0.3928906559394866,
+        "p10": -0.4243281471004279,
+        "p50": 0,
+        "p90": 0.40322580645160144
+      },
+      "intrabarRangePercent": {
+        "count": 144,
+        "mean": 0.5996080701880858,
+        "sd": 0.4052173298851868,
+        "p10": 0.24117518088138443,
+        "p50": 0.48780487804877676,
+        "p90": 1.1706278822277343
+      }
+    },
+    {
+      "year": "2023",
+      "hourBlock": 6,
+      "eventSession": false,
+      "intervals": 424,
+      "sessions": 212,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 424,
+        "mean": 0.0030940460668142052,
+        "sd": 0.32786195809923696,
+        "p10": -0.386897085375304,
+        "p50": 0.02020202020200923,
+        "p90": 0.37815126050420034
+      },
+      "intrabarRangePercent": {
+        "count": 424,
+        "mean": 0.5008870087862276,
+        "sd": 0.22646551376837193,
+        "p10": 0.2618780396558185,
+        "p50": 0.4573170731707355,
+        "p90": 0.789177001127399
+      }
+    },
+    {
+      "year": "2023",
+      "hourBlock": 6,
+      "eventSession": true,
+      "intervals": 72,
+      "sessions": 36,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 72,
+        "mean": -0.0137797350764906,
+        "sd": 0.43582889897721827,
+        "p10": -0.478053020425917,
+        "p50": 0.04377325454147929,
+        "p90": 0.3860175852455461
+      },
+      "intrabarRangePercent": {
+        "count": 72,
+        "mean": 0.574680508796316,
+        "sd": 0.32699647936590714,
+        "p10": 0.28602860286029164,
+        "p50": 0.4933196300102816,
+        "p90": 0.972644376899697
+      }
+    },
+    {
+      "year": "2024",
+      "hourBlock": "all",
+      "eventSession": false,
+      "intervals": 5632,
+      "sessions": 218,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 5632,
+        "mean": -0.001175785411462406,
+        "sd": 0.4812740600567582,
+        "p10": -0.504396779261651,
+        "p50": 0.012206037920092783,
+        "p90": 0.47958956056213253
+      },
+      "intrabarRangePercent": {
+        "count": 5632,
+        "mean": 0.6741148599546576,
+        "sd": 0.4793784762572464,
+        "p10": 0.2787068004459309,
+        "p50": 0.5395909147948207,
+        "p90": 1.2402869097429672
+      }
+    },
+    {
+      "year": "2024",
+      "hourBlock": "all",
+      "eventSession": true,
+      "intervals": 884,
+      "sessions": 34,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 884,
+        "mean": 0.009685249365312487,
+        "sd": 0.5613366900141563,
+        "p10": -0.5677039529015993,
+        "p50": 0.03164223183209636,
+        "p90": 0.5666049953746422
+      },
+      "intrabarRangePercent": {
+        "count": 884,
+        "mean": 0.7524184706136022,
+        "sd": 0.5489532191913701,
+        "p10": 0.29693345877469274,
+        "p50": 0.5884965578503233,
+        "p90": 1.4278873362065216
+      }
+    },
+    {
+      "year": "2024",
+      "hourBlock": 0,
+      "eventSession": false,
+      "intervals": 872,
+      "sessions": 218,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 872,
+        "mean": -0.014970413483687665,
+        "sd": 0.850058933803159,
+        "p10": -0.9634957253358611,
+        "p50": 0.022331397945496434,
+        "p90": 0.8960000000000079
+      },
+      "intrabarRangePercent": {
+        "count": 872,
+        "mean": 1.2775957864061593,
+        "sd": 0.7127961644928508,
+        "p10": 0.6189897203492896,
+        "p50": 1.1179645335389463,
+        "p90": 2.0527547330355316
+      }
+    },
+    {
+      "year": "2024",
+      "hourBlock": 0,
+      "eventSession": true,
+      "intervals": 136,
+      "sessions": 34,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 136,
+        "mean": 0.02667508438775971,
+        "sd": 0.8917532160566588,
+        "p10": -1.0261614794767837,
+        "p50": 0.058706117177398376,
+        "p90": 0.9717868338557922
+      },
+      "intrabarRangePercent": {
+        "count": 136,
+        "mean": 1.272538699433365,
+        "sd": 0.7279060341751041,
+        "p10": 0.569860700717609,
+        "p50": 1.030385868993786,
+        "p90": 2.2124483539917446
+      }
+    },
+    {
+      "year": "2024",
+      "hourBlock": 1,
+      "eventSession": false,
+      "intervals": 872,
+      "sessions": 218,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 872,
+        "mean": 0.016967401671063198,
+        "sd": 0.4752036022181959,
+        "p10": -0.548298661506208,
+        "p50": 0.024177949709858204,
+        "p90": 0.5463957055214852
+      },
+      "intrabarRangePercent": {
+        "count": 872,
+        "mean": 0.7378274965565087,
+        "sd": 0.38076835772486456,
+        "p10": 0.38128249566724237,
+        "p50": 0.6434920755002567,
+        "p90": 1.2451171874999951
+      }
+    },
+    {
+      "year": "2024",
+      "hourBlock": 1,
+      "eventSession": true,
+      "intervals": 136,
+      "sessions": 34,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 136,
+        "mean": -0.01942836241866797,
+        "sd": 0.5996417615961221,
+        "p10": -0.733524355300863,
+        "p50": 0.039225941422604826,
+        "p90": 0.5964873522589009
+      },
+      "intrabarRangePercent": {
+        "count": 136,
+        "mean": 0.8100748957158679,
+        "sd": 0.5230569236409156,
+        "p10": 0.3536693191865675,
+        "p50": 0.6653201853391971,
+        "p90": 1.4368370298939197
+      }
+    },
+    {
+      "year": "2024",
+      "hourBlock": 2,
+      "eventSession": false,
+      "intervals": 872,
+      "sessions": 218,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 872,
+        "mean": 0.004350851080091925,
+        "sd": 0.39442673301300907,
+        "p10": -0.4372687521022489,
+        "p50": 0,
+        "p90": 0.4463519313304687
+      },
+      "intrabarRangePercent": {
+        "count": 872,
+        "mean": 0.5764833731763852,
+        "sd": 0.293156256434485,
+        "p10": 0.2927900451384591,
+        "p50": 0.5150022391401792,
+        "p90": 0.910977859778605
+      }
+    },
+    {
+      "year": "2024",
+      "hourBlock": 2,
+      "eventSession": true,
+      "intervals": 136,
+      "sessions": 34,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 136,
+        "mean": 0.04472680183915366,
+        "sd": 0.5276492356248954,
+        "p10": -0.48865224674201624,
+        "p50": 0.03389447520054656,
+        "p90": 0.5381332343662892
+      },
+      "intrabarRangePercent": {
+        "count": 136,
+        "mean": 0.6629184598442421,
+        "sd": 0.5109981376857189,
+        "p10": 0.28609316558992337,
+        "p50": 0.5099195283244368,
+        "p90": 1.0521314146076453
+      }
+    },
+    {
+      "year": "2024",
+      "hourBlock": 3,
+      "eventSession": false,
+      "intervals": 866,
+      "sessions": 218,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 866,
+        "mean": 0.007404549415620325,
+        "sd": 0.34328862070621446,
+        "p10": -0.3801248981808336,
+        "p50": 0.023036166781853495,
+        "p90": 0.3960396039603964
+      },
+      "intrabarRangePercent": {
+        "count": 866,
+        "mean": 0.5158342473937836,
+        "sd": 0.28444623243645495,
+        "p10": 0.2532481832195439,
+        "p50": 0.45428733674047866,
+        "p90": 0.8411295330029936
+      }
+    },
+    {
+      "year": "2024",
+      "hourBlock": 3,
+      "eventSession": true,
+      "intervals": 136,
+      "sessions": 34,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 136,
+        "mean": -0.020455103938011983,
+        "sd": 0.4245093264819755,
+        "p10": -0.5113383726100373,
+        "p50": 0.006755387421453207,
+        "p90": 0.43939948736726464
+      },
+      "intrabarRangePercent": {
+        "count": 136,
+        "mean": 0.5515475498724218,
+        "sd": 0.3430186687751184,
+        "p10": 0.27027027027027223,
+        "p50": 0.4617045835350222,
+        "p90": 0.9286898839137525
+      }
+    },
+    {
+      "year": "2024",
+      "hourBlock": 4,
+      "eventSession": false,
+      "intervals": 860,
+      "sessions": 215,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 860,
+        "mean": -0.004592784621585992,
+        "sd": 0.30724802704045445,
+        "p10": -0.3586936001510277,
+        "p50": 0.01113585746101986,
+        "p90": 0.3536594445685326
+      },
+      "intrabarRangePercent": {
+        "count": 860,
+        "mean": 0.4775035107299481,
+        "sd": 0.2528737372937467,
+        "p10": 0.22810015602941372,
+        "p50": 0.4196396753118177,
+        "p90": 0.7779030439684304
+      }
+    },
+    {
+      "year": "2024",
+      "hourBlock": 4,
+      "eventSession": true,
+      "intervals": 136,
+      "sessions": 34,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 136,
+        "mean": 0.028473487616819074,
+        "sd": 0.3831320417161792,
+        "p10": -0.4795067930129071,
+        "p50": 0.03382949932340118,
+        "p90": 0.46948356807512415
+      },
+      "intrabarRangePercent": {
+        "count": 136,
+        "mean": 0.6005937800712662,
+        "sd": 0.3603164914336319,
+        "p10": 0.2582238688671876,
+        "p50": 0.5003891915934647,
+        "p90": 1.1816299183822792
+      }
+    },
+    {
+      "year": "2024",
+      "hourBlock": 5,
+      "eventSession": false,
+      "intervals": 860,
+      "sessions": 215,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 860,
+        "mean": -0.013999751295838851,
+        "sd": 0.31428279831781303,
+        "p10": -0.3899286987522399,
+        "p50": 0.010928961748657429,
+        "p90": 0.3384304897927404
+      },
+      "intrabarRangePercent": {
+        "count": 860,
+        "mean": 0.484791496063809,
+        "sd": 0.270056445796665,
+        "p10": 0.23533366952429075,
+        "p50": 0.40745022740816156,
+        "p90": 0.8020219743493375
+      }
+    },
+    {
+      "year": "2024",
+      "hourBlock": 5,
+      "eventSession": true,
+      "intervals": 136,
+      "sessions": 34,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 136,
+        "mean": -0.005982109093968464,
+        "sd": 0.4004677033322139,
+        "p10": -0.4838157218701844,
+        "p50": -0.02994460248542108,
+        "p90": 0.398883127243721
+      },
+      "intrabarRangePercent": {
+        "count": 136,
+        "mean": 0.6251662981526723,
+        "sd": 0.42100004577813305,
+        "p10": 0.28092142226503614,
+        "p50": 0.4987999864787161,
+        "p90": 1.216658867571369
+      }
+    },
+    {
+      "year": "2024",
+      "hourBlock": 6,
+      "eventSession": false,
+      "intervals": 430,
+      "sessions": 215,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 430,
+        "mean": -0.006000228333790053,
+        "sd": 0.4156681837848345,
+        "p10": -0.46235869748608716,
+        "p50": -0.01107787747866018,
+        "p90": 0.46959111212918625
+      },
+      "intrabarRangePercent": {
+        "count": 430,
+        "mean": 0.6097351698272613,
+        "sd": 0.32680482163907726,
+        "p10": 0.2899167143953922,
+        "p50": 0.5250336021505376,
+        "p90": 1.0237435968434239
+      }
+    },
+    {
+      "year": "2024",
+      "hourBlock": 6,
+      "eventSession": true,
+      "intervals": 68,
+      "sessions": 34,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 68,
+        "mean": 0.017888644962894086,
+        "sd": 0.5243746183585979,
+        "p10": -0.8498583569405138,
+        "p50": 0.05117304361517139,
+        "p90": 0.5780810919309598
+      },
+      "intrabarRangePercent": {
+        "count": 68,
+        "mean": 0.7357607517971616,
+        "sd": 0.4865619684972306,
+        "p10": 0.3171582619727214,
+        "p50": 0.6262604819021372,
+        "p90": 1.317271860646512
+      }
+    },
+    {
+      "year": "2025",
+      "hourBlock": "all",
+      "eventSession": false,
+      "intervals": 5540,
+      "sessions": 214,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 5540,
+        "mean": 0.002503141097637607,
+        "sd": 0.4738597954028125,
+        "p10": -0.4492117925406047,
+        "p50": 0.00477112432581972,
+        "p90": 0.4381161007667167
+      },
+      "intrabarRangePercent": {
+        "count": 5540,
+        "mean": 0.6040307585001702,
+        "sd": 0.5125159193364833,
+        "p10": 0.20977164099841222,
+        "p50": 0.4662004662004631,
+        "p90": 1.1279726103451413
+      }
+    },
+    {
+      "year": "2025",
+      "hourBlock": "all",
+      "eventSession": true,
+      "intervals": 924,
+      "sessions": 36,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 924,
+        "mean": -0.0018855191457032429,
+        "sd": 0.4791182250152536,
+        "p10": -0.5220151910752535,
+        "p50": 0.010342331161461438,
+        "p90": 0.46109345018183756
+      },
+      "intrabarRangePercent": {
+        "count": 924,
+        "mean": 0.6643712477124822,
+        "sd": 0.5230499079836121,
+        "p10": 0.22470678504879152,
+        "p50": 0.49547657512117355,
+        "p90": 1.3482508373650923
+      }
+    },
+    {
+      "year": "2025",
+      "hourBlock": 0,
+      "eventSession": false,
+      "intervals": 856,
+      "sessions": 214,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 856,
+        "mean": -0.016061378597769835,
+        "sd": 0.8047634713915267,
+        "p10": -0.8164275111330999,
+        "p50": 0.019037228964968733,
+        "p90": 0.730019410920768
+      },
+      "intrabarRangePercent": {
+        "count": 856,
+        "mean": 1.0732849984844306,
+        "sd": 0.7665581440159241,
+        "p10": 0.4611246317407448,
+        "p50": 0.8925964546402446,
+        "p90": 1.847782212853749
+      }
+    },
+    {
+      "year": "2025",
+      "hourBlock": 0,
+      "eventSession": true,
+      "intervals": 144,
+      "sessions": 36,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 144,
+        "mean": -0.03440459028304389,
+        "sd": 0.7000468677494927,
+        "p10": -0.9840195348794767,
+        "p50": 0.01659488719427671,
+        "p90": 0.8761449621664585
+      },
+      "intrabarRangePercent": {
+        "count": 144,
+        "mean": 1.0766147756925037,
+        "sd": 0.580315654947584,
+        "p10": 0.4157770536015334,
+        "p50": 0.9954224256699713,
+        "p90": 1.8075430160477401
+      }
+    },
+    {
+      "year": "2025",
+      "hourBlock": 1,
+      "eventSession": false,
+      "intervals": 856,
+      "sessions": 214,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 856,
+        "mean": 0.002307030148868567,
+        "sd": 0.4700340900759245,
+        "p10": -0.49485411140582913,
+        "p50": 0.008668140250511769,
+        "p90": 0.49597582208205093
+      },
+      "intrabarRangePercent": {
+        "count": 856,
+        "mean": 0.6597699365663432,
+        "sd": 0.43340842047624933,
+        "p10": 0.28983810053576403,
+        "p50": 0.5461682881037765,
+        "p90": 1.110700449833679
+      }
+    },
+    {
+      "year": "2025",
+      "hourBlock": 1,
+      "eventSession": true,
+      "intervals": 144,
+      "sessions": 36,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 144,
+        "mean": -0.019869361750317723,
+        "sd": 0.4159702239131494,
+        "p10": -0.4974979634586374,
+        "p50": 0.00777061154713099,
+        "p90": 0.38921993499458907
+      },
+      "intrabarRangePercent": {
+        "count": 144,
+        "mean": 0.7005038055875277,
+        "sd": 0.5342469188084661,
+        "p10": 0.2857551078725532,
+        "p50": 0.5623955008359786,
+        "p90": 1.2116827922958706
+      }
+    },
+    {
+      "year": "2025",
+      "hourBlock": 2,
+      "eventSession": false,
+      "intervals": 856,
+      "sessions": 214,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 856,
+        "mean": 0.025648424135451008,
+        "sd": 0.37907964392500226,
+        "p10": -0.3633825814437275,
+        "p50": 0.01806311769412261,
+        "p90": 0.40227532570187297
+      },
+      "intrabarRangePercent": {
+        "count": 856,
+        "mean": 0.5225648453203031,
+        "sd": 0.3565740248923365,
+        "p10": 0.22071849679086658,
+        "p50": 0.4237035099143803,
+        "p90": 0.8927749654855028
+      }
+    },
+    {
+      "year": "2025",
+      "hourBlock": 2,
+      "eventSession": true,
+      "intervals": 144,
+      "sessions": 36,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 144,
+        "mean": -0.042830009108662165,
+        "sd": 0.40795140302423244,
+        "p10": -0.4806125773867742,
+        "p50": -0.013501107090774234,
+        "p90": 0.4311008468052435
+      },
+      "intrabarRangePercent": {
+        "count": 144,
+        "mean": 0.559179415942459,
+        "sd": 0.44305719382043596,
+        "p10": 0.202695188618832,
+        "p50": 0.43433411151528933,
+        "p90": 1.140560504019115
+      }
+    },
+    {
+      "year": "2025",
+      "hourBlock": 3,
+      "eventSession": false,
+      "intervals": 852,
+      "sessions": 214,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 852,
+        "mean": -0.0027367495262067432,
+        "sd": 0.3871656816620825,
+        "p10": -0.3794981694794197,
+        "p50": -0.00037224538415037145,
+        "p90": 0.34353307833969726
+      },
+      "intrabarRangePercent": {
+        "count": 852,
+        "mean": 0.48499536662564807,
+        "sd": 0.4497810720615264,
+        "p10": 0.19096245354451205,
+        "p50": 0.38001615943980643,
+        "p90": 0.8609853528628582
+      }
+    },
+    {
+      "year": "2025",
+      "hourBlock": 3,
+      "eventSession": true,
+      "intervals": 142,
+      "sessions": 36,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 142,
+        "mean": 0.031254263532233775,
+        "sd": 0.38872367035475064,
+        "p10": -0.3355704697986628,
+        "p50": 0.022101889711545475,
+        "p90": 0.351887396033268
+      },
+      "intrabarRangePercent": {
+        "count": 142,
+        "mean": 0.5204645014078546,
+        "sd": 0.46613219528216054,
+        "p10": 0.19767244788429525,
+        "p50": 0.3475545390570015,
+        "p90": 1.0013812154696102
+      }
+    },
+    {
+      "year": "2025",
+      "hourBlock": 4,
+      "eventSession": false,
+      "intervals": 848,
+      "sessions": 212,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 848,
+        "mean": 0.010103921502951193,
+        "sd": 0.3268368291206817,
+        "p10": -0.3365646701903313,
+        "p50": -0.005742459396762545,
+        "p90": 0.3595011660704639
+      },
+      "intrabarRangePercent": {
+        "count": 848,
+        "mean": 0.4510408617270184,
+        "sd": 0.33950009761314803,
+        "p10": 0.18321382316706702,
+        "p50": 0.3540305010893277,
+        "p90": 0.8242664029014177
+      }
+    },
+    {
+      "year": "2025",
+      "hourBlock": 4,
+      "eventSession": true,
+      "intervals": 140,
+      "sessions": 35,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 140,
+        "mean": 0.01118524639735996,
+        "sd": 0.4078873951637708,
+        "p10": -0.3845491591574324,
+        "p50": 0.0027511073207087122,
+        "p90": 0.3847509398496207
+      },
+      "intrabarRangePercent": {
+        "count": 140,
+        "mean": 0.5257463220641684,
+        "sd": 0.382009382841729,
+        "p10": 0.18033772337286874,
+        "p50": 0.4028081482334029,
+        "p90": 1.0941498279361113
+      }
+    },
+    {
+      "year": "2025",
+      "hourBlock": 5,
+      "eventSession": false,
+      "intervals": 848,
+      "sessions": 212,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 848,
+        "mean": -0.012673987258166458,
+        "sd": 0.294663195145409,
+        "p10": -0.29560790334963727,
+        "p50": 0.00005686664772408534,
+        "p90": 0.2880696447333575
+      },
+      "intrabarRangePercent": {
+        "count": 848,
+        "mean": 0.4223329705369629,
+        "sd": 0.31400525335654006,
+        "p10": 0.1770168311085191,
+        "p50": 0.3311341344103538,
+        "p90": 0.7721871613812429
+      }
+    },
+    {
+      "year": "2025",
+      "hourBlock": 5,
+      "eventSession": true,
+      "intervals": 140,
+      "sessions": 35,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 140,
+        "mean": 0.024580972516379966,
+        "sd": 0.3865179423718873,
+        "p10": -0.4254976734422433,
+        "p50": 0.029434588317145405,
+        "p90": 0.44914982354828936
+      },
+      "intrabarRangePercent": {
+        "count": 140,
+        "mean": 0.5446886790503472,
+        "sd": 0.36990590881880825,
+        "p10": 0.19937728737641838,
+        "p50": 0.4240761198816855,
+        "p90": 1.0690423162583544
+      }
+    },
+    {
+      "year": "2025",
+      "hourBlock": 6,
+      "eventSession": false,
+      "intervals": 424,
+      "sessions": 212,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 424,
+        "mean": 0.019333017099001027,
+        "sd": 0.44964500117108663,
+        "p10": -0.457979574258649,
+        "p50": 0.006912283127125107,
+        "p90": 0.4393053790766599
+      },
+      "intrabarRangePercent": {
+        "count": 424,
+        "mean": 0.6171764338876855,
+        "sd": 0.41571080089722995,
+        "p10": 0.2084001282462255,
+        "p50": 0.513746965505559,
+        "p90": 1.1533097307155915
+      }
+    },
+    {
+      "year": "2025",
+      "hourBlock": 6,
+      "eventSession": true,
+      "intervals": 70,
+      "sessions": 35,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 70,
+        "mean": 0.039933923490297805,
+        "sd": 0.6280716147036133,
+        "p10": -0.5905861456483086,
+        "p50": 0.0027638815953023865,
+        "p90": 0.46109345018183756
+      },
+      "intrabarRangePercent": {
+        "count": 70,
+        "mean": 0.7669323132906803,
+        "sd": 0.6692587266535365,
+        "p10": 0.24800043527940077,
+        "p50": 0.5197505197505148,
+        "p90": 1.6879810030612472
+      }
+    },
+    {
+      "year": "2026",
+      "hourBlock": "all",
+      "eventSession": false,
+      "intervals": 4472,
+      "sessions": 172,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 4472,
+        "mean": -0.0007146191023855413,
+        "sd": 0.36198912891965346,
+        "p10": -0.3622102318145415,
+        "p50": 0,
+        "p90": 0.3656438199024947
+      },
+      "intrabarRangePercent": {
+        "count": 4472,
+        "mean": 0.49710596048488337,
+        "sd": 0.3400852451710234,
+        "p10": 0.20994426646771996,
+        "p50": 0.3994235436893291,
+        "p90": 0.8912985982544311
+      }
+    },
+    {
+      "year": "2026",
+      "hourBlock": "all",
+      "eventSession": true,
+      "intervals": 702,
+      "sessions": 27,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 702,
+        "mean": -0.024999683765004103,
+        "sd": 0.3536691934767773,
+        "p10": -0.3986071657656076,
+        "p50": -0.014285163137606194,
+        "p90": 0.3465138490926556
+      },
+      "intrabarRangePercent": {
+        "count": 702,
+        "mean": 0.4985922657313758,
+        "sd": 0.3234045207310978,
+        "p10": 0.21012283338475563,
+        "p50": 0.41248710977783065,
+        "p90": 0.9089345812759448
+      }
+    },
+    {
+      "year": "2026",
+      "hourBlock": 0,
+      "eventSession": false,
+      "intervals": 688,
+      "sessions": 172,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 688,
+        "mean": -0.020665175687352343,
+        "sd": 0.6291005557043962,
+        "p10": -0.701816169442071,
+        "p50": -0.02589063794532498,
+        "p90": 0.6749497874725563
+      },
+      "intrabarRangePercent": {
+        "count": 688,
+        "mean": 0.9281105731284508,
+        "sd": 0.48494681623118546,
+        "p10": 0.4470988516535392,
+        "p50": 0.8058227190018108,
+        "p90": 1.5013350798528842
+      }
+    },
+    {
+      "year": "2026",
+      "hourBlock": 0,
+      "eventSession": true,
+      "intervals": 108,
+      "sessions": 27,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 108,
+        "mean": -0.012064758162067802,
+        "sd": 0.6281295384857364,
+        "p10": -0.7143054087587974,
+        "p50": 0.021616947687008725,
+        "p90": 0.6997773435725163
+      },
+      "intrabarRangePercent": {
+        "count": 108,
+        "mean": 0.8898550253679166,
+        "sd": 0.47200763676737034,
+        "p10": 0.4232002851033449,
+        "p50": 0.7801861935710578,
+        "p90": 1.2670666115018705
+      }
+    },
+    {
+      "year": "2026",
+      "hourBlock": 1,
+      "eventSession": false,
+      "intervals": 688,
+      "sessions": 172,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 688,
+        "mean": 0.013042705939702248,
+        "sd": 0.3780476387741288,
+        "p10": -0.41439256114816914,
+        "p50": 0.004663744053745589,
+        "p90": 0.43414044667233753
+      },
+      "intrabarRangePercent": {
+        "count": 688,
+        "mean": 0.5590482354169349,
+        "sd": 0.26720579105197106,
+        "p10": 0.28628460366655245,
+        "p50": 0.49380421313507133,
+        "p90": 0.9105051244509428
+      }
+    },
+    {
+      "year": "2026",
+      "hourBlock": 1,
+      "eventSession": true,
+      "intervals": 108,
+      "sessions": 27,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 108,
+        "mean": -0.0399855073595263,
+        "sd": 0.3373957941751944,
+        "p10": -0.5044585987261208,
+        "p50": -0.014285163137606194,
+        "p90": 0.3624382207578325
+      },
+      "intrabarRangePercent": {
+        "count": 108,
+        "mean": 0.5557947493648279,
+        "sd": 0.21766486302886495,
+        "p10": 0.33881256782868063,
+        "p50": 0.5101358877255433,
+        "p90": 0.8664650931901331
+      }
+    },
+    {
+      "year": "2026",
+      "hourBlock": 2,
+      "eventSession": false,
+      "intervals": 688,
+      "sessions": 172,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 688,
+        "mean": 0.018512874331588866,
+        "sd": 0.28582887796408735,
+        "p10": -0.3076704612690162,
+        "p50": 0.011260230175036412,
+        "p90": 0.38439997963444217
+      },
+      "intrabarRangePercent": {
+        "count": 688,
+        "mean": 0.4324132857888129,
+        "sd": 0.20247483541791123,
+        "p10": 0.2186320537604818,
+        "p50": 0.3910943574036914,
+        "p90": 0.7169794637133339
+      }
+    },
+    {
+      "year": "2026",
+      "hourBlock": 2,
+      "eventSession": true,
+      "intervals": 108,
+      "sessions": 27,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 108,
+        "mean": -0.016150872647386308,
+        "sd": 0.266928810016619,
+        "p10": -0.3315767955299087,
+        "p50": -0.027190168035229334,
+        "p90": 0.34758519757476236
+      },
+      "intrabarRangePercent": {
+        "count": 108,
+        "mean": 0.42280870825114764,
+        "sd": 0.17726796787567572,
+        "p10": 0.2323319645558714,
+        "p50": 0.4031113680559333,
+        "p90": 0.6436892037948857
+      }
+    },
+    {
+      "year": "2026",
+      "hourBlock": 3,
+      "eventSession": false,
+      "intervals": 688,
+      "sessions": 172,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 688,
+        "mean": -0.001881951434381681,
+        "sd": 0.2453845070861294,
+        "p10": -0.2542529585798703,
+        "p50": 0,
+        "p90": 0.27348897342185374
+      },
+      "intrabarRangePercent": {
+        "count": 688,
+        "mean": 0.37350577475977736,
+        "sd": 0.19016223235768379,
+        "p10": 0.1910053828789834,
+        "p50": 0.3304605297943214,
+        "p90": 0.6021907283393015
+      }
+    },
+    {
+      "year": "2026",
+      "hourBlock": 3,
+      "eventSession": true,
+      "intervals": 108,
+      "sessions": 27,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 108,
+        "mean": -0.019763846142687405,
+        "sd": 0.21756305413871133,
+        "p10": -0.28344671201813165,
+        "p50": -0.01829713451360071,
+        "p90": 0.24851614148531098
+      },
+      "intrabarRangePercent": {
+        "count": 108,
+        "mean": 0.35437166002541987,
+        "sd": 0.15528295990356647,
+        "p10": 0.19553752535497315,
+        "p50": 0.3101681201114797,
+        "p90": 0.54197544519411
+      }
+    },
+    {
+      "year": "2026",
+      "hourBlock": 4,
+      "eventSession": false,
+      "intervals": 688,
+      "sessions": 172,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 688,
+        "mean": 0.0037968246580400962,
+        "sd": 0.2221864070268107,
+        "p10": -0.27084775346836176,
+        "p50": 0.007157854552386489,
+        "p90": 0.26887549329979166
+      },
+      "intrabarRangePercent": {
+        "count": 688,
+        "mean": 0.3413647609141686,
+        "sd": 0.16808006203704182,
+        "p10": 0.17232176896683118,
+        "p50": 0.31084534127130653,
+        "p90": 0.5339395220976902
+      }
+    },
+    {
+      "year": "2026",
+      "hourBlock": 4,
+      "eventSession": true,
+      "intervals": 108,
+      "sessions": 27,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 108,
+        "mean": -0.01187877810328668,
+        "sd": 0.1938009894437946,
+        "p10": -0.22541195978857953,
+        "p50": -0.008685833405708276,
+        "p90": 0.22355197595083087
+      },
+      "intrabarRangePercent": {
+        "count": 108,
+        "mean": 0.34089411244586865,
+        "sd": 0.18551761842481695,
+        "p10": 0.17043759853423907,
+        "p50": 0.2925198495612214,
+        "p90": 0.6305170239596524
+      }
+    },
+    {
+      "year": "2026",
+      "hourBlock": 5,
+      "eventSession": false,
+      "intervals": 688,
+      "sessions": 172,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 688,
+        "mean": -0.011571382228387047,
+        "sd": 0.2472383229473092,
+        "p10": -0.29149159663866,
+        "p50": -0.0059715753015776585,
+        "p90": 0.25618930060320455
+      },
+      "intrabarRangePercent": {
+        "count": 688,
+        "mean": 0.35347680340660836,
+        "sd": 0.21397005113611095,
+        "p10": 0.17379907687046464,
+        "p50": 0.305725403001666,
+        "p90": 0.5914591133539548
+      }
+    },
+    {
+      "year": "2026",
+      "hourBlock": 5,
+      "eventSession": true,
+      "intervals": 108,
+      "sessions": 27,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 108,
+        "mean": -0.05877658146678306,
+        "sd": 0.31015964864009377,
+        "p10": -0.3656055857936047,
+        "p50": -0.03896858381374768,
+        "p90": 0.23001655145555855
+      },
+      "intrabarRangePercent": {
+        "count": 108,
+        "mean": 0.4187530352806344,
+        "sd": 0.27968529114403506,
+        "p10": 0.17229496898689955,
+        "p50": 0.3366074384725823,
+        "p90": 0.7995511291906202
+      }
+    },
+    {
+      "year": "2026",
+      "hourBlock": 6,
+      "eventSession": false,
+      "intervals": 344,
+      "sessions": 172,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 344,
+        "mean": -0.011757839489432298,
+        "sd": 0.3481955850704419,
+        "p10": -0.38012238086407857,
+        "p50": 0.008045052292837696,
+        "p90": 0.37798251830851726
+      },
+      "intrabarRangePercent": {
+        "count": 344,
+        "mean": 0.48653861947398674,
+        "sd": 0.28503872370382827,
+        "p10": 0.22167848254804823,
+        "p50": 0.41267745130406075,
+        "p90": 0.8021316924429349
+      }
+    },
+    {
+      "year": "2026",
+      "hourBlock": 6,
+      "eventSession": true,
+      "intervals": 54,
+      "sessions": 27,
+      "smallSample": false,
+      "candleReturnPercent": {
+        "count": 54,
+        "mean": -0.0077552011815782175,
+        "sd": 0.33850986938027827,
+        "p10": -0.43733227313388356,
+        "p50": 0.0022378373539799767,
+        "p90": 0.4328615964294569
+      },
+      "intrabarRangePercent": {
+        "count": 54,
+        "mean": 0.5167448730362544,
+        "sd": 0.248370338686846,
+        "p10": 0.2694353471302739,
+        "p50": 0.45521914037687133,
+        "p90": 0.8402129842215812
+      }
+    }
+  ],
+  "localPrivateFullCsvSha256": "8981dc8d6bf34071674035611f8a7313f16607a31f51993c599dbce1ab6eff42",
+  "publicSynchronizedRedacted": true
+}

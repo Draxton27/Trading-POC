@@ -1,0 +1,1026 @@
+{
+  "protocol": "docs/phase14-data-protocol.md",
+  "protocolCommit": "e10d01c4ba6011dd7ea6e183be83a283a469dc47",
+  "codeVersion": "01f3aaf1fa665ac41685a9a131e6315f0ae70156",
+  "createdAtUtc": "2026-10-18T09:23:23.845Z",
+  "alpaca": {
+    "endpoint": "https://data.alpaca.markets/v2/stocks/bars",
+    "termsUrl": "https://s3.amazonaws.com/files.alpaca.markets/disclosures/library/TermsAndConditions.pdf",
+    "termsCheckedAtUtc": "2026-10-18T09:23:23.845Z",
+    "termsSection": "Personal and Non-Commercial Usage",
+    "termsFinding": "Personal/non-commercial use; advance written notice for making Content available through a User Application. No SIP redistribution grant verified.",
+    "redistributionPermissionVerified": false,
+    "disposition": "CSV fuente y tabla íntegra de OHLCV solo locales; Git publica cobertura y datos derivados no OHLCV",
+    "symbols": {
+      "NVDA": {
+        "filename": "NVDA_ALPACA_SIP_15min_20211017_20261017.csv",
+        "hashes": {
+          "csv": "7b06d0a493515b18a581963d2d2d488e73a7cd0dc2c961b60a99315e7a9b0ecc",
+          "meta.json": "123ff39326b3aa2eb16a0455a0b9652a77ea009363758353880761d524a014e2",
+          "calendar.json": "75c3228c9addae74242763927a18d6e206fc623f2204381894f2d162befbe37a",
+          "provenance.json": "90e3381b68308f8e3188ff2651f7c3432ecccc4872ee8d32181b3ac10b66ea94"
+        },
+        "feed": "sip",
+        "timeframe": "15Min",
+        "adjustment": "split",
+        "session": "regular"
+      },
+      "QQQ": {
+        "filename": "QQQ_ALPACA_SIP_15min_20211017_20261017.csv",
+        "hashes": {
+          "csv": "962696cb57499ecf0991b1915975f5fe5725e7df7185654bfa4a2f71775eb2fb",
+          "meta.json": "9d5b16972f931f499b06f350cf5848168fab92f6f41c0425e30d964854aacbc3",
+          "calendar.json": "75c3228c9addae74242763927a18d6e206fc623f2204381894f2d162befbe37a",
+          "provenance.json": "2cf47ad1119da963b3ab5b3234ea2a5bf7167845d8a549d9154cebdfe660c508"
+        },
+        "feed": "sip",
+        "timeframe": "15Min",
+        "adjustment": "split",
+        "session": "regular"
+      },
+      "SMH": {
+        "filename": "SMH_ALPACA_SIP_15min_20211017_20261017.csv",
+        "hashes": {
+          "csv": "d517e4652e9f4e44c715b5580dd4fa6d303b0a9f3246169027d142b2aac0cb55",
+          "meta.json": "7b01f0e36071abbe9d52250606bb8b5d4169ed00aea87163dd6c83d328b2ff08",
+          "calendar.json": "75c3228c9addae74242763927a18d6e206fc623f2204381894f2d162befbe37a",
+          "provenance.json": "d960fe36c5759d326229f01ce246d6947067f3760b114f661e2ca1d8bd14dda5"
+        },
+        "feed": "sip",
+        "timeframe": "15Min",
+        "adjustment": "split",
+        "session": "regular"
+      }
+    }
+  },
+  "publicSources": [
+    {
+      "url": "https://www.bls.gov/schedule/2021/home.htm",
+      "publisher": "BLS",
+      "retrievedAtUtc": "2026-10-18T09:15:01.074Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "c09deb50d5817890974a16ed7cf0c0847a55059ed1459646ab7c38f0db07ae56",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.bls.gov/schedule/2022/home.htm",
+      "publisher": "BLS",
+      "retrievedAtUtc": "2026-10-18T09:15:01.738Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "0fa59a88a3a60572e0f70d5627db9e426f97d033501fd43c710b95b1f0cedc29",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.bls.gov/schedule/2023/home.htm",
+      "publisher": "BLS",
+      "retrievedAtUtc": "2026-10-18T09:15:02.266Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "7e2fc48b29ddf437ba21ab6a8f893fa21a364ede0d66dd1b7f36bc5df4abbbf9",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.bls.gov/schedule/2024/home.htm",
+      "publisher": "BLS",
+      "retrievedAtUtc": "2026-10-18T09:15:02.810Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "87b2a4ce0bc7e2ac84c6c5cdadabc23b7649265e753862c0263862e3a677105c",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.bls.gov/schedule/2025/home.htm",
+      "publisher": "BLS",
+      "retrievedAtUtc": "2026-10-18T09:15:03.490Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "e2739b849e058c1124cc32a498bd895576feb39d871263efb933acddac1a6ca4",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.bls.gov/schedule/2026/home.htm",
+      "publisher": "BLS",
+      "retrievedAtUtc": "2026-10-18T09:15:04.018Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "1bfb9d805fb7b419504962aa22773506b558534daac3b47d72c9de99fd16acac",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:04.258Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "5545d416ac306884d415f7e4def0c128ceb1b40a88f8de52c92e6876857b7deb",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20260128a.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:04.442Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "01b1e4da317dd77c471200bc79cb7684fbd842e391d42a6484196a963283bd09",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20260318a.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:04.670Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "31977e4855ad101df4158bbda80dc45fe52762f9ac498012e2409dede4524197",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20260429a.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:04.834Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "d3473ce01027759d2ba1e124e70e91ee65dfb2c1765536e055b3fe11d9f6e041",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20260617a.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:05.038Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "6bfccfc94800ff0d1bd6609009cad8a880addc5f3b6c84e29e57d695d53f7e7f",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20260729a.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:05.238Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "77c098022d1811c8c977dce2cbce3315838f5889fc65c8c82caacce400be0ca3",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20260916a.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:05.406Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "ea4f5eb1bba91309bf3b19b89ed41965b0859455075e236e63fee5441ccda9e6",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20250129a.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:05.590Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "402cdbe825a6ffc93461a62d258d94afcde59de1be48f198fb5b41b17e231e44",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20250319a.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:05.770Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "a5da972b4d9eee839d231bef374ca6b5bd2accee34b57f73218748966109b05b",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20250507a.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:05.946Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "c0a0648698035ad8ba2ee709982a6c62de81ea049d05d0901398d22b19e832ee",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20250618a.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:06.126Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "93dcef73bacc8698902ba24c625a0389a6d2f89b894948198bdf22cc2d87846e",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20250730a.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:06.306Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "15672a11cfe7c694c7ba650de146a7f1c9f6a509887168932b306136e27aa43a",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20250822a.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:06.486Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "28962028e759cad3b710b4f12deadddf51b903808b4b4d18eb286c8e31f77c19",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20250917a.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:06.666Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "fe9e0bc66be937cf41f2fa0d43fd15330390f5f35c1b6b98a3b61e9cf19ba401",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20251029a.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:06.838Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "f9965440946f9a0174a56f454b1a8b49fc09a727aabebbd1e4ee409b1fa0ea1b",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20251210a.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:07.014Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "6216446a6577214a561e10d624e04c996fee8101152415922e64ce75ccdade49",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20240131a.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:07.186Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "763d3e9cd04a5e4cbacbb44e4cd27aa3113c0875d179b84b482faa68e0b732ab",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20240320a.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:07.370Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "0503211ab2bfe9beacb344fffd4813313fbda6bf7b666c21a08c9a1c80930357",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20240501a.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:07.558Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "11d259f89ddb982c6c0428b5d5cb7de8b1c113e0a7062b42ada787f677876b7c",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20240612a.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:07.734Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "819aa551d108ee1e2b8f8fb00239e45d0d7086350927d75a0492cf95fe9b9ea6",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20240731a.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:07.910Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "b3bc928362ce474e754be20e5e244fe2b43706c6f62818046a11f1ce7ac211dd",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20240918a.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:08.086Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "f477c0f171c3475a7a0a858a73b55b4d14dec565ef5d81fe7efae804354a3d57",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20241107a.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:08.262Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "21b3e803f90e7324277e36e629623015ca71f30167282135b19b4c956b1dd4c5",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20241218a.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:08.434Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "de0292087e0584c13a559b5d6074c25fa6f4e46f10ce9d12247fc27c83268249",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20230201a.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:08.614Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "2b029f48faeb6db57e64723e43621665cf15f79b22728c675d3916fcf3c3cf72",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20230322a.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:08.782Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "371d53ff7dc0dee2088aea4497550053fdedf7cc2dc0c425ae79acc16c96ca7e",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20230503a.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:08.962Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "a2f3c811ca1c65c7d3f5a464b6d7be9aeaa89c6f79ad59ed9c9342c6d25fc3a7",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20230614a.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:09.126Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "c4f75341e6a783c377c5eed077056a96922799f4a0a3fa4d959ef730d035ad8a",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20230726a.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:09.302Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "e9f8507f27143fa781f9a461453c655b03405d6827574b5f747032c7a1391791",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20230920a.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:09.478Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "7fc5dcbfe5aee2b1581eaf06e36fc1d8a2950f247423c036aac693e72c8d8a46",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20231101a.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:09.666Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "c24ceb8bdfb602f3e70bb0cbfbcfd91cc0588bb9cd499c266988edcc720997d1",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20231213a.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:09.850Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "f7601dbf421165a92ee1123bdddcddb9c835b915bcb9fbf8b92babc9a1f3122f",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20220126a.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:10.018Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "5446dc6d409764c11ba1afa8a987b00370742e6291b1c5585c228a75db6d8b51",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20220316a.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:10.202Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "898e17f2ef40920cb7982911f9a57406860fa09e4608aae5675ab722f26007c6",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20220504a.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:10.378Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "0b84ee9dcf68836a3b040394b457d0a85be997fb82e67f473af51e4c4a112992",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20220615a.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:10.554Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "7c2490aab9e503ceed085c1abc3dc2801896812f792d6bfb3668491f6102b73c",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20220727a.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:10.734Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "1b22a29421551a596ecb96b768148bcb16f36b91916199e6d1dfa888cfbadb56",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20220921a.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:10.898Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "8d71b4301d4241761d386012153b8bee5694381c101bded1a4a3a4ad45deb866",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20221102a.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:11.070Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "8ebcb410aee038a9ec82e83828f22efc270aed7d62e90318ee3e4ae950115222",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20221214a.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:11.250Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "c7257ddca648efc3a1f0d34112fba1299896aff7d6e4d68c56c11b4004c16d9d",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20211103a.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:11.434Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "0f467f58e2473dc750bf3ffe0b4a07f917f2b69de2842e7f0d24b963814a4b74",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20211215a.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:11.602Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "7c9f50d6a6b36abe7ce632b07b82cb225da9371d44a09898a5ba4c53dc079e28",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomcpresconf20260318.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:11.782Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "83a09d5798b638760d85192f30b4714b5c753968e804d94b86e797556376e24c",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomcpresconf20260429.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:11.970Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "4c9f61020c0a1fd03b631418f0d9d12b5f63ed2572e104aa797ca80fdd416b90",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomcpresconf20260617.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:12.154Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "32b72241acf1b584af53d10f10d15156aa4edc961061fb643b63f5efd150de94",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomcpresconf20260729.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:12.330Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "6172fe0d92c2020e72324d11c615e05e30af6252175d500eb10c2b2b01b68bad",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomcpresconf20260916.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:12.502Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "44f71599a7313c160892ad9c037a64cb051c743f9ebb853362af7c126f95e43f",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomcpresconf20250129.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:14.134Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "96f6df078febd22970e0e035c7114a18598fa95afda604c7d7a6a270ffcccf0f",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomcpresconf20250319.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:14.310Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "d16c208a41c710a6c0c3fc4cab3e557f29db270b89d509270bb9878d77278aaa",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomcpresconf20250507.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:14.486Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "3b6bf82210683884d6e7a1ffde137f533961d385d964e5d1a8e0fb28b1cc4921",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomcpresconf20250618.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:14.666Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "7b63ca62f3bd1c1a0444636d612d29eb842d6934af18c3ccd60b9c79d74c6569",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomcpresconf20250730.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:14.862Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "e91dbc6d7feae37c7da76a4cab3c04239cc0860f390f337fac1917c4dcfc82fc",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomcpresconf20250917.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:15.030Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "1aa6106a0ef93f373ee33cc3e7741ad14483032b9199e9d4a26ff6787ce49f48",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomcpresconf20251029.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:15.210Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "57acbe0d6470e9a7da80a20416d254f40e140eb82eaae3424ad5ac9fb0e43e98",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomcpresconf20251210.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:15.378Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "c68adb3e3c8efd817aa3d6013095fc2d23c6010006657b5d92c7f46f3b78cfcd",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomcpresconf20240131.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:15.566Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "31275fd144e9bc5cd40ebf99e4689734e8ea7282aae6a54ea8cf12ccc8f5e1f1",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomcpresconf20240320.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:15.734Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "738534acb4e38dc5078d632b6b606e4a96f8dbb13d5108a97c9bdda12ea7cfae",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomcpresconf20240501.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:15.914Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "adaf8046557d9d077fc9d4cc5c30e7c17cdd6bf635a86df713cff39f153e4902",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomcpresconf20240612.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:16.086Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "e3c8fc9a210b0cecf9d9e6a4d449092a0a266acafab527d61ad4e58c8a0ef40b",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomcpresconf20240731.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:16.250Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "e4a970388bfd655176e8dfbf87d862c4abffa141044d6766c634674eadbbbebc",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomcpresconf20240918.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:16.438Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "fe724601c54600d44d87fe0ef0af003dce0dbd8ed740c0bb72568acd02d3d7c3",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomcpresconf20241107.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:16.606Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "5037817409f51db21ed5eaa813ad220415fbf71f20537cced688e87df6deeb3d",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomcpresconf20241218.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:16.782Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "275c7a76d164032f555f8391be5bd607a3b3f01ed68751e5e463d388e4549531",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomcpresconf20230201.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:16.950Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "4036ad65bfc21d5701e19f4f70aaefd85381ded9c1e4a4b5314bc0a72bb34aca",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomcpresconf20230322.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:17.114Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "c3841f707638029ca228e12b6f706d1cead126977eaf55d80d8fad4a21c92421",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomcpresconf20230503.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:17.274Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "cd3f3e40f1aa254a64e473caf7550793a0ad06b07051cfc559fbf35085c66224",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomcpresconf20230614.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:17.438Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "0a6a80e82a42e63e74c723f355d5410a34226112d770dea86d11ce8a0aa1990a",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomcpresconf20230726.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:17.614Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "77312e561dd1740375d670716ff4ed33f36b0425ed99464f7b51ee7329acfbc3",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomcpresconf20230920.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:17.778Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "1e7302bbd5efad69f446ef950435674c7db234bc48522793c8310beb1819b7fb",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomcpresconf20231101.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:17.942Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "69f8a4d440b2bf43dc55d2cef37490aba5026e8db9b9962beaa5bc82cf6ee7af",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomcpresconf20231213.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:18.110Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "205631b0e1103ab846bee57a7e32efa98703dc08afdc1b08fa5a6e09153e0a55",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomcpresconf20220126.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:18.282Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "6e24de5556a2444cf837fcbbb47f560f053a39cd40576c94f6b64058928b2579",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomcpresconf20220504.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:18.478Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "a2d38c554742dc7b5de32f04534d87485ee47adc4de6f3989a898375f9b73aec",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomcpresconf20220615.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:18.634Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "94eacf7307c7e7347d70dfb52c0457f02984af591fb73d95ebb3d8a4a72d7361",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomcpresconf20220727.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:18.806Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "9d3c70e9ddc9d1d8fda39fc44331d1a70b223160a198169dede26106b8bd2fda",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomcpresconf20220921.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:18.978Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "828b8eae384ebb09add5162822b291aeba2f5a7a4a7b904d47a00cf374e08735",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomcpresconf20221102.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:19.138Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "cdba22c465fb9e940aff1f52875dd6980bf829d5f6eafbb9a32c0a82dd244f4b",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomcpresconf20221214.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:19.298Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "1d1c215d6c70bc7d3bb56bdb96660af5b4bc9bfbd3b7e29d358f30af07a9abd6",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomcpresconf20211103.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:19.466Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "529c91381cfae27a258a700be3ac083bf667d4a123d72d7287cd6cf6f74dd559",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomcpresconf20211215.htm",
+      "publisher": "Federal Reserve",
+      "retrievedAtUtc": "2026-10-18T09:15:19.622Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "6f1a15e10a458ab8e3551eec69e19414bb8bc6d936a3fc0553f73e63983cf0cb",
+      "status": 200,
+      "licenseNote": "Fuente gubernamental pública; solo metadatos de calendario derivados"
+    },
+    {
+      "url": "https://nvidianews.nvidia.com/news/nvidia-announces-financial-results-for-third-quarter-fiscal-2022",
+      "publisher": "NVIDIA Newsroom",
+      "retrievedAtUtc": "2026-10-18T09:15:21.530Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "0ca11699f46f5a63e4a73142e83460c012ca8f2f09abb63307a2ce4b856ca00d",
+      "status": 200,
+      "licenseNote": "Página pública NVIDIA; solo metadatos de fecha/tipo y URL"
+    },
+    {
+      "url": "https://nvidianews.nvidia.com/news/nvidia-announces-financial-results-for-fourth-quarter-and-fiscal-2022",
+      "publisher": "NVIDIA Newsroom",
+      "retrievedAtUtc": "2026-10-18T09:16:50.918Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "c02bc43de43a0072fed2e5c5f1693825c770c2c36a44d05fac6413bf475111da",
+      "status": 200,
+      "licenseNote": "Página pública NVIDIA; solo metadatos de fecha/tipo y URL"
+    },
+    {
+      "url": "https://nvidianews.nvidia.com/news/nvidia-announces-financial-results-for-first-quarter-fiscal-2023",
+      "publisher": "NVIDIA Newsroom",
+      "retrievedAtUtc": "2026-10-18T09:15:22.234Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "ecc1438acbffba884eb5535de1767939ff303d8a2c9f77576018ca75f6363681",
+      "status": 200,
+      "licenseNote": "Página pública NVIDIA; solo metadatos de fecha/tipo y URL"
+    },
+    {
+      "url": "https://nvidianews.nvidia.com/news/nvidia-announces-financial-results-for-second-quarter-fiscal-2023",
+      "publisher": "NVIDIA Newsroom",
+      "retrievedAtUtc": "2026-10-18T09:15:22.482Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "c0525db70be1572ee88623521f05cf3b220fa5e2376184e6493e97a97d9b3822",
+      "status": 200,
+      "licenseNote": "Página pública NVIDIA; solo metadatos de fecha/tipo y URL"
+    },
+    {
+      "url": "https://nvidianews.nvidia.com/news/nvidia-announces-financial-results-for-third-quarter-fiscal-2023",
+      "publisher": "NVIDIA Newsroom",
+      "retrievedAtUtc": "2026-10-18T09:15:22.970Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "e4c199151c9e5844912310436c95632fcbe5c7c18b596c732e3a3dd84d477313",
+      "status": 200,
+      "licenseNote": "Página pública NVIDIA; solo metadatos de fecha/tipo y URL"
+    },
+    {
+      "url": "https://nvidianews.nvidia.com/news/nvidia-announces-financial-results-for-fourth-quarter-and-fiscal-2023",
+      "publisher": "NVIDIA Newsroom",
+      "retrievedAtUtc": "2026-10-18T09:16:51.582Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "da9f23ea7884dae129f6a09d5b61eba459b06a32a0014b718776e638b5338d73",
+      "status": 200,
+      "licenseNote": "Página pública NVIDIA; solo metadatos de fecha/tipo y URL"
+    },
+    {
+      "url": "https://nvidianews.nvidia.com/news/nvidia-announces-financial-results-for-first-quarter-fiscal-2024",
+      "publisher": "NVIDIA Newsroom",
+      "retrievedAtUtc": "2026-10-18T09:15:23.542Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "a9c9e37123d398d1c253091f5f7ec1d3319dd752d0b5101b424423eb4eb69217",
+      "status": 200,
+      "licenseNote": "Página pública NVIDIA; solo metadatos de fecha/tipo y URL"
+    },
+    {
+      "url": "https://nvidianews.nvidia.com/news/nvidia-announces-financial-results-for-second-quarter-fiscal-2024",
+      "publisher": "NVIDIA Newsroom",
+      "retrievedAtUtc": "2026-10-18T09:15:23.798Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "ef03edfea594aec94cf5859e2dbbdabb44503dfbe393f32664dcd6fcde59650c",
+      "status": 200,
+      "licenseNote": "Página pública NVIDIA; solo metadatos de fecha/tipo y URL"
+    },
+    {
+      "url": "https://nvidianews.nvidia.com/news/nvidia-announces-financial-results-for-third-quarter-fiscal-2024",
+      "publisher": "NVIDIA Newsroom",
+      "retrievedAtUtc": "2026-10-18T09:15:24.062Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "fc52a2e96660ad45bb283c5f52b813cffda644bb19c8b780dcd68a23e6f3bbc5",
+      "status": 200,
+      "licenseNote": "Página pública NVIDIA; solo metadatos de fecha/tipo y URL"
+    },
+    {
+      "url": "https://nvidianews.nvidia.com/news/nvidia-announces-financial-results-for-fourth-quarter-and-fiscal-2024",
+      "publisher": "NVIDIA Newsroom",
+      "retrievedAtUtc": "2026-10-18T09:16:51.886Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "a6dd24e1ad761ff0bfb58145ab6e3a59356ed68dda2fa2d7a89b3c7d16109d1b",
+      "status": 200,
+      "licenseNote": "Página pública NVIDIA; solo metadatos de fecha/tipo y URL"
+    },
+    {
+      "url": "https://nvidianews.nvidia.com/news/nvidia-announces-financial-results-for-first-quarter-fiscal-2025",
+      "publisher": "NVIDIA Newsroom",
+      "retrievedAtUtc": "2026-10-18T09:15:24.526Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "558b39335035134eceead8f460c9b206aa97137072473fd432b354452add7ddd",
+      "status": 200,
+      "licenseNote": "Página pública NVIDIA; solo metadatos de fecha/tipo y URL"
+    },
+    {
+      "url": "https://nvidianews.nvidia.com/news/nvidia-announces-financial-results-for-second-quarter-fiscal-2025",
+      "publisher": "NVIDIA Newsroom",
+      "retrievedAtUtc": "2026-10-18T09:15:24.778Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "a3c165f5dc8a044de116b7008eab3edd52e519f1ba16a01761d66c1f3984755f",
+      "status": 200,
+      "licenseNote": "Página pública NVIDIA; solo metadatos de fecha/tipo y URL"
+    },
+    {
+      "url": "https://nvidianews.nvidia.com/news/nvidia-announces-financial-results-for-third-quarter-fiscal-2025",
+      "publisher": "NVIDIA Newsroom",
+      "retrievedAtUtc": "2026-10-18T09:15:25.034Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "12bea1e28a07228fe904685e945e651b8aabc32d346fbb7c622ffdd76419af3b",
+      "status": 200,
+      "licenseNote": "Página pública NVIDIA; solo metadatos de fecha/tipo y URL"
+    },
+    {
+      "url": "https://nvidianews.nvidia.com/news/nvidia-announces-financial-results-for-fourth-quarter-and-fiscal-2025",
+      "publisher": "NVIDIA Newsroom",
+      "retrievedAtUtc": "2026-10-18T09:16:52.278Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "958ceab320d8f858a5c2ef780ae9db738884ca9f8fc5d481e0be663b49656d24",
+      "status": 200,
+      "licenseNote": "Página pública NVIDIA; solo metadatos de fecha/tipo y URL"
+    },
+    {
+      "url": "https://nvidianews.nvidia.com/news/nvidia-announces-financial-results-for-first-quarter-fiscal-2026",
+      "publisher": "NVIDIA Newsroom",
+      "retrievedAtUtc": "2026-10-18T09:15:25.498Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "511bc004af3db58daa20973b46c76eaf9ffaf7c478e418d3ad088fa339fe3983",
+      "status": 200,
+      "licenseNote": "Página pública NVIDIA; solo metadatos de fecha/tipo y URL"
+    },
+    {
+      "url": "https://nvidianews.nvidia.com/news/nvidia-announces-financial-results-for-second-quarter-fiscal-2026",
+      "publisher": "NVIDIA Newsroom",
+      "retrievedAtUtc": "2026-10-18T09:15:25.758Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "efad4aa4cb80e3f00f3952521a67285ba693720d358c0c98876e20e9bc0f7047",
+      "status": 200,
+      "licenseNote": "Página pública NVIDIA; solo metadatos de fecha/tipo y URL"
+    },
+    {
+      "url": "https://nvidianews.nvidia.com/news/nvidia-announces-financial-results-for-third-quarter-fiscal-2026",
+      "publisher": "NVIDIA Newsroom",
+      "retrievedAtUtc": "2026-10-18T09:15:26.022Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "c9b77431a1f0af14cfd091517dc3e8e67dae12a58fc17ea867d3aa0ea8d060e2",
+      "status": 200,
+      "licenseNote": "Página pública NVIDIA; solo metadatos de fecha/tipo y URL"
+    },
+    {
+      "url": "https://nvidianews.nvidia.com/news/nvidia-announces-financial-results-for-fourth-quarter-and-fiscal-2026",
+      "publisher": "NVIDIA Newsroom",
+      "retrievedAtUtc": "2026-10-18T09:16:52.558Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "e3c7cbf9cf608aa13c4510529c5b43e007822c719f7e0291aa610a351dc2a5c6",
+      "status": 200,
+      "licenseNote": "Página pública NVIDIA; solo metadatos de fecha/tipo y URL"
+    },
+    {
+      "url": "https://nvidianews.nvidia.com/news/nvidia-announces-financial-results-for-first-quarter-fiscal-2027",
+      "publisher": "NVIDIA Newsroom",
+      "retrievedAtUtc": "2026-10-18T09:15:26.474Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "73f5090727ac73f648bdc275a50b58348ed237e0bce452363a4838026aaf72de",
+      "status": 200,
+      "licenseNote": "Página pública NVIDIA; solo metadatos de fecha/tipo y URL"
+    },
+    {
+      "url": "https://nvidianews.nvidia.com/news/nvidia-announces-financial-results-for-second-quarter-fiscal-2027",
+      "publisher": "NVIDIA Newsroom",
+      "retrievedAtUtc": "2026-10-18T09:15:26.730Z",
+      "consultedAtUtc": "2026-10-18T09:23:22.233Z",
+      "sha256": "69ed38b4b016e974016890eb54e6ba8e8b9e6cc7ae0b2232e3abcd6bd1a96faf",
+      "status": 200,
+      "licenseNote": "Página pública NVIDIA; solo metadatos de fecha/tipo y URL"
+    }
+  ],
+  "optionalConsensus": {
+    "status": "no verified historical source integrated",
+    "coveredEvents": 0,
+    "totalEvents": 257
+  },
+  "corporateTime": {
+    "status": "NVIDIA original pages verify date, not exact release time",
+    "causalIntradayCoverage": 0
+  },
+  "previousStudies": {
+    "phase11": "05031c1371b2596efa7653e326cdad1325855454479a1e1f25c3aeff66f6ba1f",
+    "phase12": "3e1f2ddab92bee95c270a9f1f170574a4089c1d9bd3696287a343a30fc030f56",
+    "phase13": "45f15df045e7210651745919bbd7f22a9eb88cc199638a1a9c606a7ade40c0e7"
+  }
+}
