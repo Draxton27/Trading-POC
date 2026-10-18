@@ -179,8 +179,10 @@ async function observe() {
       const timestamp = localEasternToUtc(date, slot);
       if (!timestamp || timestamp < FORWARD_START || Date.parse(timestamp) + 900_000 > availableThrough) continue;
       const id = `assessed:${timestamp}`;
-    const priorAssessment = verifyLedger(publicRoot).find(r => r.id === id);
-    if (priorAssessment && (priorAssessment.payload.coverage as Record<string, boolean>).NVDA) continue;
+    const currentLedger = verifyLedger(publicRoot);
+    const priorAssessment = currentLedger.find(r => r.id === id);
+    if (priorAssessment && ((priorAssessment.payload.coverage as Record<string, boolean>).NVDA ||
+      currentLedger.some(r => r.id === `correction:${id}:nvda_recovered`))) continue;
     const at = new Date().toISOString();
     const index = nvdaIndex.get(timestamp);
     const current = index === undefined ? null : candles.NVDA[index]!;
