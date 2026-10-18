@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "classification": "technical_validation_with_synthetic_data_only",
+  "checkedAtUtc": "2026-10-18T20:28:47.000Z",
+  "testedCodeCommit": "54c6107af9065b904dd748ad51828fd6e184e760",
+  "phase17ReferenceCommit": "643ab32f24de8c07c99e4e303a163f6ddf78526c",
+  "installation": {"command": "npm ci --cache /tmp/phase17-npm-cache", "status": "passed"},
+  "typecheck": {"command": "npm run typecheck", "status": "passed"},
+  "unitTests": {
+    "command": "npm test",
+    "status": "passed",
+    "total": 159,
+    "passed": 159,
+    "failed": 0,
+    "previousPhase17Total": 147,
+    "newTests": 12,
+    "covered": [
+      "A/B/C imports and one long position with two partial sales",
+      "overlapping source files and identical execution IDs",
+      "contradictory execution IDs reject before persistence",
+      "replay after a new Node process and stale-lock recovery",
+      "OCC isolation, insufficient inventory and ambiguous same-time buy/sell",
+      "missing commissions produce null net result",
+      "source and envelope SHA-256 integrity",
+      "F16 and original F17 CSV compatibility",
+      "linked chart and fills, no_trade, plan changes and retrospective classification",
+      "decision view excludes later outcomes",
+      "35 operator claims with the pending-audio provenance"
+    ]
+  },
+  "historicalValidators": {
+    "status": "passed",
+    "commands": [
+      "validate:nvda",
+      "validate:nvda-volume",
+      "validate:nvda-indicators",
+      "validate:nvda-sma-context",
+      "validate:nvda-pullback-breakout",
+      "validate:nvda-failed-breakouts",
+      "validate:nvda-volatility",
+      "validate:phase14-context",
+      "validate:phase15-confirmation"
+    ],
+    "previousArtifactSha256Checks": ["phase12", "phase14", "phase15", "phase16"],
+    "trackedHistoricalOutputsUnchanged": true
+  },
+  "manualSyntheticSmoke": {
+    "status": "passed",
+    "commands": [
+      "attach-chart:phase17",
+      "journal:phase17",
+      "import:broker:phase17 A.csv",
+      "import:broker:phase17 B.csv",
+      "import:broker:phase17 C.csv",
+      "import:broker:phase17 B.csv retry",
+      "broker-state:phase17",
+      "review-trades:phase17",
+      "compare:phase17"
+    ],
+    "sourceFiles": 3,
+    "positions": 1,
+    "remainingContracts": 0,
+    "duplicateRetryRecognized": true,
+    "reviewCases": 2,
+    "closedSyntheticCases": 1,
+    "noTradeSyntheticCases": 1,
+    "historicalDecisionRemainedRetrospective": true,
+    "decisionViewExcludedOutcome": true
+  },
+  "realOperatorDecisionsUsed": 0,
+  "realBrokerExecutionsUsed": 0,
+  "historicalOptionsBacktestRun": false,
+  "profitabilityClaim": false
+}

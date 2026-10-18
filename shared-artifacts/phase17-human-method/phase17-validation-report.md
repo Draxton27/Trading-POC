@@ -1,5 +1,7 @@
 # Fase 17 — informe de validación
 
+**Actualización:** el corte inicial de 147 pruebas y commit `a0c7ff5` se conserva abajo como historial del PR. La ampliación solicitada después se probó sobre `54c6107af9065b904dd748ad51828fd6e184e760` con **159 pruebas**; véase la sección final y [resultados estructurados](phase17-import-test-results.json).
+
 **Base:** `main` en `3916adfc7c1924a89d577bbdcb4bf67788a694f4`. Antes de crear la rama se comprobó que los PR #21 y #22 estaban fusionados. **Versión exacta del código F17 probado:** `a0c7ff5afb69bbb280ab92c9138fd5ffe0668cf4`. La rama de entrega es `codex/phase17-human-strategy-specification`; no se fusionó ningún PR.
 
 ## Alcance y resultado
@@ -32,3 +34,15 @@ La prueba manual con datos **sintéticos** ejecutó dos veces `journal:phase17` 
 - El CSV del bróker documentado cubre posiciones largas de opciones estándar con multiplicador 100 y fills BUY/SELL; otras estructuras o multiplicadores requieren un contrato nuevo antes de importar.
 - La cobertura de mercado humano se registra de forma explícita pero no prueba vigilancia continua. Sin decisiones humanas reales, señales prospectivas y cotizaciones históricas de opciones, no existe comparación de rendimiento ni atribución de ventaja estadística.
 - Audios, capturas originales, fills y resultados privados no se publicaron. El paquete compartido contiene solo especificación, esquemas, plantilla vacía y auditoría técnica.
+
+## Ampliación de Fase 17 sobre `54c6107`
+
+Se incorporaron 35 afirmaciones de ocho respuestas resumidas por el usuario. Cada fila del [registro](phase17-operator-evidence-register.csv) conserva el marcador `resumen_conversacional_de_audio_pendiente_de_cotejo`, temporalidad, ambigüedad y prueba futura. Ninguna se presenta como transcripción literal verificada; el indicador Finviz menor que 2,5 sigue sin nombre y los 80/90/95% personales no son probabilidades calculadas.
+
+El importador reconstruye posiciones desde todos los sobres originales privados, identifica solapamientos sin doble conteo y permite compras/ventas parciales entre archivos. El diario agrega notas posteriores vinculadas a una decisión y a fills disponibles; la revisión privada separa contexto previo y resultado. Los campos antiguos F16/F17 se siguen aceptando. No se cambiaron detectores, protocolos ni resultados históricos F9–F16.
+
+Sobre el commit exacto `54c6107af9065b904dd748ad51828fd6e184e760`, `npm ci`, `npm run typecheck` y `npm test` terminaron correctamente: **159/159 pruebas**, doce más que el corte inicial. Los nueve validadores históricos del apartado anterior pasaron también sobre ese commit. Los `SHA256SUMS.txt` de F12, F14, F15 y F16 verifican y el árbol Git no muestra cambios en resultados históricos.
+
+Una prueba manual de comandos con archivos **sintéticos** importó tres fuentes A/B/C, reconstruyó una posición cerrada, reconoció el reintento sin duplicación y preservó un `no_trade`. Su revisión produjo dos casos; el caso con fills permaneció como `historical_reconstruction`, pues se documentó después de la compra. La vista de decisión no incluyó el resultado posterior. Detalles reproducibles y recuentos en [phase17-import-test-results.json](phase17-import-test-results.json), [mejora del importador](phase17-broker-import-improvements.md) y [auditoría temporal](phase17-integration-audit.md).
+
+Todavía faltan los audios o transcripciones originales autorizados para cotejar las declaraciones, así como decisiones, capturas y exportaciones auténticas para una prueba privada. Esa ausencia no bloquea la infraestructura ni autoriza inventar ejemplos o evaluar rentabilidad. El almacenamiento privado debe persistirse fuera de un entorno temporal de Codex.
