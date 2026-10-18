@@ -9,6 +9,7 @@ import {saveReportArtifacts} from './report-output.ts';
 const file = process.argv[2];
 if (!file) {console.error('Uso: node --experimental-strip-types src/main.ts ruta/al/archivo.csv');process.exit(1);}
 const {candles, metadata: dataMetadata} = loadDataset(file);
+if (dataMetadata.bar_minutes !== 5) throw new Error('Este análisis requiere velas de 5 minutos.');
 if (candles.length < 300) throw new Error('Se recomiendan al menos 300 velas para esta prueba.');
 const split = Math.floor(candles.length * 0.7);
 const points = calculateBollinger(candles);

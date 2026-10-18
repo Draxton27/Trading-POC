@@ -113,6 +113,21 @@ test('promedio histórico cero no produce RVOL infinito', () => {
     day20.volumeAvailability], [0, null, 'promedio_cero']);
 });
 
+test('las fronteras usan solo exploración y la igualdad pertenece al grupo superior', () => {
+  const {candles, calendar} = fixture();
+  const study = studyNvdaOpeningVolume(candles, calendar);
+  assert.equal(study.exploratoryRvolCutpoints.sample, 4);
+  assert.deepEqual(study.exploratoryRvolCutpoints,
+    {lower: 100 / 102.5, upper: 150 / 102.5, sample: 4});
+  const day22 = study.days.find(day => day.openingTimestamp === candles[22]!.timestamp)!;
+  const day23 = study.days.find(day => day.openingTimestamp === candles[23]!.timestamp)!;
+  assert.equal(day22.rvolBand, 'medio');
+  assert.equal(day23.rvolBand, 'alto');
+  const day24 = study.days.find(day => day.openingTimestamp === candles[24]!.timestamp)!;
+  assert.equal(day24.segment, 'evaluacion');
+  assert.equal(day24.rvolBand, 'bajo');
+});
+
 test('el reporte separa estudio retrospectivo y horario disponible; muestra volumen y tamaños', () => {
   const {candles, calendar} = fixture();
   const report = renderNvdaOpeningVolumeReport(studyNvdaOpeningVolume(candles, calendar), 'controlado.csv');

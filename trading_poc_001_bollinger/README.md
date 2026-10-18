@@ -63,6 +63,8 @@ Junto al CSV crea `data/QQQ_REAL_5min.csv.meta.json`:
 
 `data_class` es `synthetic` o `real`, según la declaración del usuario; el programa no verifica que los datos declarados reales provengan del mercado. `session` es `regular` o `extended`. La temporalidad admitida en esta fase es de cinco minutos para acciones estadounidenses cotizadas en horario de Nueva York.
 
+`analyze` y los estudios históricos de QQQ rechazan metadatos de 15 minutos: sus señales y horizontes están definidos para velas de 5 minutos.
+
 Se requieren al menos 300 velas y muchas más para intentar estimaciones de utilidad práctica. Para datos reales, revisa ajustes por splits, procedencia, cobertura, calidad y derechos de uso.
 
 ## Tiempo de las velas y disponibilidad de señales
@@ -77,7 +79,7 @@ Una vela iniciada a las `13:30:00Z` cubre el intervalo **13:30–13:35 UTC**. Su
 - Se rechazan timestamps repetidos o desordenados y huecos de más de cinco minutos **entre barras del mismo día local**. Se admiten intervalos entre días, incluidos cierres normales, fines de semana, festivos y días de cierre temprano. El archivo puede cubrir solo parte de una sesión. El lector CSV general no incorpora un calendario bursátil oficial y no detecta días completos ausentes ni certifica cierres tempranos; la importación ampliada de Alpaca sí aplica el calendario del proveedor, como se explica más abajo.
 - Las bandas y el historial de compresión utilizan las últimas barras presentes aunque crucen sesiones; no se reinician cada mañana. La evaluación de movimientos futuros sigue exigiendo barras consecutivas. No se modificaron las reglas de señales ni los cálculos de rendimiento en esta fase.
 
-El CSV se rechaza si faltan campos, hay fechas imposibles o sin zona, precios no positivos, OHLC incoherente, volumen negativo o no entero, o valores no finitos. Se admite volumen cero. Si existe una suspensión o un intervalo intradía sin barras, hay que resolverlo en los datos antes de analizarlos; no se rellenan precios automáticamente.
+El CSV se rechaza si faltan campos, hay fechas imposibles o sin zona, precios no positivos, OHLC incoherente, volumen negativo o fuera del rango de enteros seguros de JavaScript, o valores no finitos. Se admite volumen cero. Si existe una suspensión o un intervalo intradía sin barras, hay que resolverlo en los datos antes de analizarlos; no se rellenan precios automáticamente.
 
 Pruebas automáticas (tras `npm ci`, comprueban tipos y comparan con `trading-signals@8.3.0`):
 
@@ -187,6 +189,8 @@ npm run validate:nvda
 ```
 
 La importación deja `data/NVDA_ALPACA_SIP_15min_12m.csv`, sus metadatos y un calendario local junto al CSV. Los tres se ignoran en Git. El análisis crea `output/real/nvda-opening-reversion.md` y `.json`, también ignorados. El CSV usa inicio UTC de cada vela; el horario bursátil se interpreta en `America/New_York`, incluidos los cambios entre EST y EDT. No se fabrican velas. Si falta una vela necesaria para un horizonte, ese caso no entra en su denominador; una sesión incompleta no se etiqueta como «nunca regresó».
+
+Al validar el estudio, cada vela de 15 minutos debe quedar íntegramente dentro del horario de su fecha en el calendario local, incluidos los cierres anticipados. Un CSV y un calendario incompatibles producen un error antes de calcular las bandas o RVOL; el lector CSV por sí solo no conoce esos cierres.
 
 La banda de apertura usa la **SMA de los últimos 20 cierres antes de las 09:30** más o menos **dos desviaciones estándar poblacionales**, igual que el cálculo Bollinger local. Se congela antes de leer la primera vela de la sesión. Si `open > banda superior`, la apertura es «encima»; si `open < banda inferior`, es «debajo». Una igualdad no cuenta. Desde la **primera** vela de 15 minutos, el regreso por rango exige que el rango intersecte el interior congelado: `low < upper && high > lower`. La confirmación por cierre exige estrictamente `lower < close && close < upper`. Una vela que atraviesa ambas bandas y cierra fuera del lado contrario cuenta por rango, pero no por cierre. Tocar exactamente una banda sin entrar no cuenta, y volver a entrar no implica llegar a la SMA 20. Se observan 15, 30, 60, 120 minutos y la sesión completa. El tiempo del primer regreso se registra como el final de la primera vela en que ocurrió: es un límite superior del instante real, con hasta **15 minutos de imprecisión**, no el minuto exacto del cruce.
 

@@ -22,7 +22,7 @@ export function parseCandlesCsv(content: string, metadata: DataMetadata): Candle
     catch (error) { throw new Error(`Timestamp invalido en linea ${i + 2}: ${String(error)}`); }
     const [open, high, low, close, volume] = nums;
     if (t <= lastTime || nums.some(n => !Number.isFinite(n)) || open! <= 0 || close! <= 0 || low! <= 0 || high! <= 0 ||
-        high! < Math.max(open!,close!,low!) || low! > Math.min(open!,close!) || volume! < 0 || !Number.isInteger(volume)) {
+        high! < Math.max(open!,close!,low!) || low! > Math.min(open!,close!) || volume! < 0 || !Number.isSafeInteger(volume)) {
       throw new Error(`Datos OHLCV invalidos o desordenados en linea ${i + 2}`);
     }
     try { validateBarTime(t, Number.isFinite(lastTime) ? lastTime : null, metadata); }
