@@ -14,7 +14,8 @@ function primaryRow(row: StudyRow): string {
     row.matchedEvents, pct(row.eligible.favorableRate), interval(row.favorableInterval95),
     fmt(row.eligible.meanSignedPercent), fmt(row.eligible.meanFavorablePercent),
     fmt(row.eligible.meanAdversePercent), fmt(row.eligible.meanMfePercent),
-    fmt(row.eligible.meanMaePercent), fmt(row.referenceMeanPercent),
+    fmt(row.eligible.meanMaePercent), fmt(row.matchedSignalMeanPercent),
+    fmt(row.referenceMeanPercent),
     fmt(row.differenceMeanPercent), interval(row.differenceInterval95Percent),
     fmt(row.holmP, 4)].join(' | ') + ' |';
 }
@@ -41,18 +42,20 @@ export function renderPhase12Report(study: FailedBreakoutStudy, source: string,
       'La ruptura inicial no es una señal de reversión: la falla exige retorno estricto en la primera o segunda vela siguiente. ' +
       'La entrada hipotética sigue al cierre de confirmación; el horizonte principal termina al cierre de la segunda vela posterior.',
     '', '## Dos comparaciones principales: 30 minutos', '',
-    '| Hipótesis | Rupturas iniciales | Fallas | Sin regreso | Observación incompleta | Evaluables | Sesiones | Con control | Favorables | IC 95% favorables | Media % | Favorable media % | Desfavorable media % | MFE media % | MAE media % | Control % | Diferencia % | IC 95% diferencia % | p Holm |',
-    '|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|---|---:|',
+    '| Hipótesis | Rupturas iniciales | Fallas | Sin regreso | Observación incompleta | Evaluables | Sesiones | Con control | Favorables | IC 95% favorables | Media % | Favorable media % | Desfavorable media % | MFE media % | MAE media % | Media emparejada % | Control % | Diferencia % | IC 95% diferencia % | p Holm |',
+    '|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---:|',
     ...primary.map(primaryRow), '',
     'El control principal procede de otras rupturas iniciales del mismo lado, año, bloque horario local y ' +
       'desplazamiento de confirmación; no habían fallado **hasta ese momento**. Para una falla en la primera ' +
       'observación, no se mira la segunda para seleccionar controles. Se necesitan diez observaciones de diez ' +
-      'sesiones distintas. La diferencia, su intervalo y p se calculan solo en señales emparejadas. ' +
+      'sesiones distintas. La diferencia es la media emparejada menos el control; la columna «Media %» ' +
+      'incluye todas las señales evaluables. El intervalo y p se calculan solo en señales emparejadas. ' +
       'Se remuestrean sesiones completas 2.000 veces y se aplica Holm a las dos pruebas principales.',
     '', 'MFE es el máximo movimiento favorable y MAE el máximo desfavorable entre entrada y salida; ' +
       'los extremos dentro de una vela no tienen un orden conocido ni son ganancias/pérdidas ejecutables.',
     '', '## Clasificación', '',
     ...study.classifications.map(item => `- **${label[item.side]}: ${item.label}.** ${item.reason}`), '',
+    'Ninguna etiqueta inconclusa demuestra una ventaja ni justifica avanzar por sí sola a una validación prospectiva.', '',
     '## Horizontes secundarios: 15 y 60 minutos', '',
     '| Hipótesis | Horizonte | Evaluables | Favorables | Media % | MFE % | MAE % | Diferencia con control % | IC 95% diferencia % |',
     '|---|---:|---:|---:|---:|---:|---:|---:|---|',
@@ -69,12 +72,13 @@ export function renderPhase12Report(study: FailedBreakoutStudy, source: string,
     'Estos costos no son una estimación certificada de ejecución. No se calcula rentabilidad de opciones.', '',
     '## Años y cortes cronológicos: horizonte principal', '',
     `Corte 70/30 de sesiones en ${study.splitDate ?? 'N/D'}. Ambos tramos son históricos, no prospectivos.`, '',
-    '| Tramo | Hipótesis | Rupturas | Fallas | Sin regreso | Incompletas | Evaluables | Sesiones | Con control | Media % | Control % | Diferencia % | IC 95% diferencia % |',
-    '|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|',
+    '| Tramo | Hipótesis | Rupturas | Fallas | Sin regreso | Incompletas | Evaluables | Sesiones | Con control | Media % | Media emparejada % | Control % | Diferencia % | IC 95% diferencia % |',
+    '|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|',
     ...periods.map(row => '| ' + [row.scope, label[row.side], row.initialBreakouts,
       row.confirmedFailures, row.noReturn, row.incompleteObservation,
       row.eligible.count, row.distinctSessions, row.matchedEvents,
-      fmt(row.eligible.meanSignedPercent), fmt(row.referenceMeanPercent),
+      fmt(row.eligible.meanSignedPercent), fmt(row.matchedSignalMeanPercent),
+      fmt(row.referenceMeanPercent),
       fmt(row.differenceMeanPercent), interval(row.differenceInterval95Percent)].join(' | ') + ' |'), '',
     '## Exclusiones, SMA descriptivas y dependencia entre eventos', '',
     ...primary.map(row => `- ${label[row.side]}: cierre de sesión ${row.excluded.session_close}; ` +

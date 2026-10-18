@@ -114,6 +114,10 @@ test('controles de la primera observación no usan el resultado de la segunda', 
   assert.equal(first.controls['30'].reason, null);
   assert.ok(first.controls['30'].sessions >= 10);
   assert.ok(study.episodes.some(item => item.failureLag === 2));
+  const row = study.rows.find(item => item.scope === 'total' && item.side === 'high' &&
+    item.horizonMinutes === 30)!;
+  assert.ok(Math.abs(row.matchedSignalMeanPercent! - row.referenceMeanPercent! -
+    row.differenceMeanPercent!) < 1e-10);
   assert.equal(newYorkBarParts(data.candles[0]!.timestamp).slot, '09:30');
   const afterDst = data.candles.find(item => item.timestamp.startsWith('2026-03-09'))!;
   assert.equal(newYorkBarParts(afterDst.timestamp).slot, '09:30');

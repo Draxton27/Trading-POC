@@ -50,7 +50,8 @@ export type StudyRow = {
   incompleteObservation: number; signals: number; distinctSessions: number;
   eligible: Movement; excluded: Record<HorizonReason, number>;
   matchedEvents: number; unmatchedEvents: number; matchedControlObservations: number;
-  referenceMeanPercent: number | null; differenceMeanPercent: number | null;
+  matchedSignalMeanPercent: number | null; referenceMeanPercent: number | null;
+  differenceMeanPercent: number | null;
   favorableInterval95: [number, number] | null; meanInterval95Percent: [number, number] | null;
   differenceInterval95Percent: [number, number] | null; bootstrapP: number | null;
   holmP: number | null; costSensitivity: CostSensitivity[];
@@ -218,6 +219,7 @@ function makeRow(episodes: readonly Episode[], signals: readonly FailedBreakoutS
       eligible.map(item => item.horizons[horizon.key].maePercent!)),
     excluded, matchedEvents: matched.length, unmatchedEvents: eligible.length - matched.length,
     matchedControlObservations: matched.reduce((sum, item) => sum + item.controls[horizon.key].observations, 0),
+    matchedSignalMeanPercent: mean(matched.map(item => item.horizons[horizon.key].value!)),
     referenceMeanPercent: mean(matched.map(item => item.controls[horizon.key].meanPercent!)),
     differenceMeanPercent: mean(differences), favorableInterval95: favorable.interval,
     meanInterval95Percent: sampled.interval, differenceInterval95Percent: contrasted.interval,
