@@ -4,4 +4,6 @@ node_modules/
 data/*_ALPACA_*.csv
 data/*_ALPACA_*.csv.meta.json
 data/*_ALPACA_*.csv.calendar.json
+data/*_ALPACA_*.csv.provenance.json
+data/*_ALPACA_*.csv.parts/
 /output/real/
