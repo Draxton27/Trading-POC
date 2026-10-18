@@ -63,6 +63,8 @@ Junto al CSV crea `data/QQQ_REAL_5min.csv.meta.json`:
 
 `data_class` es `synthetic` o `real`, según la declaración del usuario; el programa no verifica que los datos declarados reales provengan del mercado. `session` es `regular` o `extended`. La temporalidad admitida en esta fase es de cinco minutos para acciones estadounidenses cotizadas en horario de Nueva York.
 
+`analyze` y los estudios históricos de QQQ rechazan metadatos de 15 minutos: sus señales y horizontes están definidos para velas de 5 minutos.
+
 Se requieren al menos 300 velas y muchas más para intentar estimaciones de utilidad práctica. Para datos reales, revisa ajustes por splits, procedencia, cobertura, calidad y derechos de uso.
 
 ## Tiempo de las velas y disponibilidad de señales
@@ -77,7 +79,7 @@ Una vela iniciada a las `13:30:00Z` cubre el intervalo **13:30–13:35 UTC**. Su
 - Se rechazan timestamps repetidos o desordenados y huecos de más de cinco minutos **entre barras del mismo día local**. Se admiten intervalos entre días, incluidos cierres normales, fines de semana, festivos y días de cierre temprano. El archivo puede cubrir solo parte de una sesión. El lector CSV general no incorpora un calendario bursátil oficial y no detecta días completos ausentes ni certifica cierres tempranos; la importación ampliada de Alpaca sí aplica el calendario del proveedor, como se explica más abajo.
 - Las bandas y el historial de compresión utilizan las últimas barras presentes aunque crucen sesiones; no se reinician cada mañana. La evaluación de movimientos futuros sigue exigiendo barras consecutivas. No se modificaron las reglas de señales ni los cálculos de rendimiento en esta fase.
 
-El CSV se rechaza si faltan campos, hay fechas imposibles o sin zona, precios no positivos, OHLC incoherente, volumen negativo o no entero, o valores no finitos. Se admite volumen cero. Si existe una suspensión o un intervalo intradía sin barras, hay que resolverlo en los datos antes de analizarlos; no se rellenan precios automáticamente.
+El CSV se rechaza si faltan campos, hay fechas imposibles o sin zona, precios no positivos, OHLC incoherente, volumen negativo o fuera del rango de enteros seguros de JavaScript, o valores no finitos. Se admite volumen cero. Si existe una suspensión o un intervalo intradía sin barras, hay que resolverlo en los datos antes de analizarlos; no se rellenan precios automáticamente.
 
 Pruebas automáticas (tras `npm ci`, comprueban tipos y comparan con `trading-signals@8.3.0`):
 

@@ -1,7 +1,11 @@
 import {test} from 'node:test';
 import {strict as assert} from 'node:assert';
 import {fileURLToPath} from 'node:url';
-import {parseBarStart, barEndTimestamp, validateBarTime, validateMetadata} from '../src/data-contract.ts';
+import {spawnSync} from 'node:child_process';
+import {mkdtempSync, rmSync, writeFileSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {parseBarStart, barEndTimestamp, validateBarTime, validateMetadata, saveMetadata} from '../src/data-contract.ts';
 import {loadDataset, parseCandlesCsv} from '../src/csv.ts';
 import {calculateBollinger} from '../src/bollinger.ts';
 import {detectSignals} from '../src/signals.ts';
@@ -34,6 +38,7 @@ test('CSV normaliza offsets y rechaza duplicados, desorden, huecos y valores inv
     row('2026-06-01T13:30:00Z', '100,101,99,100,'),
     row('2026-06-01T13:30:00Z', '100,101,99,100,-1'),
     row('2026-06-01T13:30:00Z', '100,101,99,100,1.5'),
+    row('2026-06-01T13:30:00Z', '100,101,99,100,9007199254740993'),
     row('2026-06-01T13:30:00Z', '100,101,99,100,0x10'),
     row('2026-06-01T13:30:00Z', '100,101,99,Infinity,10'),
     row('2026-06-01T13:30:00Z', '100,99,98,100,10'),
@@ -77,6 +82,25 @@ test('el conjunto de demostración carga su clasificación desde el archivo de m
   assert.equal(candles.length, 7800);
   assert.equal(metadata.data_class, 'synthetic');
   assert.equal(metadata.provider, 'generador deterministico del POC');
+});
+
+test('los comandos QQQ de cinco minutos rechazan un dataset declarado de quince minutos', () => {
+  const project = fileURLToPath(new URL('../', import.meta.url));
+  const directory = mkdtempSync(join(tmpdir(), 'qqq-bar-size-'));
+  try {
+    const path = join(directory, 'qqq.csv');
+    writeFileSync(path, header + row('2026-06-01T13:30:00Z'));
+    saveMetadata(path, validateMetadata({...regular, provider: 'Alpaca Market Data API',
+      data_class: 'real', feed: 'sip', adjustment: 'split', bar_minutes: 15}));
+    for (const command of ['main.ts', 'validate-strategy.ts', 'validate-ema9.ts', 'validate-volume.ts']) {
+      const result = spawnSync(process.execPath,
+        ['--experimental-strip-types', `src/${command}`, path], {cwd: project, encoding: 'utf8'});
+      assert.notEqual(result.status, 0, command);
+      assert.match(result.stderr, /5 minutos/, command);
+    }
+  } finally {
+    rmSync(directory, {recursive: true, force: true});
+  }
 });
 
 test('una señal se publica al final de su vela, sin cambiar la condición de ruptura', () => {
