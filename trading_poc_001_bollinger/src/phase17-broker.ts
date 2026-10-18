@@ -10,6 +10,7 @@ export type BrokerFill = {executionId: string; contract: OccContract;
   premiumPerShare: number; commission: number | null;
   brokerReportedNet: number | null};
 export type ClosedTrade = {sellExecutionId: string; occSymbol: string;
+  positionId: string;
   underlyingSymbol: string; optionType: 'CALL' | 'PUT'; strike: number;
   expiration: string; soldAtUtc: string; quantity: number;
   matches: Array<{buyExecutionId: string; boughtAtUtc: string; quantity: number;
@@ -17,8 +18,16 @@ export type ClosedTrade = {sellExecutionId: string; occSymbol: string;
   grossResult: number; commission: number | null;
   calculatedNet: number | null; brokerReportedNet: number | null;
   brokerNetDifference: number | null};
+export type BrokerPosition = {positionId: string; occSymbol: string;
+  underlyingSymbol: string; optionType: 'CALL' | 'PUT'; strike: number;
+  expiration: string; boughtAtUtc: string; closedAtUtc: string | null;
+  boughtQuantity: number; soldQuantity: number; remainingQuantity: number;
+  buyExecutionIds: string[]; sellExecutionIds: string[];
+  realizedGross: number; realizedCommission: number | null;
+  realizedNet: number | null};
 export type BrokerImport = {sourceSha256: string; executionCount: number;
   identicalDuplicateCount: number; closedTrades: ClosedTrade[];
+  positions: BrokerPosition[]; fills: BrokerFill[];
   openLots: Array<{occSymbol: string; buyExecutionId: string;
     remainingQuantity: number; boughtAtUtc: string}>};
 const numeric = (value: string, label: string, allowZero: boolean): number => {
@@ -60,7 +69,7 @@ export function importBrokerExecutions(csv: string, importedAtUtc?: string): Bro
     }
     if (raw.side !== 'BUY' && raw.side !== 'SELL') throw new Error('side requiere BUY/SELL.');
     if (!validUtc(raw.executed_at_utc)) throw new Error('Timestamp UTC inválido.');
-    if (importedAtUtc && raw.executed_at_utc > importedAtUtc) {
+    if (importedAtUtc && Date.parse(raw.executed_at_utc) > Date.parse(importedAtUtc)) {
       throw new Error('Ejecución del bróker fechada en el futuro.');
     }
     const quantity = numeric(raw.quantity, 'quantity', false);
@@ -70,7 +79,7 @@ export function importBrokerExecutions(csv: string, importedAtUtc?: string): Bro
       premiumPerShare: numeric(raw.premium_per_share, 'premium_per_share', false),
       commission: optionalNumeric(raw.commission, 'commission'),
       brokerReportedNet: optionalSigned(raw.broker_reported_net)};
-    const fingerprint = sha256(JSON.stringify(fill));
+    const fingerprint = sha256(JSON.stringify(raw));
     const prior = byId.get(fill.executionId);
     if (prior) {
       if (prior.fingerprint !== fingerprint) throw new Error('execution_id duplicado contradictorio.');
@@ -79,15 +88,46 @@ export function importBrokerExecutions(csv: string, importedAtUtc?: string): Bro
     byId.set(fill.executionId, {fingerprint, fill});
   }
   const fills = [...byId.values()].map(row => row.fill)
-    .sort((a, b) => a.executedAtUtc.localeCompare(b.executedAtUtc) ||
+    .sort((a, b) => Date.parse(a.executedAtUtc) - Date.parse(b.executedAtUtc) ||
       a.executionId.localeCompare(b.executionId));
+  const sidesAtTime = new Map<string, BrokerFill['side']>();
+  for (const fill of fills) {
+    const key = `${fill.contract.occSymbol}|${Date.parse(fill.executedAtUtc)}`;
+    const side = sidesAtTime.get(key);
+    if (side && side !== fill.side) {
+      throw new Error('Compra y venta simultáneas del mismo OCC: orden temporal ambiguo.');
+    }
+    sidesAtTime.set(key, fill.side);
+  }
   type Lot = {fill: BrokerFill; remaining: number};
   const inventory = new Map<string, Lot[]>();
   const closedTrades: ClosedTrade[] = [];
+  const positions: BrokerPosition[] = [];
+  const active = new Map<string, BrokerPosition>();
   for (const fill of fills) {
     const key = fill.contract.occSymbol;
     const lots = inventory.get(key) ?? [];
-    if (fill.side === 'BUY') {lots.push({fill, remaining: fill.quantity}); inventory.set(key, lots); continue;}
+    if (fill.side === 'BUY') {
+      let position = active.get(key);
+      if (!position) {
+        position = {positionId: `position:${sha256(`${key}:${fill.executionId}`)}`,
+          occSymbol: key, underlyingSymbol: fill.contract.underlyingSymbol,
+          optionType: fill.contract.optionType, strike: fill.contract.strike,
+          expiration: fill.contract.expiration, boughtAtUtc: fill.executedAtUtc,
+          closedAtUtc: null, boughtQuantity: 0, soldQuantity: 0,
+          remainingQuantity: 0, buyExecutionIds: [], sellExecutionIds: [],
+          realizedGross: 0, realizedCommission: 0, realizedNet: 0};
+        positions.push(position); active.set(key, position);
+      }
+      position.boughtQuantity += fill.quantity;
+      position.remainingQuantity += fill.quantity;
+      position.buyExecutionIds.push(fill.executionId);
+      lots.push({fill, remaining: fill.quantity}); inventory.set(key, lots); continue;
+    }
+    const position = active.get(key);
+    if (!position || position.remainingQuantity < fill.quantity) {
+      throw new Error(`Venta sin compra suficiente: ${fill.executionId}`);
+    }
     let remaining = fill.quantity, grossResult = 0, commission = fill.commission;
     const matches: ClosedTrade['matches'] = [];
     for (const lot of lots) {
@@ -107,6 +147,7 @@ export function importBrokerExecutions(csv: string, importedAtUtc?: string): Bro
     if (remaining) throw new Error(`Venta sin compra suficiente: ${fill.executionId}`);
     const calculatedNet = commission === null ? null : grossResult - commission;
     closedTrades.push({sellExecutionId: fill.executionId, occSymbol: key,
+      positionId: position.positionId,
       underlyingSymbol: fill.contract.underlyingSymbol,
       optionType: fill.contract.optionType, strike: fill.contract.strike,
       expiration: fill.contract.expiration, soldAtUtc: fill.executedAtUtc,
@@ -114,10 +155,22 @@ export function importBrokerExecutions(csv: string, importedAtUtc?: string): Bro
       calculatedNet, brokerReportedNet: fill.brokerReportedNet,
       brokerNetDifference: calculatedNet !== null && fill.brokerReportedNet !== null ?
         calculatedNet - fill.brokerReportedNet : null});
+    position.soldQuantity += fill.quantity;
+    position.remainingQuantity -= fill.quantity;
+    position.sellExecutionIds.push(fill.executionId);
+    position.realizedGross += grossResult;
+    position.realizedCommission = position.realizedCommission === null || commission === null ?
+      null : position.realizedCommission + commission;
+    position.realizedNet = position.realizedCommission === null ? null :
+      position.realizedGross - position.realizedCommission;
+    if (!position.remainingQuantity) {
+      position.closedAtUtc = fill.executedAtUtc;
+      active.delete(key);
+    }
     inventory.set(key, lots.filter(lot => lot.remaining > 0));
   }
   return {sourceSha256: sha256(csv), executionCount: fills.length,
-    identicalDuplicateCount, closedTrades,
+    identicalDuplicateCount, closedTrades, positions, fills,
     openLots: [...inventory].flatMap(([occSymbol, lots]) => lots.map(lot =>
       ({occSymbol, buyExecutionId: lot.fill.executionId,
         remainingQuantity: lot.remaining, boughtAtUtc: lot.fill.executedAtUtc})))};

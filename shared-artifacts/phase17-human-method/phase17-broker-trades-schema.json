@@ -34,5 +34,15 @@
     "calculatedNet": "grossResult - commissions allocated by quantity; null if any commission missing",
     "reportedNetDifference": "calculatedNet - brokerReportedNet only when both are known",
     "openLots": "Las compras restantes se conservan; una venta sin inventario suficiente se rechaza"
+  },
+  "multiFileImport": {
+    "privateSourceStorage": "Un sobre JSON inmutable por CSV original en output/phase17-private/broker-sources/<SHA-256>.json; contiene los bytes originales en base64, la hora real de importación, el nombre base del archivo y envelopeSha256. No se publica.",
+    "rebuild": "Se verifica cada SHA-256, se ordenan fuentes por hash y fills por timestamp UTC e ID, se deduplican execution_id idénticos y se recalcula inventario FIFO completo en cada lectura.",
+    "overlap": "Archivos superpuestos con la misma ejecución no duplican inventario; el mismo execution_id con contenido diferente aborta antes de persistir.",
+    "position": "Una posición larga estándar comienza con la primera compra de un OCC sin inventario abierto y termina cuando su cantidad llega a cero. Compras y ventas parciales comparten positionId estable.",
+    "commission": "La comisión de cada compra se asigna proporcionalmente a contratos vendidos; la venta carga su comisión una vez. Neto realizado es null si falta una comisión necesaria.",
+    "temporalAudit": "executed_at_utc procede del CSV, importedAtUtc lo fija el sistema; una ejecución posterior a la importación se rechaza. Compra y venta del mismo OCC con timestamp idéntico se rechazan por orden ambiguo.",
+    "unsupported": "Una sola cuenta/identidad de execution_id por almacén; sin spreads, ventas para abrir, posiciones cortas ni multiplicadores distintos de 100.",
+    "legacy": "Los JSON one-off de importaciones anteriores no se migran sin el CSV original; volver a importar cada archivo original privado."
   }
 }

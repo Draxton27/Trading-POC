@@ -1,6 +1,25 @@
 # Preguntas abiertas y auditoría de conocimiento
 
-No se dispone en esta rama de un audio publicable, transcripción integral certificada, ejemplo operativo original ni declaración textual concreta del operador que fije las reglas. Los temas enumerados en el encargo son **resúmenes conversacionales preliminares**. Su revisión textual no sustituye una transcripción íntegra ni prueba que el operador use un criterio en todas sus operaciones.
+No se dispone en esta rama de audios publicables, transcripción integral certificada, ejemplo operativo original ni operaciones reales. El usuario aportó un resumen y anexo de ocho respuestas; el [registro de evidencia](phase17-operator-evidence-register.csv) marca cada afirmación como `resumen_conversacional_de_audio_pendiente_de_cotejo`. Su revisión textual no sustituye cotejar los archivos originales autorizados ni prueba que el operador use un criterio en todas sus operaciones.
+
+## Preguntas vigentes tras el resumen del operador
+
+| Afirmaciones | Conocido por el resumen | Falta confirmar antes de formalizar una regla |
+| --- | --- | --- |
+| `PRE01`–`PRE08` | Consulta empresa, sector, macro, bonos, resultados y Finviz. | Secuencia y horas reales; nombre, unidad y significado de la medida menor que 2,5. El precio objetivo de analistas no es un objetivo intradía. |
+| `TRE01`–`TRE06` | Examina SMA 20/40/100/200, orden, separación, precio y cierres en diario y horario. | Parámetros de gráfico, qué separación/pendiente considera suficiente, cómo distingue retroceso de cambio de tendencia. Los 80/90/95% son estimaciones personales no validadas. |
+| `LEV01`–`LEV04` | Dibuja techos, pisos y zonas; observa cierres y rupturas/rechazos. | Nivel original, hora de trazado, vigencia, invalidación y confirmación de entrada. |
+| `BOL01`–`BOL03` | Consulta Bollinger aproximadamente en 15 minutos junto al contexto mayor. | Parámetros exactos, combinación que observó y si una expansión fue continuación o regreso en cada caso. |
+| `NO01`–`NO03` | Puede no operar con lateralidad, medias entrelazadas, noticias o confirmación insuficiente. | Criterio concreto, ejemplos auténticos y constancia de que estaba observando la señal. |
+| `OPT01`–`OPT03` | Considera CALL/PUT, strike, vencimiento, prima, bid-ask y día de la semana. | Contratos OCC y quotes reales, preferencias por día y vencimiento, sin inventar delta o spread máximo. |
+| `RISK01`–`RISK05` | Menciona objetivo, límite, salida anticipada y reservas frente a stops. | Porcentajes y base de cálculo; hora de cada cambio del plan y fill de salida. Una pérdida no se presume recuperable. |
+| `REV01`–`REV03` | Usa historial del bróker y gráficos para revisar decisiones. | Campos realmente exportados, captura original, explicación de cada caso y posibilidad de cotejarla con datos conocidos entonces. |
+
+Un futuro cotejo de audio o transcripción autorizada debe añadir una **versión nueva** de la afirmación con fuente, hora y relación con el ID anterior. Las filas actuales y el estado inicial del commit `643ab32f24de8c07c99e4e303a163f6ddf78526c` se conservan. No se publican audios ni datos personales.
+
+## Inventario inicial conservado del commit `643ab32`
+
+La tabla siguiente registra el estado anterior a recibir el resumen; sus frases «información faltante» no niegan las nuevas declaraciones atribuidas y pendientes de cotejo.
 
 | Criterio | Estado | Procedencia actual | Falta para confirmar |
 | --- | --- | --- | --- |

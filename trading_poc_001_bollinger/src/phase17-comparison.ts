@@ -40,7 +40,8 @@ export function compareHumanToSignals(signals: readonly ForwardSignal[],
   humans: readonly ComparedHuman[]): ComparisonRow[] {
   const rows: ComparisonRow[] = [];
   const used = new Set<string>();
-  const live = humans.filter(h => h.recordClass === 'live_before_primary_outcome');
+  const primary = humans.filter(h => !h.phase17.relatedDecisionId);
+  const live = primary.filter(h => h.recordClass === 'live_before_primary_outcome');
   for (const signal of [...signals].sort((a, b) => a.availableAtUtc.localeCompare(b.availableAtUtc) ||
     a.id.localeCompare(b.id))) {
     const candidates = live.filter(h => !used.has(h.id) &&
@@ -81,7 +82,7 @@ export function compareHumanToSignals(signals: readonly ForwardSignal[],
       reason: covered ? 'Mercado observado; sin decisión coincidente ni rechazo explícito.' :
         'No hay cobertura humana comprobada; ausencia de diario no es rechazo.'});
   }
-  for (const human of humans) {
+  for (const human of primary) {
     if (human.decision.direction === 'no_trade') {
       rows.push({status: 'no_trade', signalId: null,
         humanDecisionId: human.id,

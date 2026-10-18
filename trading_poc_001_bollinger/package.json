@@ -27,6 +27,8 @@
     "compare:phase16": "node --experimental-strip-types src/phase16-cli.ts compare",
     "journal:phase17": "node --experimental-strip-types src/phase17-cli.ts journal",
     "import:broker:phase17": "node --experimental-strip-types src/phase17-cli.ts import-broker",
+    "broker-state:phase17": "node --experimental-strip-types src/phase17-cli.ts broker-state",
+    "review-trades:phase17": "node --experimental-strip-types src/phase17-cli.ts review-trades",
     "compare:phase17": "node --experimental-strip-types src/phase17-cli.ts compare",
     "attach-chart:phase17": "node --experimental-strip-types src/phase17-cli.ts attach-chart",
     "dry-run:phase16": "node --experimental-strip-types src/phase16-dry-run.ts",

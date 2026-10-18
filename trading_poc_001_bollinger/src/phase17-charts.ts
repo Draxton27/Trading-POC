@@ -14,7 +14,9 @@ export function preserveChart(privateRoot: string, source: string, captureId: st
   if (capturedAtUtc && (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(capturedAtUtc) ||
       !Number.isFinite(Date.parse(capturedAtUtc)) ||
       new Date(capturedAtUtc).toISOString().slice(0, 19) !== capturedAtUtc.slice(0, 19) ||
-      capturedAtUtc > importedAtUtc)) throw new Error('Hora de captura inválida.');
+      Date.parse(capturedAtUtc) > Date.parse(importedAtUtc))) {
+    throw new Error('Hora de captura inválida.');
+  }
   const bytes = readFileSync(source);
   if (bytes.length === 0 || bytes.length > 20 * 1024 * 1024) throw new Error('Tamaño de captura inválido.');
   const png = bytes.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10]));
