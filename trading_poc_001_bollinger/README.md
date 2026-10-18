@@ -281,7 +281,7 @@ npm ci
 npm run validate:nvda-pullback-breakout -- data/NVDA_ALPACA_SIP_15min_20211017_20261017.csv
 ```
 
-El comando no consulta Alpaca. Genera `output/real/nvda-pullback-breakout-study.md`, `.json` y `nvda-pullback-breakout-signals.csv`, ignorados por Git. La señal se conoce al cierre de la vela; los resultados usan una apertura hipotética de la siguiente vela y el cierre de la segunda vela posterior como horizonte principal. Se excluyen horizontes que crucen sesión o tengan barras ausentes. Las cuatro comparaciones principales son las dos estrategias por sentido alcista y bajista, con controles del mismo año y horario local y una corrección de Holm. Los horizontes de 15 y 60 minutos son secundarios.
+El comando no consulta Alpaca. Genera `output/real/nvda-pullback-breakout-study.md`, `.json` y `nvda-pullback-breakout-signals.csv`. Estos tres resultados se incluyen en Git para compartir el estudio; el resto de `output/real/` sigue ignorado. La señal se conoce al cierre de la vela; los resultados usan una apertura hipotética de la siguiente vela y el cierre de la segunda vela posterior como horizonte principal. Se excluyen horizontes que crucen sesión o tengan barras ausentes. Las cuatro comparaciones principales son las dos estrategias por sentido alcista y bajista, con controles del mismo año y horario local y una corrección de Holm. Los horizontes de 15 y 60 minutos son secundarios.
 
 Todos los resultados hasta octubre de 2026 son exploratorios. Una división 70/30 dentro de este archivo no constituye una validación prospectiva ni permite estimar rentabilidad de opciones.
 
