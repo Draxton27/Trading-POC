@@ -17,6 +17,7 @@
     "validate:nvda-sma-context": "node --experimental-strip-types src/validate-nvda-sma-context.ts",
     "validate:nvda-pullback-breakout": "node --experimental-strip-types src/validate-nvda-pullback-breakout.ts",
     "validate:nvda-failed-breakouts": "node --experimental-strip-types src/validate-nvda-failed-breakouts.ts",
+    "validate:nvda-volatility": "node --experimental-strip-types src/validate-nvda-volatility.ts",
     "validate:strategy": "node --experimental-strip-types src/validate-strategy.ts",
     "validate:ema9": "node --experimental-strip-types src/validate-ema9.ts",
     "validate:volume": "node --experimental-strip-types src/validate-volume.ts",
