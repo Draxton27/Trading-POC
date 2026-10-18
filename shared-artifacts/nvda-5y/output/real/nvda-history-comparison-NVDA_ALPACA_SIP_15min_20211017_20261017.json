@@ -1,0 +1,929 @@
+{
+  "source": "NVDA_ALPACA_SIP_15min_20211017_20261017.csv",
+  "baselineSource": "NVDA_ALPACA_SIP_15min_12m.csv",
+  "baselineWindow": {
+    "first": "2025-10-17",
+    "last": "2026-10-16"
+  },
+  "overlap": {
+    "earlierSignals": 617,
+    "overlapSignals": 164,
+    "laterSignals": 0,
+    "matchedBars": 6497,
+    "changedBars": 0,
+    "absentBars": 0
+  },
+  "baseline": {
+    "signals": 161,
+    "coverage": [
+      {
+        "timeframe": "hour",
+        "period": 20,
+        "completeBars": 1749,
+        "barsWithSma": 1730,
+        "firstSmaAvailableAt": "2025-10-22T14:30:00.000Z",
+        "signalsAvailable": 161,
+        "explorationSignalsAvailable": 107,
+        "evaluationSignalsAvailable": 54
+      },
+      {
+        "timeframe": "hour",
+        "period": 40,
+        "completeBars": 1749,
+        "barsWithSma": 1710,
+        "firstSmaAvailableAt": "2025-10-24T20:00:00.000Z",
+        "signalsAvailable": 159,
+        "explorationSignalsAvailable": 105,
+        "evaluationSignalsAvailable": 54
+      },
+      {
+        "timeframe": "hour",
+        "period": 100,
+        "completeBars": 1749,
+        "barsWithSma": 1650,
+        "firstSmaAvailableAt": "2025-11-06T18:30:00.000Z",
+        "signalsAvailable": 153,
+        "explorationSignalsAvailable": 99,
+        "evaluationSignalsAvailable": 54
+      },
+      {
+        "timeframe": "hour",
+        "period": 200,
+        "completeBars": 1749,
+        "barsWithSma": 1550,
+        "firstSmaAvailableAt": "2025-11-26T20:30:00.000Z",
+        "signalsAvailable": 147,
+        "explorationSignalsAvailable": 93,
+        "evaluationSignalsAvailable": 54
+      },
+      {
+        "timeframe": "day",
+        "period": 20,
+        "completeBars": 250,
+        "barsWithSma": 231,
+        "firstSmaAvailableAt": "2025-11-14T21:00:00.000Z",
+        "signalsAvailable": 152,
+        "explorationSignalsAvailable": 98,
+        "evaluationSignalsAvailable": 54
+      },
+      {
+        "timeframe": "day",
+        "period": 40,
+        "completeBars": 250,
+        "barsWithSma": 211,
+        "firstSmaAvailableAt": "2025-12-15T21:00:00.000Z",
+        "signalsAvailable": 141,
+        "explorationSignalsAvailable": 87,
+        "evaluationSignalsAvailable": 54
+      },
+      {
+        "timeframe": "day",
+        "period": 100,
+        "completeBars": 250,
+        "barsWithSma": 151,
+        "firstSmaAvailableAt": "2026-03-13T20:00:00.000Z",
+        "signalsAvailable": 103,
+        "explorationSignalsAvailable": 49,
+        "evaluationSignalsAvailable": 54
+      },
+      {
+        "timeframe": "day",
+        "period": 200,
+        "completeBars": 250,
+        "barsWithSma": 51,
+        "firstSmaAvailableAt": "2026-08-06T20:00:00.000Z",
+        "signalsAvailable": 35,
+        "explorationSignalsAvailable": 0,
+        "evaluationSignalsAvailable": 35
+      }
+    ],
+    "splitDate": "2026-07-02"
+  },
+  "history": {
+    "signals": 781,
+    "coverage": [
+      {
+        "timeframe": "hour",
+        "period": 20,
+        "completeBars": 8755,
+        "barsWithSma": 8736,
+        "firstSmaAvailableAt": "2021-10-20T19:30:00.000Z",
+        "signalsAvailable": 781,
+        "explorationSignalsAvailable": 539,
+        "evaluationSignalsAvailable": 242
+      },
+      {
+        "timeframe": "hour",
+        "period": 40,
+        "completeBars": 8755,
+        "barsWithSma": 8716,
+        "firstSmaAvailableAt": "2021-10-25T18:30:00.000Z",
+        "signalsAvailable": 781,
+        "explorationSignalsAvailable": 539,
+        "evaluationSignalsAvailable": 242
+      },
+      {
+        "timeframe": "hour",
+        "period": 100,
+        "completeBars": 8755,
+        "barsWithSma": 8656,
+        "firstSmaAvailableAt": "2021-11-05T15:30:00.000Z",
+        "signalsAvailable": 776,
+        "explorationSignalsAvailable": 534,
+        "evaluationSignalsAvailable": 242
+      },
+      {
+        "timeframe": "hour",
+        "period": 200,
+        "completeBars": 8755,
+        "barsWithSma": 8556,
+        "firstSmaAvailableAt": "2021-11-26T18:00:00.000Z",
+        "signalsAvailable": 769,
+        "explorationSignalsAvailable": 527,
+        "evaluationSignalsAvailable": 242
+      },
+      {
+        "timeframe": "day",
+        "period": 20,
+        "completeBars": 1255,
+        "barsWithSma": 1236,
+        "firstSmaAvailableAt": "2021-11-12T21:00:00.000Z",
+        "signalsAvailable": 774,
+        "explorationSignalsAvailable": 532,
+        "evaluationSignalsAvailable": 242
+      },
+      {
+        "timeframe": "day",
+        "period": 40,
+        "completeBars": 1255,
+        "barsWithSma": 1216,
+        "firstSmaAvailableAt": "2021-12-13T21:00:00.000Z",
+        "signalsAvailable": 763,
+        "explorationSignalsAvailable": 521,
+        "evaluationSignalsAvailable": 242
+      },
+      {
+        "timeframe": "day",
+        "period": 100,
+        "completeBars": 1255,
+        "barsWithSma": 1156,
+        "firstSmaAvailableAt": "2022-03-10T21:00:00.000Z",
+        "signalsAvailable": 725,
+        "explorationSignalsAvailable": 483,
+        "evaluationSignalsAvailable": 242
+      },
+      {
+        "timeframe": "day",
+        "period": 200,
+        "completeBars": 1255,
+        "barsWithSma": 1056,
+        "firstSmaAvailableAt": "2022-08-03T20:00:00.000Z",
+        "signalsAvailable": 657,
+        "explorationSignalsAvailable": 415,
+        "evaluationSignalsAvailable": 242
+      }
+    ],
+    "splitDate": "2025-04-21",
+    "aggregate": {
+      "hour": {
+        "total": 8755,
+        "complete": 8755,
+        "incomplete": 0,
+        "scheduledAbbreviated": 1255,
+        "completeScheduledAbbreviated": 1255
+      },
+      "day": {
+        "total": 1255,
+        "complete": 1255,
+        "incomplete": 0,
+        "scheduledAbbreviated": 10,
+        "completeScheduledAbbreviated": 10
+      }
+    },
+    "signalsWithAllSmas": 657,
+    "explorationSignalsWithAllSmas": 415,
+    "evaluationSignalsWithAllSmas": 242
+  },
+  "daily200AlignedComparisons": [
+    {
+      "segment": "total",
+      "direction": "CALL_CONTEXT",
+      "horizonMinutes": 15,
+      "conditionId": "day_sma200_position_aligned",
+      "originalSignals": 413,
+      "availableSignals": 350,
+      "selectedSignals": 289,
+      "insufficientSignals": 63,
+      "eligible": {
+        "count": 268,
+        "favorableRate": 0.5522388059701493,
+        "meanSignedPercent": 0.047400126485984975,
+        "meanGainPercent": 0.42578238294400456,
+        "meanLossPercent": -0.4263776167582095,
+        "meanAbsolutePercent": 0.42286698303425907
+      },
+      "comparableOriginal": {
+        "count": 318,
+        "favorableRate": 0.5345911949685535,
+        "meanSignedPercent": 0.047879604818902397,
+        "meanGainPercent": 0.45648064902152263,
+        "meanLossPercent": -0.433166638897555,
+        "meanAbsolutePercent": 0.4401814664619708
+      },
+      "distinctSessions": 255,
+      "differenceMeanPercent": -0.00047947833291742126,
+      "differenceFavorableRate": 0.017647611001595842,
+      "differenceInterval95Percent": [
+        -0.034283550717787985,
+        0.033832607524124064
+      ],
+      "matchedControls": 268,
+      "controlMeanPercent": 0.001299138466240298,
+      "differenceVsControlPercent": 0.04610098801974468,
+      "differenceVsControlInterval95Percent": [
+        -0.022589817221408907,
+        0.11416968352998204
+      ],
+      "smallSample": false
+    },
+    {
+      "segment": "total",
+      "direction": "CALL_CONTEXT",
+      "horizonMinutes": 30,
+      "conditionId": "day_sma200_position_aligned",
+      "originalSignals": 413,
+      "availableSignals": 350,
+      "selectedSignals": 289,
+      "insufficientSignals": 63,
+      "eligible": {
+        "count": 259,
+        "favorableRate": 0.5173745173745173,
+        "meanSignedPercent": 0.03356233493532059,
+        "meanGainPercent": 0.5450949529136547,
+        "meanLossPercent": -0.5318188342329069,
+        "meanAbsolutePercent": 0.5304741414386548
+      },
+      "comparableOriginal": {
+        "count": 305,
+        "favorableRate": 0.5245901639344263,
+        "meanSignedPercent": 0.039632849352936796,
+        "meanGainPercent": 0.5759794906966528,
+        "meanLossPercent": -0.5719192818487047,
+        "meanAbsolutePercent": 0.5646735015419118
+      },
+      "distinctSessions": 247,
+      "differenceMeanPercent": -0.006070514417616205,
+      "differenceFavorableRate": -0.007215646559908917,
+      "differenceInterval95Percent": [
+        -0.0526538325898941,
+        0.03731678356127097
+      ],
+      "matchedControls": 259,
+      "controlMeanPercent": -0.0013449614832961947,
+      "differenceVsControlPercent": 0.034907296418616784,
+      "differenceVsControlInterval95Percent": [
+        -0.047326401055639,
+        0.12867384916463848
+      ],
+      "smallSample": false
+    },
+    {
+      "segment": "total",
+      "direction": "CALL_CONTEXT",
+      "horizonMinutes": 60,
+      "conditionId": "day_sma200_position_aligned",
+      "originalSignals": 413,
+      "availableSignals": 350,
+      "selectedSignals": 289,
+      "insufficientSignals": 63,
+      "eligible": {
+        "count": 235,
+        "favorableRate": 0.5234042553191489,
+        "meanSignedPercent": 0.1200152322323818,
+        "meanGainPercent": 0.8050409530728477,
+        "meanLossPercent": -0.6496922720490875,
+        "meanAbsolutePercent": 0.7227084888566411
+      },
+      "comparableOriginal": {
+        "count": 279,
+        "favorableRate": 0.5340501792114696,
+        "meanSignedPercent": 0.12618741125191293,
+        "meanGainPercent": 0.8189064285756854,
+        "meanLossPercent": -0.6889743660197891,
+        "meanAbsolutePercent": 0.7484868386246254
+      },
+      "distinctSessions": 228,
+      "differenceMeanPercent": -0.0061721790195311405,
+      "differenceFavorableRate": -0.010645923892320663,
+      "differenceInterval95Percent": [
+        -0.06475587183821005,
+        0.05677413938145831
+      ],
+      "matchedControls": 235,
+      "controlMeanPercent": -0.009767849933559116,
+      "differenceVsControlPercent": 0.12978308216594092,
+      "differenceVsControlInterval95Percent": [
+        0.00814752896602105,
+        0.2678946860246614
+      ],
+      "smallSample": false
+    },
+    {
+      "segment": "total",
+      "direction": "PUT_CONTEXT",
+      "horizonMinutes": 15,
+      "conditionId": "day_sma200_position_aligned",
+      "originalSignals": 368,
+      "availableSignals": 307,
+      "selectedSignals": 46,
+      "insufficientSignals": 61,
+      "eligible": {
+        "count": 41,
+        "favorableRate": 0.6097560975609756,
+        "meanSignedPercent": 0.04789188526138362,
+        "meanGainPercent": 0.5278926209405124,
+        "meanLossPercent": -0.8024105876997201,
+        "meanAbsolutePercent": 0.5958796036904608
+      },
+      "comparableOriginal": {
+        "count": 277,
+        "favorableRate": 0.4981949458483754,
+        "meanSignedPercent": 0.0189613776393185,
+        "meanGainPercent": 0.4621630363561297,
+        "meanLossPercent": -0.4271985212485745,
+        "meanAbsolutePercent": 0.441533200101807
+      },
+      "distinctSessions": 39,
+      "differenceMeanPercent": 0.02893050762206512,
+      "differenceFavorableRate": 0.11156115171260017,
+      "differenceInterval95Percent": [
+        -0.18223025220591457,
+        0.23321753440288862
+      ],
+      "matchedControls": 41,
+      "controlMeanPercent": -0.009786457680589646,
+      "differenceVsControlPercent": 0.057678342941973264,
+      "differenceVsControlInterval95Percent": [
+        -0.19578161219266813,
+        0.284041207168897
+      ],
+      "smallSample": false
+    },
+    {
+      "segment": "total",
+      "direction": "PUT_CONTEXT",
+      "horizonMinutes": 30,
+      "conditionId": "day_sma200_position_aligned",
+      "originalSignals": 368,
+      "availableSignals": 307,
+      "selectedSignals": 46,
+      "insufficientSignals": 61,
+      "eligible": {
+        "count": 39,
+        "favorableRate": 0.6410256410256411,
+        "meanSignedPercent": 0.10145546392338958,
+        "meanGainPercent": 0.7759919475789805,
+        "meanLossPercent": -1.10307397117588,
+        "meanAbsolutePercent": 0.8934060073317136
+      },
+      "comparableOriginal": {
+        "count": 259,
+        "favorableRate": 0.555984555984556,
+        "meanSignedPercent": 0.03697832272427663,
+        "meanGainPercent": 0.5570895544678169,
+        "meanLossPercent": -0.6142913935458956,
+        "meanAbsolutePercent": 0.5824880544445706
+      },
+      "distinctSessions": 38,
+      "differenceMeanPercent": 0.06447714119911295,
+      "differenceFavorableRate": 0.0850410850410851,
+      "differenceInterval95Percent": [
+        -0.2621241715328288,
+        0.3740794941321769
+      ],
+      "matchedControls": 39,
+      "controlMeanPercent": -0.0029715361013550492,
+      "differenceVsControlPercent": 0.10442700002474463,
+      "differenceVsControlInterval95Percent": [
+        -0.26204111086324927,
+        0.4447327792326673
+      ],
+      "smallSample": false
+    },
+    {
+      "segment": "total",
+      "direction": "PUT_CONTEXT",
+      "horizonMinutes": 60,
+      "conditionId": "day_sma200_position_aligned",
+      "originalSignals": 368,
+      "availableSignals": 307,
+      "selectedSignals": 46,
+      "insufficientSignals": 61,
+      "eligible": {
+        "count": 36,
+        "favorableRate": 0.6388888888888888,
+        "meanSignedPercent": 0.10453355583207566,
+        "meanGainPercent": 0.9806384522216998,
+        "meanLossPercent": -1.445498183934183,
+        "meanAbsolutePercent": 1.1485044664512079
+      },
+      "comparableOriginal": {
+        "count": 226,
+        "favorableRate": 0.504424778761062,
+        "meanSignedPercent": 0.057187364123935526,
+        "meanGainPercent": 0.8588580584326402,
+        "meanLossPercent": -0.7656349042280317,
+        "meanAbsolutePercent": 0.8092712081001439
+      },
+      "distinctSessions": 36,
+      "differenceMeanPercent": 0.04734619170814013,
+      "differenceFavorableRate": 0.13446411012782689,
+      "differenceInterval95Percent": [
+        -0.39645332473225336,
+        0.4511371253515423
+      ],
+      "matchedControls": 36,
+      "controlMeanPercent": 0.014533353446748866,
+      "differenceVsControlPercent": 0.0900002023853268,
+      "differenceVsControlInterval95Percent": [
+        -0.3982143466764795,
+        0.5325480585692594
+      ],
+      "smallSample": false
+    },
+    {
+      "segment": "exploracion",
+      "direction": "CALL_CONTEXT",
+      "horizonMinutes": 15,
+      "conditionId": "day_sma200_position_aligned",
+      "originalSignals": 292,
+      "availableSignals": 229,
+      "selectedSignals": 179,
+      "insufficientSignals": 63,
+      "eligible": {
+        "count": 165,
+        "favorableRate": 0.5696969696969697,
+        "meanSignedPercent": 0.08866400301049056,
+        "meanGainPercent": 0.46178953032014414,
+        "meanLossPercent": -0.417081961642937,
+        "meanAbsolutePercent": 0.4374961891118556
+      },
+      "comparableOriginal": {
+        "count": 209,
+        "favorableRate": 0.5454545454545454,
+        "meanSignedPercent": 0.08796274283008361,
+        "meanGainPercent": 0.5070934507932724,
+        "meanLossPercent": -0.43323560592247934,
+        "meanAbsolutePercent": 0.46523011258075925
+      },
+      "distinctSessions": 158,
+      "differenceMeanPercent": 0.0007012601804069485,
+      "differenceFavorableRate": 0.024242424242424288,
+      "differenceInterval95Percent": [
+        -0.04566420933508302,
+        0.049795566135728234
+      ],
+      "matchedControls": 165,
+      "controlMeanPercent": 0.00998286196668302,
+      "differenceVsControlPercent": 0.07868114104380754,
+      "differenceVsControlInterval95Percent": [
+        -0.01343516562445637,
+        0.1735513535588847
+      ],
+      "smallSample": false
+    },
+    {
+      "segment": "exploracion",
+      "direction": "CALL_CONTEXT",
+      "horizonMinutes": 30,
+      "conditionId": "day_sma200_position_aligned",
+      "originalSignals": 292,
+      "availableSignals": 229,
+      "selectedSignals": 179,
+      "insufficientSignals": 63,
+      "eligible": {
+        "count": 157,
+        "favorableRate": 0.5414012738853503,
+        "meanSignedPercent": 0.07647819423047597,
+        "meanGainPercent": 0.6005820986847196,
+        "meanLossPercent": -0.5658319115074845,
+        "meanAbsolutePercent": 0.5738336323708125
+      },
+      "comparableOriginal": {
+        "count": 197,
+        "favorableRate": 0.5380710659898477,
+        "meanSignedPercent": 0.07341102771239885,
+        "meanGainPercent": 0.649096624002916,
+        "meanLossPercent": -0.6246237894823732,
+        "meanAbsolutePercent": 0.6251091971029215
+      },
+      "distinctSessions": 151,
+      "differenceMeanPercent": 0.003067166518077119,
+      "differenceFavorableRate": 0.003330207895502646,
+      "differenceInterval95Percent": [
+        -0.07025274437863945,
+        0.07583604367588648
+      ],
+      "matchedControls": 157,
+      "controlMeanPercent": 0.0019385002395718247,
+      "differenceVsControlPercent": 0.07453969399090414,
+      "differenceVsControlInterval95Percent": [
+        -0.046034762700548404,
+        0.1983057257230875
+      ],
+      "smallSample": false
+    },
+    {
+      "segment": "exploracion",
+      "direction": "CALL_CONTEXT",
+      "horizonMinutes": 60,
+      "conditionId": "day_sma200_position_aligned",
+      "originalSignals": 292,
+      "availableSignals": 229,
+      "selectedSignals": 179,
+      "insufficientSignals": 63,
+      "eligible": {
+        "count": 137,
+        "favorableRate": 0.5547445255474452,
+        "meanSignedPercent": 0.22208226805602047,
+        "meanGainPercent": 0.8977120767235551,
+        "meanLossPercent": -0.6517387432295757,
+        "meanAbsolutePercent": 0.77391945210442
+      },
+      "comparableOriginal": {
+        "count": 175,
+        "favorableRate": 0.5657142857142857,
+        "meanSignedPercent": 0.20427409794899506,
+        "meanGainPercent": 0.8964385827731033,
+        "meanLossPercent": -0.7361035076869874,
+        "meanAbsolutePercent": 0.8099821271314303
+      },
+      "distinctSessions": 134,
+      "differenceMeanPercent": 0.0178081701070254,
+      "differenceFavorableRate": -0.010969760166840481,
+      "differenceInterval95Percent": [
+        -0.07269564860333222,
+        0.11880435480046131
+      ],
+      "matchedControls": 137,
+      "controlMeanPercent": -0.012606558790334432,
+      "differenceVsControlPercent": 0.2346888268463549,
+      "differenceVsControlInterval95Percent": [
+        0.05394351833663198,
+        0.4168877130372941
+      ],
+      "smallSample": false
+    },
+    {
+      "segment": "exploracion",
+      "direction": "PUT_CONTEXT",
+      "horizonMinutes": 15,
+      "conditionId": "day_sma200_position_aligned",
+      "originalSignals": 247,
+      "availableSignals": 186,
+      "selectedSignals": 39,
+      "insufficientSignals": 61,
+      "eligible": {
+        "count": 34,
+        "favorableRate": 0.5588235294117647,
+        "meanSignedPercent": 0.01643981520123376,
+        "meanGainPercent": 0.5588749811330781,
+        "meanLossPercent": -0.7738208403605028,
+        "meanAbsolutePercent": 0.6081851637122065
+      },
+      "comparableOriginal": {
+        "count": 171,
+        "favorableRate": 0.5146198830409356,
+        "meanSignedPercent": 0.028407118281115376,
+        "meanGainPercent": 0.502075797061967,
+        "meanLossPercent": -0.4854944804368194,
+        "meanAbsolutePercent": 0.48834925764231235
+      },
+      "distinctSessions": 32,
+      "differenceMeanPercent": -0.011967303079881617,
+      "differenceFavorableRate": 0.044203646370829075,
+      "differenceInterval95Percent": [
+        -0.24587470559212407,
+        0.23067165126984274
+      ],
+      "matchedControls": 34,
+      "controlMeanPercent": -0.014007134556673167,
+      "differenceVsControlPercent": 0.030446949757906926,
+      "differenceVsControlInterval95Percent": [
+        -0.2399902372074172,
+        0.28872630913962205
+      ],
+      "smallSample": false
+    },
+    {
+      "segment": "exploracion",
+      "direction": "PUT_CONTEXT",
+      "horizonMinutes": 30,
+      "conditionId": "day_sma200_position_aligned",
+      "originalSignals": 247,
+      "availableSignals": 186,
+      "selectedSignals": 39,
+      "insufficientSignals": 61,
+      "eligible": {
+        "count": 33,
+        "favorableRate": 0.6666666666666666,
+        "meanSignedPercent": 0.08698593065772971,
+        "meanGainPercent": 0.7635332012450591,
+        "meanLossPercent": -1.266108610516929,
+        "meanAbsolutePercent": 0.9310583376690158
+      },
+      "comparableOriginal": {
+        "count": 160,
+        "favorableRate": 0.5875,
+        "meanSignedPercent": 0.06622571427036386,
+        "meanGainPercent": 0.614677825319847,
+        "meanLossPercent": -0.7149030499516275,
+        "meanAbsolutePercent": 0.6560207304804566
+      },
+      "distinctSessions": 32,
+      "differenceMeanPercent": 0.020760216387365846,
+      "differenceFavorableRate": 0.07916666666666661,
+      "differenceInterval95Percent": [
+        -0.32331866409763405,
+        0.3387954299441632
+      ],
+      "matchedControls": 33,
+      "controlMeanPercent": -0.004184803140119585,
+      "differenceVsControlPercent": 0.09117073379784929,
+      "differenceVsControlInterval95Percent": [
+        -0.30652952935049266,
+        0.468244138595753
+      ],
+      "smallSample": false
+    },
+    {
+      "segment": "exploracion",
+      "direction": "PUT_CONTEXT",
+      "horizonMinutes": 60,
+      "conditionId": "day_sma200_position_aligned",
+      "originalSignals": 247,
+      "availableSignals": 186,
+      "selectedSignals": 39,
+      "insufficientSignals": 61,
+      "eligible": {
+        "count": 31,
+        "favorableRate": 0.6451612903225806,
+        "meanSignedPercent": 0.1000729785383885,
+        "meanGainPercent": 0.9587735824165176,
+        "meanLossPercent": -1.461200846694574,
+        "meanAbsolutePercent": 1.137054224579699
+      },
+      "comparableOriginal": {
+        "count": 141,
+        "favorableRate": 0.5177304964539007,
+        "meanSignedPercent": 0.09940026304044984,
+        "meanGainPercent": 0.961931484698232,
+        "meanLossPercent": -0.826552371974522,
+        "meanAbsolutePercent": 0.8966422672144575
+      },
+      "distinctSessions": 31,
+      "differenceMeanPercent": 0.0006727154979386529,
+      "differenceFavorableRate": 0.12743079386867995,
+      "differenceInterval95Percent": [
+        -0.4492657059589404,
+        0.423730949760529
+      ],
+      "matchedControls": 31,
+      "controlMeanPercent": 0.015403633490162291,
+      "differenceVsControlPercent": 0.08466934504822621,
+      "differenceVsControlInterval95Percent": [
+        -0.42576203679493335,
+        0.5665579910205821
+      ],
+      "smallSample": false
+    },
+    {
+      "segment": "evaluacion",
+      "direction": "CALL_CONTEXT",
+      "horizonMinutes": 15,
+      "conditionId": "day_sma200_position_aligned",
+      "originalSignals": 121,
+      "availableSignals": 121,
+      "selectedSignals": 110,
+      "insufficientSignals": 0,
+      "eligible": {
+        "count": 103,
+        "favorableRate": 0.5242718446601942,
+        "meanSignedPercent": -0.018702199985310412,
+        "meanGainPercent": 0.363103274548502,
+        "meanLossPercent": -0.43946741681849155,
+        "meanAbsolutePercent": 0.3994318470847106
+      },
+      "comparableOriginal": {
+        "count": 109,
+        "favorableRate": 0.5137614678899083,
+        "meanSignedPercent": -0.028977054303454246,
+        "meanGainPercent": 0.353447445414746,
+        "meanLossPercent": -0.43304822381702424,
+        "meanAbsolutePercent": 0.3921524110598905
+      },
+      "distinctSessions": 97,
+      "differenceMeanPercent": 0.010274854318143834,
+      "differenceFavorableRate": 0.010510376770285879,
+      "differenceInterval95Percent": [
+        -0.002373453821105357,
+        0.029589246688799826
+      ],
+      "matchedControls": 103,
+      "controlMeanPercent": -0.012611680733498033,
+      "differenceVsControlPercent": -0.006090519251812379,
+      "differenceVsControlInterval95Percent": [
+        -0.11056134993598857,
+        0.09901573027439659
+      ],
+      "smallSample": false
+    },
+    {
+      "segment": "evaluacion",
+      "direction": "CALL_CONTEXT",
+      "horizonMinutes": 30,
+      "conditionId": "day_sma200_position_aligned",
+      "originalSignals": 121,
+      "availableSignals": 121,
+      "selectedSignals": 110,
+      "insufficientSignals": 0,
+      "eligible": {
+        "count": 102,
+        "favorableRate": 0.4803921568627451,
+        "meanSignedPercent": -0.032494428881732325,
+        "meanGainPercent": 0.4488417408618086,
+        "meanLossPercent": -0.4866860970801022,
+        "meanAbsolutePercent": 0.4637345328469992
+      },
+      "comparableOriginal": {
+        "count": 108,
+        "favorableRate": 0.5,
+        "meanSignedPercent": -0.02198105006200787,
+        "meanGainPercent": 0.4324532660584324,
+        "meanLossPercent": -0.48540433535570177,
+        "meanAbsolutePercent": 0.45443431612044016
+      },
+      "distinctSessions": 96,
+      "differenceMeanPercent": -0.010513378819724455,
+      "differenceFavorableRate": -0.019607843137254888,
+      "differenceInterval95Percent": [
+        -0.03530340636103116,
+        0.007353886602158764
+      ],
+      "matchedControls": 102,
+      "controlMeanPercent": -0.006398917272416573,
+      "differenceVsControlPercent": -0.026095511609315752,
+      "differenceVsControlInterval95Percent": [
+        -0.13745632356110163,
+        0.09566463813143905
+      ],
+      "smallSample": false
+    },
+    {
+      "segment": "evaluacion",
+      "direction": "CALL_CONTEXT",
+      "horizonMinutes": 60,
+      "conditionId": "day_sma200_position_aligned",
+      "originalSignals": 121,
+      "availableSignals": 121,
+      "selectedSignals": 110,
+      "insufficientSignals": 0,
+      "eligible": {
+        "count": 98,
+        "favorableRate": 0.47959183673469385,
+        "meanSignedPercent": -0.022670317847602664,
+        "meanGainPercent": 0.6551897744036184,
+        "meanLossPercent": -0.6473649126673554,
+        "meanAbsolutePercent": 0.651117652479645
+      },
+      "comparableOriginal": {
+        "count": 104,
+        "favorableRate": 0.4807692307692308,
+        "meanSignedPercent": -0.0052084557864464556,
+        "meanGainPercent": 0.6653927632647973,
+        "meanLossPercent": -0.626135510463524,
+        "meanAbsolutePercent": 0.6450091896949056
+      },
+      "distinctSessions": 94,
+      "differenceMeanPercent": -0.017461862061156207,
+      "differenceFavorableRate": -0.0011773940345369271,
+      "differenceInterval95Percent": [
+        -0.05438918119558671,
+        0.009454462985121023
+      ],
+      "matchedControls": 98,
+      "controlMeanPercent": -0.005799450817454907,
+      "differenceVsControlPercent": -0.016870867030147757,
+      "differenceVsControlInterval95Percent": [
+        -0.18235642580839737,
+        0.1580842887939135
+      ],
+      "smallSample": false
+    },
+    {
+      "segment": "evaluacion",
+      "direction": "PUT_CONTEXT",
+      "horizonMinutes": 15,
+      "conditionId": "day_sma200_position_aligned",
+      "originalSignals": 121,
+      "availableSignals": 121,
+      "selectedSignals": 7,
+      "insufficientSignals": 0,
+      "eligible": {
+        "count": 7,
+        "favorableRate": 0.8571428571428571,
+        "meanSignedPercent": 0.2006590826963972,
+        "meanGainPercent": 0.4297818136640541,
+        "meanLossPercent": -1.1740773031095442,
+        "meanAbsolutePercent": 0.5361097407276956
+      },
+      "comparableOriginal": {
+        "count": 106,
+        "favorableRate": 0.4716981132075472,
+        "meanSignedPercent": 0.0037234375473631466,
+        "meanGainPercent": 0.3919165775138564,
+        "meanLossPercent": -0.3428775802798628,
+        "meanAbsolutePercent": 0.36600918274872746
+      },
+      "distinctSessions": 7,
+      "differenceMeanPercent": 0.19693564514903406,
+      "differenceFavorableRate": 0.3854447439353099,
+      "differenceInterval95Percent": null,
+      "matchedControls": 7,
+      "controlMeanPercent": 0.010713972860387468,
+      "differenceVsControlPercent": 0.18994510983600973,
+      "differenceVsControlInterval95Percent": null,
+      "smallSample": true
+    },
+    {
+      "segment": "evaluacion",
+      "direction": "PUT_CONTEXT",
+      "horizonMinutes": 30,
+      "conditionId": "day_sma200_position_aligned",
+      "originalSignals": 121,
+      "availableSignals": 121,
+      "selectedSignals": 7,
+      "insufficientSignals": 0,
+      "eligible": {
+        "count": 6,
+        "favorableRate": 0.5,
+        "meanSignedPercent": 0.18103789688451907,
+        "meanGainPercent": 0.8673560873610708,
+        "meanLossPercent": -0.5052802935920327,
+        "meanAbsolutePercent": 0.6863181904765518
+      },
+      "comparableOriginal": {
+        "count": 99,
+        "favorableRate": 0.5050505050505051,
+        "meanSignedPercent": -0.010290188865359384,
+        "meanGainPercent": 0.4488236052660006,
+        "meanLossPercent": -0.4787736522647063,
+        "meanAbsolutePercent": 0.46364736590172345
+      },
+      "distinctSessions": 6,
+      "differenceMeanPercent": 0.19132808574987845,
+      "differenceFavorableRate": -0.005050505050505083,
+      "differenceInterval95Percent": null,
+      "matchedControls": 6,
+      "controlMeanPercent": 0.00370143261184991,
+      "differenceVsControlPercent": 0.17733646427266916,
+      "differenceVsControlInterval95Percent": null,
+      "smallSample": true
+    },
+    {
+      "segment": "evaluacion",
+      "direction": "PUT_CONTEXT",
+      "horizonMinutes": 60,
+      "conditionId": "day_sma200_position_aligned",
+      "originalSignals": 121,
+      "availableSignals": 121,
+      "selectedSignals": 7,
+      "insufficientSignals": 0,
+      "eligible": {
+        "count": 5,
+        "favorableRate": 0.6,
+        "meanSignedPercent": 0.13218913505293584,
+        "meanGainPercent": 1.126404250922915,
+        "meanLossPercent": -1.3591335387520331,
+        "meanAbsolutePercent": 1.2194959660545623
+      },
+      "comparableOriginal": {
+        "count": 85,
+        "favorableRate": 0.4823529411764706,
+        "meanSignedPercent": -0.012836385843458874,
+        "meanGainPercent": 0.6753370799597563,
+        "meanLossPercent": -0.6693003040707912,
+        "meanAbsolutePercent": 0.6643380394516946
+      },
+      "distinctSessions": 5,
+      "differenceMeanPercent": 0.1450255208963947,
+      "differenceFavorableRate": 0.11764705882352938,
+      "differenceInterval95Percent": null,
+      "matchedControls": 5,
+      "controlMeanPercent": 0.009137617177585636,
+      "differenceVsControlPercent": 0.1230515178753502,
+      "differenceVsControlInterval95Percent": null,
+      "smallSample": true
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "asset": "NVDA",
+  "provider": "Alpaca Market Data API",
+  "bar_minutes": 15,
+  "data_class": "real",
+  "session": "regular",
+  "exchange_timezone": "America/New_York",
+  "feed": "sip",
+  "adjustment": "split",
+  "requested_start": "2021-10-17T00:00:00.000Z",
+  "requested_end": "2026-10-17T23:45:00.000Z",
+  "calendar_source": "Alpaca Market Calendar API",
+  "coverage": {
+    "calendarSessions": 1255,
+    "observedSessions": 1255,
+    "missingSessions": [],
+    "partialSessions": []
+  }
+}

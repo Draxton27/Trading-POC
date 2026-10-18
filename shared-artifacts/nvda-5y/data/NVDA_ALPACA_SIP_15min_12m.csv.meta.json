@@ -1,0 +1,10 @@
+{
+  "asset": "NVDA",
+  "provider": "Alpaca Market Data API",
+  "bar_minutes": 15,
+  "data_class": "real",
+  "session": "regular",
+  "exchange_timezone": "America/New_York",
+  "feed": "sip",
+  "adjustment": "split"
+}

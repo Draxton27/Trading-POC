@@ -1,0 +1,21 @@
+{
+  "provider": "Alpaca Market Data API",
+  "bars_endpoint": "/v2/stocks/bars",
+  "calendar_endpoint": "/v2/calendar",
+  "feed": "sip",
+  "adjustment": "split",
+  "timeframe": "15Min",
+  "session": "regular",
+  "requested_start": "2021-10-17T00:00:00.000Z",
+  "requested_end": "2026-10-17T23:45:00.000Z",
+  "imported_at": "2026-10-18T07:04:21.377Z",
+  "chunks": 61,
+  "resumed_chunks": 0,
+  "coverage": {
+    "calendarSessions": 1255,
+    "observedSessions": 1255,
+    "missingSessions": [],
+    "partialSessions": []
+  },
+  "credentials_recorded": false
+}
