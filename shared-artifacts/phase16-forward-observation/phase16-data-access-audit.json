@@ -1,0 +1,43 @@
+{
+  "checkedAtUtc": "2026-10-18T15:12:42.277Z",
+  "marketState": "closed_sunday",
+  "requestedProvider": "Alpaca Market Data API",
+  "requestedFeed": "sip",
+  "credentials": "injected environment bindings; values never recorded",
+  "probes": [
+    {
+      "capability": "sip_real_time",
+      "endpoint": "NVDA snapshot feed=sip",
+      "httpStatus": 403,
+      "requestStartedAtUtc": "2026-10-18T15:12:41.811Z",
+      "conclusion": "unavailable_for_this_endpoint"
+    },
+    {
+      "capability": "iex_real_time",
+      "endpoint": "NVDA snapshot feed=iex",
+      "httpStatus": 200,
+      "requestStartedAtUtc": "2026-10-18T15:12:42.054Z",
+      "latestTradeUtc": "2026-10-16T19:59:59.999827568Z",
+      "conclusion": "endpoint_accessible_but_live_latency_unverified_on_closed_market"
+    },
+    {
+      "capability": "sip_historical_after_close",
+      "endpoint": "NVDA 15Min bars feed=sip adjustment=split",
+      "httpStatus": 200,
+      "requestStartedAtUtc": "2026-10-18T15:12:42.277Z",
+      "latestBarUtc": "2026-10-16T19:45:00Z",
+      "bars": 2,
+      "conclusion": "available"
+    },
+    {
+      "capability": "sip_delayed_15_minutes",
+      "endpoint": "intraday SIP bars",
+      "httpStatus": null,
+      "conclusion": "not_measurable_while_market_closed; delayed_collection_mode_required"
+    }
+  ],
+  "probeResponseReceiptTimestampCaptured": false,
+  "operatingMode": "sip_delayed_collection",
+  "iexFallback": false,
+  "liveSignalOperability": "unknown_until_in_session_receipt_audit; late arrivals marked non_executable"
+}
