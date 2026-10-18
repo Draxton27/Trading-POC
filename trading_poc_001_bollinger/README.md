@@ -298,6 +298,19 @@ npm run validate:nvda-failed-breakouts -- data/NVDA_ALPACA_SIP_15min_20211017_20
 
 El comando comprueba los SHA-256 de las cuatro entradas, no llama a Alpaca y genera el informe, JSON, CSV de señales y episodios, auditoría y manifiesto de hashes en [`shared-artifacts/phase12-nvda-failed-breakouts/`](../shared-artifacts/phase12-nvda-failed-breakouts/README.md). Los resultados completos se versionan para revisión. El análisis de los cinco años es exploratorio; no estima operaciones de opciones.
 
+## Fase 13: diagnóstico de volatilidad de NVDA
+
+El [protocolo predefinido](../docs/phase13-research-protocol.md) clasifica sesiones según ATR14% diario conocido antes de la apertura, usando percentiles causales de 120 observaciones. Reutiliza exactamente las señales y desenlaces publicados de Fases 11 y 12, y describe su retorno, MFE y MAE a 30 minutos por régimen. Una segunda escala, el rango medio de las 20 velas anteriores, permite normalizar la excursión intradía. Todas las velas elegibles integran una línea base general en ambos sentidos, sin escoger la dirección futura.
+
+Con el CSV local SIP y sus tres archivos contiguos, sin descargar nada:
+
+```bash
+npm ci
+npm run validate:nvda-volatility -- data/NVDA_ALPACA_SIP_15min_20211017_20261017.csv
+```
+
+El comando verifica seis hashes de entrada, incluyendo los JSON de Fases 11 y 12, y reproduce ambos estudios completos antes de escribir. Genera `output/real/nvda-volatility-regimes.md`, `.json`, `-events.csv` y `-baseline.csv`. Los cuatro derivados se versionan para revisión; el CSV SIP original no se añade otra vez. El análisis es exploratorio sobre años ya examinados y no define reglas de trading.
+
 ## ¿Qué significan los resultados?
 
 - **Señales válidas:** cuántas veces ocurrió la condición definida.
