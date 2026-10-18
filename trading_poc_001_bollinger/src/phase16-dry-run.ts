@@ -1,6 +1,6 @@
 import {strict as assert} from 'node:assert';
 import {execFileSync} from 'node:child_process';
-import {cpSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync} from 'node:fs';
+import {cpSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -151,12 +151,12 @@ writeFileSync(join(output, 'phase16-system-report.md'), `# Fase 16 — infraestr
 `## Prueba manual\n\nLa ejecución seca confirmó un ejemplo histórico de cada una de las seis familias y reprodujo sus resultados originales a 30 minutos, fijando primero señales y luego evaluaciones en un diario temporal con ${ledger.length} registros y último hash \`${ledger.at(-1)!.hash}\`. Para la prueba real se necesitan credenciales Alpaca vigentes, reloj UTC correcto, red y persistencia GitHub tras la ejecución. Las primeras 60 sesiones registradas serán auditoría operativa; no se evaluó rentabilidad.\n`);
 writeFileSync(join(output, 'README.md'), `# Fase 16: observación prospectiva\n\n`+
 `Protocolo congelado: [phase16-protocol.md](phase16-protocol.md). Inicio: \`${FORWARD_START}\`. Los CSV dry-run son pruebas históricas, no observaciones nuevas.\n\n`+
-`Archivos: \`phase16-system-report.md\` explica funcionamiento y límites; \`phase16-data-access-audit.json\` documenta permisos de feed; \`phase16-dry-run-signals.csv\` y \`phase16-dry-run-settlements.csv\` contienen la prueba de seis familias; \`phase16-operator-journal-template.csv\` solo tiene cabecera, sin decisiones ficticias; \`phase16-reproducibility.json\` fija hashes y versiones; \`SHA256SUMS.txt\` verifica los ocho archivos restantes.\n\n`+
-`Instale con \`cd trading_poc_001_bollinger && npm ci\`. Ejecute manualmente \`npm run observe:phase16\` y después \`npm run settle:phase16\`. Para una decisión humana, copie la plantilla CSV, complete exactamente una fila y ejecute \`npm run journal:phase16 -- path/a/decision.csv\`; el sistema fija \`documentedAtUtc\` con el reloj de ejecución. Compare con \`npm run compare:phase16\`. Reintentar no duplica IDs; ante una interrupción, elimine solo un \`.write-lock\` huérfano tras comprobar que ningún proceso sigue activo y valide la cadena antes de reanudar.\n\n`+
+`Archivos: \`phase16-system-report.md\` explica funcionamiento y límites; \`phase16-data-access-audit.json\` documenta permisos de feed; \`phase16-dry-run-signals.csv\` y \`phase16-dry-run-settlements.csv\` contienen la prueba de seis familias; \`phase16-operator-journal-template.csv\` solo tiene cabecera, sin decisiones ficticias; \`phase16-reproducibility.json\` fija hashes y versiones; \`phase16-pr21-corrections.md\` documenta esta revisión; \`phase16-session-simulation.json\` y \`phase16-session-simulation.csv\` presentan la prueba completa de 26 velas; \`phase16-validation-results.json\` resume las pruebas; \`SHA256SUMS.txt\` verifica todos los archivos del directorio.\n\n`+
+`Instale con \`cd trading_poc_001_bollinger && npm ci\`. Reproduzca la simulación histórica de 26 velas con \`npm run simulate-session:phase16\`; sus retrasos del proveedor son inyectados. Ejecute manualmente \`npm run observe:phase16\` y después \`npm run settle:phase16\`. Para una decisión humana, copie la plantilla CSV, complete exactamente una fila y ejecute \`npm run journal:phase16 -- path/a/decision.csv\`; el sistema fija \`documentedAtUtc\` con el reloj de ejecución. Compare con \`npm run compare:phase16\`. Reintentar no duplica IDs; ante una interrupción, elimine solo un \`.write-lock\` huérfano tras comprobar que ningún proceso sigue activo y valide la cadena antes de reanudar.\n\n`+
 `Revise cada lote nuevo en \`live/ledger/\` y haga commit/push manual de esos registros derivados a la rama autorizada. No incluya \`output/phase16-private/\` ni OHLCV SIP. Conserve el mismo checkout o restaure la última versión del diario desde GitHub antes de continuar. Las señales recibidas tarde siguen siendo hipotéticas. No se envían órdenes.\n`);
-const files = ['README.md','phase16-data-access-audit.json','phase16-dry-run-settlements.csv',
-  'phase16-dry-run-signals.csv','phase16-operator-journal-template.csv','phase16-protocol.md',
-  'phase16-reproducibility.json','phase16-system-report.md'];
+const files = readdirSync(output, {withFileTypes: true})
+  .filter(item => item.isFile() && item.name !== 'SHA256SUMS.txt')
+  .map(item => item.name).sort();
 writeFileSync(join(output, 'SHA256SUMS.txt'), files.map(name =>
   `${hash(readFileSync(join(output, name)))}  ${name}`).join('\n') + '\n');
 console.log(JSON.stringify({dryRunSignals: observed.length, dryRunSettlements: settled.length,
