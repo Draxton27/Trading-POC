@@ -7,7 +7,8 @@ import type {Candle} from '../src/domain.ts';
 import {loadMarketCalendar} from '../src/alpaca-calendar.ts';
 import {parseCandlesCsv} from '../src/csv.ts';
 import {metadataFor} from '../src/phase14-import.ts';
-import {appendCorrection, appendRecord, matchHumanSignal, operationalStatus,
+import {appendCorrection, appendRecord, HUMAN_TEMPLATE_COLUMNS, matchHumanSignal,
+  operationalStatus, parseHumanDecisionCsv,
   validateHumanDecision, verifyLedger, type HumanDecision} from '../src/phase16-ledger.ts';
 import {barId, detectAt, fourBarReturn, knownAt, requireAlpacaKeys, settleSignal, validateBar,
   type BarReceipt, type ForwardSignal} from '../src/phase16-engine.ts';
@@ -113,6 +114,17 @@ test('decisión humana antes/después y coincidencia independiente de no operar'
   assert.equal(matchHumanSignal({family: 'pullback_bullish', direction: 'bullish',
     availableAtUtc: '2026-10-19T14:00:00.000Z'},
   {...decision, direction: 'no_trade', operationType: 'no_trade'}), 'no_trade');
+});
+
+test('plantilla CSV humana admite motivo citado y no inventa contexto', () => {
+  const fields = ['NVDA','no_trade','no_trade','15Min','2026-10-19T14:00:00.000Z',
+    '','','','','','','','"Sin contexto, espero"','','true',''];
+  const parsed = parseHumanDecisionCsv(HUMAN_TEMPLATE_COLUMNS.join(',') + '\n' +
+    fields.join(',') + '\n');
+  assert.equal(parsed.selectionReason, 'Sin contexto, espero');
+  assert.equal(parsed.direction, 'no_trade');
+  assert.equal(parsed.sma200, null);
+  assert.equal(parsed.observedMarket, true);
 });
 
 test('fallo de credenciales sin exponer valores y ningún endpoint de órdenes', () => {

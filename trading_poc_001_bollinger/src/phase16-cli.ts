@@ -8,8 +8,8 @@ import {parseCandlesCsv} from './csv.ts';
 import type {Candle} from './domain.ts';
 import {metadataFor, PHASE14_NVDA_SHA256, sha256, symbolPath} from './phase14-import.ts';
 import {localEasternToUtc} from './phase14-events.ts';
-import {appendCorrection, appendRecord, FORWARD_START, matchHumanSignal, sha256 as hash,
-  validateHumanDecision, verifyLedger, type HumanDecision} from './phase16-ledger.ts';
+import {appendCorrection, appendRecord, FORWARD_START, matchHumanSignal, parseHumanDecisionCsv,
+  sha256 as hash, validateHumanDecision, verifyLedger, type HumanDecision} from './phase16-ledger.ts';
 import {barId, canonicalBarHash, detectAt, settleSignal, validateBar, requireAlpacaKeys,
   type BarReceipt, type ForwardSignal, type KnownEvent, type Symbol} from './phase16-engine.ts';
 
@@ -239,7 +239,8 @@ async function settle() {
 }
 
 function journal(path: string) {
-  const input = JSON.parse(readFileSync(path, 'utf8')) as HumanDecision;
+  const input = path.endsWith('.csv') ? parseHumanDecisionCsv(readFileSync(path, 'utf8')) :
+    JSON.parse(readFileSync(path, 'utf8')) as HumanDecision;
   const now = new Date().toISOString();
   const decision = {...input, documentedAtUtc: now};
   const status = validateHumanDecision(decision, now);

@@ -8,7 +8,8 @@ import {loadMarketCalendar} from './alpaca-calendar.ts';
 import {parseCandlesCsv} from './csv.ts';
 import type {Candle} from './domain.ts';
 import {metadataFor, PHASE14_NVDA_SHA256, sha256, symbolPath} from './phase14-import.ts';
-import {appendRecord, FORWARD_START, sha256 as hash, verifyLedger} from './phase16-ledger.ts';
+import {appendRecord, FORWARD_START, HUMAN_TEMPLATE_COLUMNS, sha256 as hash,
+  verifyLedger} from './phase16-ledger.ts';
 import {barId, detectAt, settleSignal, type BarReceipt,
   type ForwardSignal, type Symbol} from './phase16-engine.ts';
 
@@ -104,7 +105,7 @@ writeFileSync(join(output, 'phase16-dry-run-settlements.csv'),
     ledger.find(r => r.id === `settlement:${item.signal.id}:${item.horizon}`)!.hash])).join('\n') + '\n');
 cpSync(join(repo, 'docs/phase16-forward-protocol.md'), join(output, 'phase16-protocol.md'));
 writeFileSync(join(output, 'phase16-operator-journal-template.csv'),
-  'symbol,direction,operation_type,timeframe,decision_at_utc,sma20,sma40,sma100,sma200,planned_entry,planned_invalidation,exit_criterion,selection_reason,chart_capture_id,observed_market,outcome_known_at_utc\n');
+  HUMAN_TEMPLATE_COLUMNS.join(',') + '\n');
 const accessAudit = {
   checkedAtUtc: '2026-10-18T15:12:42.277Z', marketState: 'closed_sunday',
   requestedProvider: 'Alpaca Market Data API', requestedFeed: 'sip',
@@ -149,7 +150,7 @@ writeFileSync(join(output, 'phase16-system-report.md'), `# Fase 16 — infraestr
 writeFileSync(join(output, 'README.md'), `# Fase 16: observación prospectiva\n\n`+
 `Protocolo congelado: [phase16-protocol.md](phase16-protocol.md). Inicio: \`${FORWARD_START}\`. Los CSV dry-run son pruebas históricas, no observaciones nuevas.\n\n`+
 `Archivos: \`phase16-system-report.md\` explica funcionamiento y límites; \`phase16-data-access-audit.json\` documenta permisos de feed; \`phase16-dry-run-signals.csv\` y \`phase16-dry-run-settlements.csv\` contienen la prueba de seis familias; \`phase16-operator-journal-template.csv\` solo tiene cabecera, sin decisiones ficticias; \`phase16-reproducibility.json\` fija hashes y versiones; \`SHA256SUMS.txt\` verifica los ocho archivos restantes.\n\n`+
-`Instale con \`cd trading_poc_001_bollinger && npm ci\`. Ejecute manualmente \`npm run observe:phase16\` y después \`npm run settle:phase16\`. Para una decisión humana, complete un JSON con los campos de la plantilla y ejecute \`npm run journal:phase16 -- path/al/json\`; el sistema fija \`documentedAtUtc\` con el reloj de ejecución. Compare con \`npm run compare:phase16\`. Reintentar no duplica IDs; ante una interrupción, elimine solo un \`.write-lock\` huérfano tras comprobar que ningún proceso sigue activo y valide la cadena antes de reanudar.\n\n`+
+`Instale con \`cd trading_poc_001_bollinger && npm ci\`. Ejecute manualmente \`npm run observe:phase16\` y después \`npm run settle:phase16\`. Para una decisión humana, copie la plantilla CSV, complete exactamente una fila y ejecute \`npm run journal:phase16 -- path/a/decision.csv\`; el sistema fija \`documentedAtUtc\` con el reloj de ejecución. Compare con \`npm run compare:phase16\`. Reintentar no duplica IDs; ante una interrupción, elimine solo un \`.write-lock\` huérfano tras comprobar que ningún proceso sigue activo y valide la cadena antes de reanudar.\n\n`+
 `Revise cada lote nuevo en \`live/ledger/\` y haga commit/push manual de esos registros derivados a la rama autorizada. No incluya \`output/phase16-private/\` ni OHLCV SIP. Conserve el mismo checkout o restaure la última versión del diario desde GitHub antes de continuar. Las señales recibidas tarde siguen siendo hipotéticas. No se envían órdenes.\n`);
 const files = ['README.md','phase16-data-access-audit.json','phase16-dry-run-settlements.csv',
   'phase16-dry-run-signals.csv','phase16-operator-journal-template.csv','phase16-protocol.md',

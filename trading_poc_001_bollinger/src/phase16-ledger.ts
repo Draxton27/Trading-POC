@@ -75,12 +75,57 @@ export type HumanDecision = {symbol: string; direction: 'bullish' | 'bearish' | 
   chartCaptureId: string | null; observedMarket: boolean | null;
   outcomeKnownAtUtc: string | null};
 
+export const HUMAN_TEMPLATE_COLUMNS = ['symbol','direction','operationType','timeframe',
+  'decisionAtUtc','sma20','sma40','sma100','sma200','plannedEntry',
+  'plannedInvalidation','exitCriterion','selectionReason','chartCaptureId',
+  'observedMarket','outcomeKnownAtUtc'] as const;
+function parseCsvLine(line: string): string[] {
+  const values: string[] = []; let field = '', quoted = false;
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i]!;
+    if (char === '"') {
+      if (quoted && line[i + 1] === '"') {field += '"'; i++;}
+      else quoted = !quoted;
+    } else if (char === ',' && !quoted) {values.push(field); field = '';}
+    else field += char;
+  }
+  if (quoted) throw new Error('CSV humano con comillas incompletas.');
+  values.push(field);
+  return values;
+}
+export function parseHumanDecisionCsv(csv: string): HumanDecision {
+  const lines = csv.trimEnd().split(/\r?\n/);
+  if (lines.length !== 2 || lines[0] !== HUMAN_TEMPLATE_COLUMNS.join(',')) {
+    throw new Error('Diario humano requiere cabecera oficial y una sola decisión.');
+  }
+  const values = parseCsvLine(lines[1]!);
+  if (values.length !== HUMAN_TEMPLATE_COLUMNS.length) throw new Error('Fila humana incompleta.');
+  const raw = Object.fromEntries(HUMAN_TEMPLATE_COLUMNS.map((key, i) => [key, values[i]!]));
+  const optional = (value: string) => value || null;
+  const price = (value: string): number | null => {
+    if (!value) return null;
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed <= 0) throw new Error('Nivel humano inválido.');
+    return parsed;
+  };
+  return {...raw, timeframe: optional(raw.timeframe), sma20: optional(raw.sma20),
+    sma40: optional(raw.sma40), sma100: optional(raw.sma100), sma200: optional(raw.sma200),
+    plannedEntry: price(raw.plannedEntry), plannedInvalidation: price(raw.plannedInvalidation),
+    exitCriterion: optional(raw.exitCriterion), chartCaptureId: optional(raw.chartCaptureId),
+    observedMarket: raw.observedMarket === '' ? null : raw.observedMarket === 'true' ? true :
+      raw.observedMarket === 'false' ? false : (() => {throw new Error('observedMarket inválido.');})(),
+    outcomeKnownAtUtc: optional(raw.outcomeKnownAtUtc),
+    documentedAtUtc: ''} as HumanDecision;
+}
+
 export function validateHumanDecision(decision: HumanDecision, now: string):
   'prospective' | 'retrospective' | 'timing_unverified' {
   if (decision.symbol !== 'NVDA' || !Number.isFinite(Date.parse(decision.decisionAtUtc)) ||
       !Number.isFinite(Date.parse(decision.documentedAtUtc)) ||
       Date.parse(decision.decisionAtUtc) > Date.parse(now) ||
       Date.parse(decision.documentedAtUtc) > Date.parse(now) ||
+      !['bullish', 'bearish', 'no_trade'].includes(decision.direction) ||
+      !['pullback', 'breakout', 'reversal', 'other', 'no_trade'].includes(decision.operationType) ||
       !decision.selectionReason.trim()) throw new Error('Decisión humana incompleta o fechada en el futuro.');
   if (decision.direction === 'no_trade' && decision.operationType !== 'no_trade') {
     throw new Error('No operar requiere tipo no_trade.');
