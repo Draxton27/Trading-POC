@@ -6,4 +6,5 @@ data/*_ALPACA_*.csv.meta.json
 data/*_ALPACA_*.csv.calendar.json
 data/*_ALPACA_*.csv.provenance.json
 data/*_ALPACA_*.csv.parts/
+data/phase14-source-cache/
 /output/real/
