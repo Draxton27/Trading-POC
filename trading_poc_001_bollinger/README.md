@@ -214,6 +214,25 @@ Para describir diferencias sin escoger un volumen mínimo, el reporte divide el 
 
 En la ejecución local con **6.497 velas**, hubo **250 aperturas evaluadas** y **230 con RVOL**. Las fronteras retrospectivas, calculadas con **154 días** del primer 70%, fueron **0,811** y **0,990**. En el historial completo, el tercil bajo tuvo **38/85 (44,7%)** aperturas fuera y el alto **51/79 (64,6%)**. Entre aperturas por encima, el regreso por rango en la primera vela ocurrió en **15/20** casos del tercil bajo y **12/33** del alto; entre aperturas por debajo, **9/18** y **4/18**. El último 30% tiene subgrupos de regreso pequeños; además, el resultado ocurre durante la misma vela cuyo volumen se mide. **Estas asociaciones no prueban causalidad, una ventaja estadística ni una oportunidad operable a las 09:30.** Los datos reales, credenciales y reportes permanecen fuera de Git.
 
+## NVDA: señales de toda la sesión con Bollinger, EMA 9 y RVOL (fase 9)
+
+Este estudio es independiente de los experimentos de **apertura** de las fases 7 y 8. Reutiliza las velas NVDA de 15 minutos, sus metadatos y el calendario local. No descarga datos ni consulta credenciales:
+
+```bash
+npm ci
+npm run validate:nvda-indicators
+```
+
+El comando exige NVDA real, Alpaca SIP, ajuste por split y sesión regular. Produce `output/real/nvda-indicators-study.md`, `.json` y `output/real/nvda-indicators-signals.csv`, todos excluidos de Git. El CSV registra hora local y UTC, bandas, EMA, RVOL, estado de los filtros, disponibilidad de la señal y resultados o causas de exclusión a 15, 30 y 60 minutos. Si faltan los tres archivos locales `data/NVDA_ALPACA_SIP_15min_12m.csv` y sus archivos contiguos `.meta.json` y `.calendar.json`, no se pueden reproducir resultados reales; `npm test` sigue usando datos sintéticos.
+
+Se conserva la regla original de compresión de Bollinger: SMA 20, dos desviaciones poblacionales, 100 velas de historial, cuantil inferior 20%, expansión superior a 5%, cierre estrictamente fuera de banda y separación de 12 velas. En NVDA 15m esas 12 velas equivalen a **tres horas** de negociación. Las bandas se recalculan al cierre de cada vela. La señal y los filtros solo están disponibles cuando termina esa vela. EMA 9 arranca con la SMA de nueve cierres y se actualiza con factor 0,2 entre sesiones; el filtro principal compara su pendiente actual con la anterior. La posición del cierre frente a EMA se conserva como dato descriptivo. RVOL divide el volumen de la vela de señal entre la media del **mismo intervalo de Nueva York** de las 20 sesiones observadas anteriores y exige `>= 1,5`. Sin las 20 observaciones, o con promedio cero, la señal queda sin historial de volumen.
+
+Las cuatro configuraciones son A Bollinger, B Bollinger + EMA, C Bollinger + RVOL y D ambos filtros. Todas parten de las mismas señales; C y D se comparan con A restringido a señales con RVOL calculable. La entrada hipotética es la apertura de la siguiente vela consecutiva y la salida el cierre de la primera, segunda o cuarta vela posterior. Cada horizonte permanece dentro de la sesión del calendario, incluidos cierres anticipados; las faltas de velas se notifican. Las observaciones sin señal del mismo intervalo local y tramo temporal sirven como control descriptivo. El corte aproximado 70/30 usa sesiones completas. El último 30% de este archivo ya se examinó en fases previas y **no** constituye validación independiente.
+
+La ejecución local con los archivos recibidos de octubre de 2025 a octubre de 2026 encontró **6.497 velas y 161 señales** (78 alcistas y 83 bajistas). EMA conservó las 161. RVOL clasificó 143 (18 sin historial suficiente), conservó 23 y descartó 120. La combinación EMA + RVOL conservó las mismas 23. En los 15 minutos posteriores hubo 12 alcistas y 6 bajistas con horizonte evaluable entre las conservadas por volumen; las comparaciones de ese filtro son muestras pequeñas. Los resultados completos de ambas direcciones, tres horizontes y cada tramo están en el informe generado. Esta asociación no demuestra ventaja estadística ni rentabilidad. Los movimientos firmados son del precio de NVDA, no de contratos de opciones.
+
+El calendario adjunto declara una **reconstrucción XNYS**, verificada frente al CSV observado, y no un calendario original certificado por Alpaca. El estudio informa sesiones enteras faltantes o parciales y rechaza velas fuera del horario programado. Las 251 sesiones del intervalo están presentes; la primera es parcial (21 de 26 velas). El volumen final y la señal no pueden utilizarse antes de terminar la vela.
+
 ## ¿Qué significan los resultados?
 
 - **Señales válidas:** cuántas veces ocurrió la condición definida.

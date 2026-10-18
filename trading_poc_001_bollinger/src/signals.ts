@@ -22,7 +22,8 @@ export function detectSignals(
   lookback = 100,
   lowQuantile = 0.20,
   minExpansion = 1.05,
-  cooldownBars = 12
+  cooldownBars = 12,
+  barMinutes: 5 | 15 = 5
 ): Signal[] {
   if (lookback < 20 || lowQuantile <= 0 || lowQuantile >= 1 || minExpansion <= 1 || cooldownBars < 0) {
     throw new Error('Parametros de deteccion invalidos.');
@@ -43,8 +44,8 @@ export function detectSignals(
     results.push({
       index: i,
       timestamp: current.timestamp,
-      candleEndTimestamp: barEndTimestamp(current.timestamp),
-      availableAt: barEndTimestamp(current.timestamp),
+      candleEndTimestamp: barEndTimestamp(current.timestamp, barMinutes),
+      availableAt: barEndTimestamp(current.timestamp, barMinutes),
       direction,
       close: current.close,
       previousBandwidthPercent: previous.bandwidth * 100,

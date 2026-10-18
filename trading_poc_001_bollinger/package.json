@@ -11,6 +11,7 @@
     "import:nvda": "node --env-file-if-exists=.env --experimental-strip-types src/import-nvda.ts",
     "validate:nvda": "node --experimental-strip-types src/validate-nvda-opening.ts",
     "validate:nvda-volume": "node --experimental-strip-types src/validate-nvda-opening-volume.ts",
+    "validate:nvda-indicators": "node --experimental-strip-types src/validate-nvda-indicators.ts",
     "validate:strategy": "node --experimental-strip-types src/validate-strategy.ts",
     "validate:ema9": "node --experimental-strip-types src/validate-ema9.ts",
     "validate:volume": "node --experimental-strip-types src/validate-volume.ts",
