@@ -5,7 +5,8 @@ import {loadMetadata, parseBarStart, validateBarTime, type DataMetadata} from '.
 const FIELDS = ['timestamp', 'open', 'high', 'low', 'close', 'volume'] as const;
 const DECIMAL = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
 
-export function parseCandlesCsv(content: string, metadata: DataMetadata): Candle[] {
+export function parseCandlesCsv(content: string, metadata: DataMetadata,
+  options: {allowIntradayGaps?: boolean} = {}): Candle[] {
   const lines = content.replace(/^\uFEFF/, '').split(/\r?\n/).filter(line => line.trim() !== '');
   const cols = lines.shift()?.split(',').map(s => s.trim().toLowerCase());
   if (!cols || cols.length !== FIELDS.length || new Set(cols).size !== FIELDS.length ||
@@ -25,7 +26,10 @@ export function parseCandlesCsv(content: string, metadata: DataMetadata): Candle
         high! < Math.max(open!,close!,low!) || low! > Math.min(open!,close!) || volume! < 0 || !Number.isSafeInteger(volume)) {
       throw new Error(`Datos OHLCV invalidos o desordenados en linea ${i + 2}`);
     }
-    try { validateBarTime(t, Number.isFinite(lastTime) ? lastTime : null, metadata); }
+    try {
+      validateBarTime(t, options.allowIntradayGaps ? null : Number.isFinite(lastTime) ? lastTime : null,
+        metadata);
+    }
     catch (error) { throw new Error(`Tiempo invalido en linea ${i + 2}: ${String(error)}`); }
     candles.push({timestamp: new Date(t).toISOString(),open:open!,high:high!,low:low!,close:close!,volume:volume!});
     lastTime = t;

@@ -311,6 +311,12 @@ npm run validate:nvda-volatility -- data/NVDA_ALPACA_SIP_15min_20211017_20261017
 
 El comando verifica seis hashes de entrada, incluyendo los JSON de Fases 11 y 12, y reproduce ambos estudios completos antes de escribir. Genera `output/real/nvda-volatility-regimes.md`, `.json`, `-events.csv` y `-baseline.csv`. Los cuatro derivados se versionan para revisión; el CSV SIP original no se añade otra vez. El análisis es exploratorio sobre años ya examinados y no define reglas de trading.
 
+## Fase 14: contexto de mercado y calendario económico
+
+El [protocolo](../docs/phase14-data-protocol.md) fija la adquisición SIP de QQQ/SMH, la sincronización causal con el historial NVDA de cinco años y la verificación de calendarios BLS, Federal Reserve y NVIDIA. Con credenciales de Alpaca configuradas en el entorno seguro, `NODE_USE_ENV_PROXY=1 npm run import:phase14-market` guarda CSV y sidecars por símbolo y reanuda fragmentos mensuales. No descarga NVDA de nuevo ni sobrescribe archivos finales válidos.
+
+Con los tres historiales locales, `NODE_USE_ENV_PROXY=1 npm run validate:phase14-context` genera la [carpeta de artefactos](../shared-artifacts/phase14-market-context/README.md), enlaza las señales anteriores sin recalcularlas y conserva la tabla OHLCV íntegra solo en `output/real/phase14-synchronized-bars-full.csv`. Los artefactos públicos excluyen la serie SIP original porque no se verificó permiso de redistribución. Las noticias sin hora original verificada se registran con fecha, sin asignarlas a una vela como si la hora fuera conocida.
+
 ## ¿Qué significan los resultados?
 
 - **Señales válidas:** cuántas veces ocurrió la condición definida.

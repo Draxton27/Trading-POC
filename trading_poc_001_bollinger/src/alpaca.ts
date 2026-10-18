@@ -27,6 +27,10 @@ export type ImportOptions = {
   minIntervalMs?: number;
   calendar?: MarketCalendar;
   metadata?: DataMetadata;
+  /** Phase 14 preserves observed gaps and counts byte-equivalent repeated bars. Defaults preserve older importers. */
+  allowIntradayGaps?: boolean;
+  allowExactDuplicates?: boolean;
+  duplicateAudit?: {exact: number};
 };
 
 export function parseHistoryMonths(args: readonly string[]): number {
@@ -105,8 +109,9 @@ export async function fetchAlpacaBars(options: ImportOptions): Promise<Candle[]>
   const metadata = options.metadata ?? alpacaMetadata;
   if (metadata.provider !== alpacaMetadata.provider || metadata.data_class !== 'real' ||
       metadata.feed !== 'sip' || metadata.adjustment !== 'split' || metadata.session !== 'regular' ||
-      (metadata.asset !== 'QQQ' && metadata.asset !== 'NVDA') ||
-      (metadata.asset === 'QQQ' && metadata.bar_minutes !== 5) ||
+      (metadata.asset !== 'QQQ' && metadata.asset !== 'NVDA' && metadata.asset !== 'SMH') ||
+      (metadata.asset === 'QQQ' && metadata.bar_minutes !== 5 && metadata.bar_minutes !== 15) ||
+      (metadata.asset === 'SMH' && metadata.bar_minutes !== 15) ||
       (metadata.asset === 'NVDA' && metadata.bar_minutes !== 15)) {
     throw new Error('Configuración de importación Alpaca no admitida.');
   }
@@ -127,6 +132,7 @@ export async function fetchAlpacaBars(options: ImportOptions): Promise<Candle[]>
   const seenTokens = new Set<string>();
   let pageToken: string | null = null;
   let lastRawTime = -Infinity;
+  const seenRaw = new Map<number, Candle>();
   let lastRequestAt = -Infinity;
   do {
     const url = new URL(ENDPOINT);
@@ -175,10 +181,18 @@ export async function fetchAlpacaBars(options: ImportOptions): Promise<Candle[]>
     for (const raw of bars[metadata.asset] as unknown[]) {
       const candle = alpacaCandle(raw);
       const time = Date.parse(candle.timestamp);
+      const priorRaw = options.allowExactDuplicates ? seenRaw.get(time) : undefined;
+      if (priorRaw && candle.open === priorRaw.open && candle.high === priorRaw.high &&
+          candle.low === priorRaw.low && candle.close === priorRaw.close &&
+          candle.volume === priorRaw.volume) {
+        if (options.duplicateAudit) options.duplicateAudit.exact++;
+        continue;
+      }
       if (time < start || time > end || time <= lastRawTime) {
         throw new Error(`Vela de Alpaca fuera de rango, duplicada o desordenada: ${candle.timestamp}.`);
       }
       lastRawTime = time;
+      if (options.allowExactDuplicates) seenRaw.set(time, candle);
       if (isBarInSession(time, metadata) &&
           (!options.calendar || isCalendarBar(time, options.calendar))) candles.push(candle);
     }
@@ -191,5 +205,6 @@ export async function fetchAlpacaBars(options: ImportOptions): Promise<Candle[]>
   } while (pageToken);
   if (!candles.length) throw new Error(`Alpaca no devolvió velas ${metadata.asset} de sesión regular en el rango.`);
   // The existing CSV contract rejects missing intraday bars; no synthetic fill is made.
-  return parseCandlesCsv(serializeCandles(candles), metadata);
+  return parseCandlesCsv(serializeCandles(candles), metadata,
+    {allowIntradayGaps: options.allowIntradayGaps});
 }
