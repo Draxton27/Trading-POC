@@ -113,7 +113,7 @@ test('QQQ y SMH tardíos agregan contexto sin editar señal original', () => {
       '2026-10-19T14:00:00.000Z', '2026-10-19T14:15:00.000Z'];
     const qqq = times.map((t, i) => candle(t, 100 + i, 101 + i));
     const smh = times.map((t, i) => candle(t, 200 - i, 199 - i));
-    const signal = {id: 'sample', direction: 'bullish',
+    const signal = {id: 'sample', direction: 'bullish', dateNy: '2026-10-19',
       barStartUtc: times[3], generatedAtUtc: '2026-10-19T14:30:01.000Z',
       primaryOutcomeEndUtc: '2026-10-19T15:00:00.000Z',
       qqqFourReturnPercent: null, smhFourReturnPercent: null,
@@ -149,6 +149,15 @@ test('QQQ y SMH tardíos agregan contexto sin editar señal original', () => {
     assert.equal(rows[0]!.hash, original.hash);
     assert.equal(rows[0]!.payload.marketGroup, 'missing');
     assert.equal(rows[2]!.payload.originalGeneratedAtUtc, signal.generatedAtUtc);
+    const earlySignal = {...signal, id: 'early', barStartUtc: times[1],
+      primaryOutcomeEndUtc: '2026-10-19T14:30:00.000Z'};
+    const partialReceipts = new Map([[barId('QQQ', times[1]!),
+      receipts.get(barId('QQQ', times[1]!))!]]);
+    const insufficient = marketContextUpdate(earlySignal, qqq, smh, partialReceipts,
+      '2026-10-19T15:02:00.000Z')!;
+    assert.equal(insufficient.payload.qqqFourReturnPercent, null);
+    assert.equal((insufficient.payload.qqqSourceBars as unknown[]).length, 1);
+    assert.equal(insufficient.payload.availableBeforePrimaryOutcome, false);
   } finally {rmSync(directory, {recursive: true, force: true});}
 });
 

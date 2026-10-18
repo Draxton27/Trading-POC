@@ -183,11 +183,20 @@ export function marketContextUpdate(signal: ForwardSignal, qqq: readonly Candle[
   smh: readonly Candle[], receipts: ReadonlyMap<string, BarReceipt>, recordedAtUtc: string) {
   const q = receivedFourBarReturn(qqq, 'QQQ', signal.barStartUtc, receipts, recordedAtUtc);
   const s = receivedFourBarReturn(smh, 'SMH', signal.barStartUtc, receipts, recordedAtUtc);
-  const qReceipt = q.starts.map(start => receipts.get(barId('QQQ', start))!.receivedAtUtc).sort().at(-1) ?? null;
-  const sReceipt = s.starts.map(start => receipts.get(barId('SMH', start))!.receivedAtUtc).sort().at(-1) ?? null;
-  const changed = q.value !== signal.qqqFourReturnPercent || s.value !== signal.smhFourReturnPercent;
-  const late = [qReceipt, sReceipt].some(at => at !== null && at > signal.generatedAtUtc);
-  if (!changed || !late) return null;
+  const sourceBars = (symbol: 'QQQ' | 'SMH') => Array.from({length: 4}, (_, offset) =>
+    new Date(Date.parse(signal.barStartUtc) - (3 - offset) * 900_000).toISOString())
+    .filter(start => newYorkBarParts(start).day === signal.dateNy)
+    .flatMap(start => {
+      const id = barId(symbol, start), receipt = receipts.get(id);
+      return receipt && receipt.receivedAtUtc <= recordedAtUtc ?
+        [{id, receivedAtUtc: receipt.receivedAtUtc,
+          inputSha256: receipt.inputSha256}] : [];
+    });
+  const qBars = sourceBars('QQQ'), sBars = sourceBars('SMH');
+  const qReceipt = qBars.map(bar => bar.receivedAtUtc).sort().at(-1) ?? null;
+  const sReceipt = sBars.map(bar => bar.receivedAtUtc).sort().at(-1) ?? null;
+  const late = [...qBars, ...sBars].some(bar => bar.receivedAtUtc > signal.generatedAtUtc);
+  if (!late) return null;
   const group = classify(signal.direction, q.value, s.value);
   const availabilityAtUtc = [qReceipt, sReceipt].filter((at): at is string => at !== null).sort().at(-1)!;
   const payload = {signalId: signal.id, originalGeneratedAtUtc: signal.generatedAtUtc,
@@ -196,14 +205,13 @@ export function marketContextUpdate(signal: ForwardSignal, qqq: readonly Candle[
     originalSmhFourReturnPercent: signal.smhFourReturnPercent,
     qqqFourReturnPercent: q.value, smhFourReturnPercent: s.value, marketGroup: group,
     qqqReceivedAtUtc: qReceipt, smhReceivedAtUtc: sReceipt,
-    qqqSourceBarIds: q.starts.map(start => barId('QQQ', start)),
-    smhSourceBarIds: s.starts.map(start => barId('SMH', start)),
+    qqqSourceBars: qBars, smhSourceBars: sBars,
     availabilityAtUtc, recordedAtUtc,
     availableBeforePrimaryOutcome: availabilityAtUtc < signal.primaryOutcomeEndUtc &&
       recordedAtUtc < signal.primaryOutcomeEndUtc,
     originalSignalUnchanged: true};
   const id = `market_context:${signal.id}:${sha256(JSON.stringify({
-    q: q.value, s: s.value, qReceipt, sReceipt, qStarts: q.starts, sStarts: s.starts}))}`;
+    q: q.value, s: s.value, qBars, sBars}))}`;
   return {id, payload};
 }
 
