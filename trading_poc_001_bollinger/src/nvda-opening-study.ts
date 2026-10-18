@@ -115,8 +115,14 @@ export function studyNvdaOpening(candles: readonly Candle[], calendar: MarketCal
   if (!candles.length) throw new Error('No hay velas NVDA para estudiar.');
   const byDate = new Map<string, {firstIndex: number; bars: Candle[]}>();
   for (const [index, candle] of candles.entries()) {
-    const {day} = newYorkBarParts(candle.timestamp);
-    if (!calendar.has(day)) throw new Error(`Falta calendario bursátil para ${day}.`);
+    const {day, slot} = newYorkBarParts(candle.timestamp);
+    const schedule = calendar.get(day);
+    if (!schedule) throw new Error(`Falta calendario bursátil para ${day}.`);
+    const [hour, minute] = slot.split(':').map(Number);
+    const barMinute = hour! * 60 + minute!;
+    if (barMinute < schedule.open || barMinute + 15 > schedule.close) {
+      throw new Error(`Vela fuera del horario del calendario en ${day}: ${candle.timestamp}.`);
+    }
     if (!byDate.has(day)) byDate.set(day, {firstIndex: index, bars: []});
     byDate.get(day)!.bars.push(candle);
   }

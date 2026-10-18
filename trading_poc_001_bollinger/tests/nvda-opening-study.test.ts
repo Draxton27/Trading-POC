@@ -5,6 +5,7 @@ import {fileURLToPath} from 'node:url';
 import type {Candle} from '../src/domain.ts';
 import type {MarketCalendar} from '../src/alpaca-calendar.ts';
 import {studyNvdaOpening} from '../src/nvda-opening-study.ts';
+import {studyNvdaOpeningVolume} from '../src/nvda-opening-volume-study.ts';
 import {renderNvdaOpeningReport} from '../src/nvda-opening-report.ts';
 
 function bar(timestamp: string, open: number, high = open, low = open, close = open): Candle {
@@ -163,6 +164,13 @@ test('volatilidad elevada se decide con ancho anterior a la apertura y reconoce 
     row.group === 'alta_vol_encima' && row.horizon === 'sesion')!.openings, 1);
   assert.equal(study.rows.find(row => row.segment === 'total' &&
     row.group === 'alta_vol_encima' && row.horizon === 'sesion')!.rangeRate, 0);
+});
+
+test('rechaza velas posteriores al cierre anticipado del calendario antes de calcular bandas o RVOL', () => {
+  const input = twoSessions({opening: monday(0, 110)});
+  input.calendar.set('2026-03-06', {open: 570, close: 780});
+  assert.throws(() => studyNvdaOpening(input.candles, input.calendar), /fuera del horario del calendario/);
+  assert.throws(() => studyNvdaOpeningVolume(input.candles, input.calendar), /fuera del horario del calendario/);
 });
 
 test('festivo ausente, horario de verano y barra de apertura faltante no generan señales inventadas', () => {
