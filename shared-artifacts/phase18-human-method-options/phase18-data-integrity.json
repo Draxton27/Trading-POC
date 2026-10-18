@@ -1,0 +1,139 @@
+{
+  "protocol_commit": "8aecb621b4bf284320a9b2fa3e5f0a8fd8a5006f",
+  "code_sha256": {
+    "core": "948ceccb8501ddcf8daf2101d8f03273fcf8d36f216fd79f112746553e00cb9d",
+    "runner": "cab6b6a40b12240cb1938c82b80db65e14b8273afe8a1a5c7fdba80bb0e9d1e3"
+  },
+  "source_sha256": {
+    "NVDA": "7b06d0a493515b18a581963d2d2d488e73a7cd0dc2c961b60a99315e7a9b0ecc",
+    "QQQ": "962696cb57499ecf0991b1915975f5fe5725e7df7185654bfa4a2f71775eb2fb",
+    "SMH": "d517e4652e9f4e44c715b5580dd4fa6d303b0a9f3246169027d142b2aac0cb55"
+  },
+  "calendar_sha256": "75c3228c9addae74242763927a18d6e206fc623f2204381894f2d162befbe37a",
+  "source_aux_sha256": {
+    "NVDA_meta.json": "123ff39326b3aa2eb16a0455a0b9652a77ea009363758353880761d524a014e2",
+    "NVDA_calendar.json": "75c3228c9addae74242763927a18d6e206fc623f2204381894f2d162befbe37a",
+    "NVDA_provenance.json": "90e3381b68308f8e3188ff2651f7c3432ecccc4872ee8d32181b3ac10b66ea94",
+    "QQQ_meta.json": "9d5b16972f931f499b06f350cf5848168fab92f6f41c0425e30d964854aacbc3",
+    "QQQ_calendar.json": "75c3228c9addae74242763927a18d6e206fc623f2204381894f2d162befbe37a",
+    "QQQ_provenance.json": "2cf47ad1119da963b3ab5b3234ea2a5bf7167845d8a549d9154cebdfe660c508",
+    "SMH_meta.json": "7b01f0e36071abbe9d52250606bb8b5d4169ed00aea87163dd6c83d328b2ff08",
+    "SMH_calendar.json": "75c3228c9addae74242763927a18d6e206fc623f2204381894f2d162befbe37a",
+    "SMH_provenance.json": "d960fe36c5759d326229f01ce246d6947067f3760b114f661e2ca1d8bd14dda5"
+  },
+  "original_artifact_sha256": {
+    "phase11": "e725a8706fe519704da0be01df5e0f4437cb4cd4a146739f4cc3e71f2c0ee598",
+    "phase12": "4f6886f72db46f21863bb73508febab5575294c9d0d5a4b1cb79b3c23363c290",
+    "phase13": "e8356d8ae0d8062e3ec13884dddd052305979c09ad9e0b4739dd2a0479719fe7",
+    "phase14": "1bc871477310af700d00662e10b9cf72a5c857896933b18be72ef2eebe4eb15c",
+    "phase15": "bd171b7e67492a6d6d9f8348045c9671cb9679b647f251ca268b1965c6a48932"
+  },
+  "coverage": {
+    "calendar_sessions": 1255,
+    "observations": 32510,
+    "hourly_aggregates": 8755,
+    "hourly_complete": 8755,
+    "daily_aggregates": 1255,
+    "daily_complete": 1255,
+    "qqq_four_available": 28745,
+    "smh_four_available": 28745,
+    "intervals_with_known_event": 3508,
+    "pullback_rows": 9684,
+    "original_signals": 1242,
+    "signal_outcome_mismatches": 0,
+    "signal_context_mismatches": 0,
+    "order_counts": {
+      "hour": {
+        "bullish": 9448,
+        "bearish": 4468,
+        "other": 17852,
+        "insufficient": 742
+      },
+      "day": {
+        "bullish": 13564,
+        "bearish": 1560,
+        "other": 12198,
+        "insufficient": 5188
+      }
+    },
+    "order_share_percent": {
+      "hour": {
+        "bullish": 29.061827130113812,
+        "bearish": 13.743463549677022,
+        "other": 54.912334666256534,
+        "insufficient": 2.28237465395263
+      },
+      "day": {
+        "bullish": 41.722546908643494,
+        "bearish": 4.7985235312211625,
+        "other": 37.5207628422024,
+        "insufficient": 15.958166717932944
+      }
+    },
+    "signal_order_counts": {
+      "hour": {
+        "bullish": 392,
+        "bearish": 188,
+        "other": 647,
+        "insufficient": 15
+      },
+      "day": {
+        "bullish": 513,
+        "bearish": 64,
+        "other": 456,
+        "insufficient": 209
+      }
+    },
+    "signal_hour_order_by_family": {
+      "breakout_bearish": {
+        "bullish": 0,
+        "bearish": 90,
+        "other": 138,
+        "insufficient": 0
+      },
+      "breakout_bullish": {
+        "bullish": 177,
+        "bearish": 0,
+        "other": 170,
+        "insufficient": 5
+      },
+      "failed_high_bearish": {
+        "bullish": 69,
+        "bearish": 25,
+        "other": 85,
+        "insufficient": 3
+      },
+      "failed_low_bullish": {
+        "bullish": 41,
+        "bearish": 29,
+        "other": 109,
+        "insufficient": 5
+      },
+      "pullback_bearish": {
+        "bullish": 0,
+        "bearish": 44,
+        "other": 72,
+        "insufficient": 0
+      },
+      "pullback_bullish": {
+        "bullish": 105,
+        "bearish": 0,
+        "other": 73,
+        "insufficient": 2
+      }
+    },
+    "hour_transitions": {
+      "insufficient->insufficient": 713,
+      "other->other": 17061,
+      "other->bullish": 66,
+      "bullish->bullish": 9016,
+      "bullish->other": 70,
+      "other->bearish": 31,
+      "bearish->bearish": 4261,
+      "bearish->other": 37
+    }
+  },
+  "independence": "none: 2021–2026 previously examined",
+  "data_class": "derived_descriptive",
+  "raw_sip_published": false
+}

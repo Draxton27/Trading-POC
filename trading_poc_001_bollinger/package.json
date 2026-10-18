@@ -30,6 +30,7 @@
     "broker-state:phase17": "node --experimental-strip-types src/phase17-cli.ts broker-state",
     "review-trades:phase17": "node --experimental-strip-types src/phase17-cli.ts review-trades",
     "compare:phase17": "node --experimental-strip-types src/phase17-cli.ts compare",
+    "study:phase18": "node --experimental-strip-types src/phase18-run.ts",
     "attach-chart:phase17": "node --experimental-strip-types src/phase17-cli.ts attach-chart",
     "dry-run:phase16": "node --experimental-strip-types src/phase16-dry-run.ts",
     "simulate-session:phase16": "node --experimental-strip-types src/phase16-session-simulation.ts",
