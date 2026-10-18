@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Fase 17: ejecuciones privadas de opciones del bróker",
+  "description": "Una fila CSV por fill real, sin número de cuenta ni datos personales. Las compras y ventas parciales se emparejan FIFO por símbolo OCC; el CSV bruto y el resultado derivado permanecen privados. Los precios son transacciones, no cotizaciones completas del mercado.",
+  "csvHeader": "execution_id,underlying_symbol,occ_symbol,option_type,strike,expiration,side,executed_at_utc,quantity,premium_per_share,commission,broker_reported_net",
+  "csvConventions": {
+    "time": "ISO 8601 UTC con Z y segundos; sin timestamps inventados",
+    "premium_per_share": "USD por acción subyacente; multiplicador OCC estándar 100 para este importador",
+    "commission": "USD por fill; vacío significa desconocido, no cero",
+    "broker_reported_net": "USD firmado opcional para una venta; puede ser negativo y se compara con el cálculo, no se sustituye",
+    "deduplication": "execution_id idéntico y mismo contenido se omite; contradicción aborta",
+    "missing": "Campos opcionales vacíos quedan nulos. No se infieren bid, ask, spread, delta o volatilidad implícita."
+  },
+  "type": "object",
+  "required": ["execution_id", "occ_symbol", "side", "executed_at_utc", "quantity", "premium_per_share"],
+  "properties": {
+    "execution_id": {"type": "string", "minLength": 1},
+    "underlying_symbol": {"type": ["string", "null"]},
+    "occ_symbol": {"type": "string", "minLength": 21, "maxLength": 21},
+    "option_type": {"enum": ["CALL", "PUT", null]},
+    "strike": {"type": ["number", "null"], "exclusiveMinimum": 0},
+    "expiration": {"type": ["string", "null"], "format": "date"},
+    "side": {"enum": ["BUY", "SELL"]},
+    "executed_at_utc": {"type": "string", "format": "date-time"},
+    "quantity": {"type": "integer", "minimum": 1},
+    "premium_per_share": {"type": "number", "exclusiveMinimum": 0},
+    "commission": {"type": ["number", "null"], "minimum": 0},
+    "broker_reported_net": {"type": ["number", "null"]}
+  },
+  "additionalProperties": false,
+  "derivedClosedTrade": {
+    "matching": "FIFO por occ_symbol; cada venta puede referenciar varias compras y cada compra varias ventas",
+    "grossResult": "sum((sell premium - buy premium) * 100 * matched contracts)",
+    "calculatedNet": "grossResult - commissions allocated by quantity; null if any commission missing",
+    "reportedNetDifference": "calculatedNet - brokerReportedNet only when both are known",
+    "openLots": "Las compras restantes se conservan; una venta sin inventario suficiente se rechaza"
+  },
+  "multiFileImport": {
+    "privateSourceStorage": "Un sobre JSON inmutable por CSV original en output/phase17-private/broker-sources/<SHA-256>.json; contiene los bytes originales en base64, la hora real de importación, el nombre base del archivo y envelopeSha256. No se publica.",
+    "rebuild": "Se verifica cada SHA-256, se ordenan fuentes por hash y fills por timestamp UTC e ID, se deduplican execution_id idénticos y se recalcula inventario FIFO completo en cada lectura.",
+    "overlap": "Archivos superpuestos con la misma ejecución no duplican inventario; el mismo execution_id con contenido diferente aborta antes de persistir.",
+    "position": "Una posición larga estándar comienza con la primera compra de un OCC sin inventario abierto y termina cuando su cantidad llega a cero. Compras y ventas parciales comparten positionId estable.",
+    "commission": "La comisión de cada compra se asigna proporcionalmente a contratos vendidos; la venta carga su comisión una vez. Neto realizado es null si falta una comisión necesaria.",
+    "temporalAudit": "executed_at_utc procede del CSV, importedAtUtc lo fija el sistema; una ejecución posterior a la importación se rechaza. Compra y venta del mismo OCC con timestamp idéntico se rechazan por orden ambiguo.",
+    "unsupported": "Una sola cuenta/identidad de execution_id por almacén; sin spreads, ventas para abrir, posiciones cortas ni multiplicadores distintos de 100.",
+    "legacy": "Los JSON one-off de importaciones anteriores no se migran sin el CSV original; volver a importar cada archivo original privado."
+  }
+}
