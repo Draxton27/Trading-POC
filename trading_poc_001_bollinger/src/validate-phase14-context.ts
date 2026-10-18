@@ -138,15 +138,25 @@ writeFileSync(privatePath, csvDocument(privateHeader, privateRows));
 
 // Raw SIP OHLCV and per-bar returns remain local: provider redistribution permission was not verified.
 const publicHeader = ['timestamp_utc', 'end_utc', 'date_ny', 'slot_ny', 'hour_block',
-  'nvda_present', 'qqq_present', 'smh_present', 'complete_three',
-  'nvda_features_available', 'qqq_features_available', 'smh_features_available',
+  ...SYMBOLS.flatMap(symbol => [`${symbol}_present`, `${symbol}_candle_return_available`,
+    `${symbol}_four_return_available`, `${symbol}_session_return_available`,
+    `${symbol}_volume_reference_available`, `${symbol}_previous_close_available`,
+    `${symbol}_four_start_utc`, `${symbol}_session_open_utc`,
+    `${symbol}_previous_close_utc`, `${symbol}_volume_reference_last_date`]),
+  'complete_three',
   'known_event_ids', 'minutes_since_events', 'date_only_event_ids',
   'event_before_open', 'event_during_session', 'post_earnings_from_prior_close',
   'private_row_sha256'];
 const publicRows = synced.rows.map((row, index) => [row.timestampUtc, row.endUtc,
   row.dateNy, row.slotNy, row.hourBlock,
-  ...SYMBOLS.map(symbol => row.symbols[symbol].bar !== null), row.completeThree,
-  ...SYMBOLS.map(symbol => row.symbols[symbol].candleReturnPercent !== null),
+  ...SYMBOLS.flatMap(symbol => {
+    const feature = row.symbols[symbol];
+    return [feature.bar !== null, feature.candleReturnPercent !== null,
+      feature.fourBarReturnPercent !== null, feature.sessionReturnPercent !== null,
+      feature.relativeVolume !== null, feature.distancePreviousClosePercent !== null,
+      feature.fourStartUtc, feature.sessionOpenUtc, feature.previousCloseUtc,
+      feature.volumeReferenceLastDate];
+  }), row.completeThree,
   row.knownEventIds.join(';'), JSON.stringify(row.minutesSinceEvents),
   row.dateOnlyEventIds.join(';'), row.eventBeforeOpen, row.eventDuringSession,
   row.postEarningsFromPriorClose, sha256(csv(privateRows[index]!))]);
@@ -248,6 +258,14 @@ const audit = {protocol: 'docs/phase14-data-protocol.md', protocolCommit:
     metadataConfirmedForAllSymbols: true, largestAdjacentSessionGap,
     note: 'Control de discontinuidad de apertura entre sesiones; no certifica cada acción corporativa del proveedor.'},
   calendarSessions: calendar.size, market: synced.audit,
+  featureAvailability: Object.fromEntries(SYMBOLS.map(symbol => [symbol, {
+    candleReturn: synced.rows.filter(row => row.symbols[symbol].candleReturnPercent !== null).length,
+    fourReturn: synced.rows.filter(row => row.symbols[symbol].fourBarReturnPercent !== null).length,
+    sessionReturn: synced.rows.filter(row => row.symbols[symbol].sessionReturnPercent !== null).length,
+    relativeVolume: synced.rows.filter(row => row.symbols[symbol].relativeVolume !== null).length,
+    previousCloseDistance: synced.rows.filter(row =>
+      row.symbols[symbol].distancePreviousClosePercent !== null).length,
+  }])),
   economicEvents: events.economic.length, corporateEvents: events.corporate.length,
   eventsWithVerifiedTime: allEvents.filter(event => event.timestampUtc).length,
   eventsWithoutVerifiedTime: allEvents.filter(event => !event.timestampUtc).length,
@@ -266,7 +284,9 @@ const manifest = {protocol: audit.protocol, protocolCommit: audit.protocolCommit
   codeVersion, createdAtUtc: new Date().toISOString(),
   alpaca: {endpoint: 'https://data.alpaca.markets/v2/stocks/bars',
     termsUrl: 'https://s3.amazonaws.com/files.alpaca.markets/disclosures/library/TermsAndConditions.pdf',
+    termsCheckedAtUtc: new Date().toISOString(),
     termsSection: 'Personal and Non-Commercial Usage',
+    termsFinding: 'Personal/non-commercial use; advance written notice for making Content available through a User Application. No SIP redistribution grant verified.',
     redistributionPermissionVerified: false,
     disposition: 'CSV fuente y tabla íntegra de OHLCV solo locales; Git publica cobertura y datos derivados no OHLCV',
     symbols: Object.fromEntries(SYMBOLS.map(symbol => [symbol, {
@@ -304,7 +324,17 @@ const report = [
   '## Información nueva y cobertura', '',
   `Se adquirieron ${candles.QQQ.length} velas QQQ y ${candles.SMH.length} velas SMH de Alpaca SIP, 15Min, ajuste split y sesión regular. NVDA aporta ${candles.NVDA.length}. El calendario original contiene ${calendar.size} sesiones programadas, incluidos cierres anticipados. Hay ${synced.audit.completeThree}/${synced.audit.scheduled} intervalos con los tres símbolos completos (${n(100 * synced.audit.completeThree / synced.audit.scheduled, 2)}%).`,
   `Sesiones completas NVDA/QQQ/SMH: ${SYMBOLS.map(s => `${s} ${synced.audit.completeSessions[s]}`).join(', ')}; parciales ${SYMBOLS.map(s => `${s} ${synced.audit.partialSessions[s]}`).join(', ')}; ausentes ${SYMBOLS.map(s => `${s} ${synced.audit.absentSessions[s]}`).join(', ')}. No se rellenaron huecos ni se desplazaron velas.`,
+  `Las tres series declaran \`adjustment=split\`. Como control descriptivo de discontinuidad, el mayor salto entre cierre regular y siguiente apertura fue ${SYMBOLS.map(s => {
+    const gap = largestAdjacentSessionGap[s] as {fromDate: string; toDate: string; percent: number} | null;
+    return `${s} ${gap ? `${n(gap.percent)}% (${gap.fromDate}→${gap.toDate})` : 'N/D'}`;
+  }).join('; ')}. Esta comprobación no certifica individualmente cada acción corporativa de Alpaca.`,
+  `Variables completas de cuatro velas y volumen comparable (NVDA/QQQ/SMH): ${SYMBOLS.map(s => `${s} ${audit.featureAvailability[s]!.fourReturn}/${audit.featureAvailability[s]!.relativeVolume}`).join(', ')} intervalos; las referencias iniciales y los cierres anticipados reducen cobertura sin rellenar datos.`,
   `Calendario oficial: ${events.economic.length} eventos económicos (${events.economic.filter(e => e.category === 'CPI').length} CPI, ${events.economic.filter(e => e.category === 'EMPLOYMENT_SITUATION').length} Employment Situation, ${events.economic.filter(e => e.category === 'FOMC').length} piezas FOMC) y ${events.corporate.length} anuncios originales de resultados NVIDIA. Hora exacta verificada: ${audit.eventsWithVerifiedTime}/${allEvents.length}; sin hora verificable: ${audit.eventsWithoutVerifiedTime}. Días con múltiples registros: ${synced.audit.simultaneousEventDays}.`,
+  ...table(['Categoría', ...years, 'Hora verificada / total'],
+    [...new Set(allEvents.map(event => event.category))].map(category => [category,
+      ...years.map(year => String(allEvents.filter(event =>
+        event.category === category && event.dateNy.startsWith(year)).length)),
+      `${allEvents.filter(event => event.category === category && event.timestampUtc).length}/${allEvents.filter(event => event.category === category).length}`])),
   `Las ${phase13.study.events.length} señales originales de Fases 11–12 quedaron enlazadas a su intervalo exacto y régimen de Fase 13; ${audit.signalContextCompleteThree} tienen las tres velas presentes. Los retornos originales de 30 minutos se copiaron sin recalcular.`, '',
   '## Descripción de mercado: sesiones con y sin publicación verificada', '',
   ...summaryTable(overall), '',
@@ -314,6 +344,7 @@ const report = [
   'Los estratos año × bloque horario están completos en `phase14-data-audit.json`. Los grupos menores de 30 velas o 10 sesiones se marcan como muestra pequeña. La comparación no controla sorpresas, dirección del anuncio, régimen ni cambios estructurales; no atribuye causalidad.', '',
   '## Disponibilidad de noticias y límites', '',
   'BLS publica calendario con horas Eastern verificables para CPI y Employment Situation. El comunicado FOMC usa la hora explícita de su propia página; las actas usan la fecha de publicación y la hora cuando figura en la página de conferencia vinculada. Las conferencias sin hora comprobable se conservan con fecha sola. Los comunicados originales de resultados de NVIDIA verifican la fecha, pero no la hora exacta de salida: los 20 quedan sin emparejamiento causal intradía ni marca inferida de reacción posterior. La hora de una conferencia no se reemplaza por la del resultado.',
+  'Los calendarios archivados pueden reflejar correcciones posteriores; se conserva URL y hash de cada página consultada, pero no se afirma que toda hora programada se conociera con la misma anticipación. Solo se cubren estas categorías; otras noticias relevantes no aparecen. El calendario BLS no lista una publicación CPI para cada mes del período y no se inventaron entradas faltantes.',
   `Consensos históricos verificables: ${audit.historicalConsensusCount}/${allEvents.length}; sorpresas calculadas: ${audit.historicalSurpriseCount}. No se usaron cifras actuales o revisadas para rellenar expectativas antiguas.`,
   'Para datos de sesión regular, una publicación anterior a la apertura solo puede relacionarse con velas posteriores a 09:30; no se afirma conocer la trayectoria premarket. Una noticia a la hora exacta del cierre de una vela queda disponible desde la vela siguiente por prudencia. QQQ y SMH incluyen exposición a NVDA; diferencias de retornos no miden fuerza independiente.', '',
   '## Permisos de datos y reproducción', '',
