@@ -32,6 +32,14 @@ export function renderNvdaVolatilityReport(study: VolatilityStudy, source: strin
   const baselines = study.baselineRegimeRows.filter(row => row.scope !== 'insufficient');
   const maxMfe = regimes.filter(row => row.eligible > 0)
     .sort((a, b) => (b.meanMfePercent ?? -Infinity) - (a.meanMfePercent ?? -Infinity))[0];
+  const baseline = (regime: string, direction: string) =>
+    study.baselineRegimeRows.find(row => row.scope === regime && row.direction === direction)!;
+  const family = (key: string) => study.familyRows.find(row => row.family === key)!;
+  const yearSignChanges = FAMILIES.filter(key => {
+    const valid = study.yearRows.filter(row => row.family === key && row.eligible >= 30);
+    return valid.some(row => (row.meanSignedPercent ?? 0) > 0) &&
+      valid.some(row => (row.meanSignedPercent ?? 0) < 0);
+  }).length;
   const lines = [
     '# Fase 13: volatilidad y calidad de oportunidades de NVDA', '',
     '**Estudio diagnóstico, retrospectivo y exploratorio.** Todo 2021–2026 estaba disponible antes de este análisis; los años y el corte 70/30 no validan de forma independiente. No se generan operaciones ni opciones.', '',
@@ -105,6 +113,15 @@ export function renderNvdaVolatilityReport(study: VolatilityStudy, source: strin
       String(row.excluded.missing_intermediate), f(row.meanSignedPercent),
       f(row.meanMfePercent), f(row.meanMaePercent)])), '',
     'Los horizontes de 15 y 60 minutos no sustituyen el resultado principal predefinido de 30 minutos.', '',
+    '## Respuestas numéricas a las preguntas del protocolo', '',
+    `1. Las ventanas generales en régimen alto tuvieron MFE media alcista ${f(baseline('high', 'bullish').meanMfePercent)}% y bajista ${f(baseline('high', 'bearish').meanMfePercent)}%; en régimen bajo fueron ${f(baseline('low', 'bullish').meanMfePercent)}% y ${f(baseline('low', 'bearish').meanMfePercent)}%. Entre familias seleccionadas con régimen conocido, la mayor MFE fue ${maxMfe ? `${names[maxMfe.family]}, ${maxMfe.regime}, ${f(maxMfe.meanMfePercent)}% (${maxMfe.eligible} resultados)` : 'N/D'}.`,
+    `2. En las mismas ventanas generales, la MAE media en régimen alto fue ${f(baseline('high', 'bullish').meanMaePercent)}% alcista y ${f(baseline('high', 'bearish').meanMaePercent)}% bajista, frente a ${f(baseline('low', 'bullish').meanMaePercent)}% y ${f(baseline('low', 'bearish').meanMaePercent)}% en bajo: una mayor MFE vino acompañada de mayor magnitud adversa.`,
+    `3. La celda de mayor MFE acabó con media neta a 10 pb de ${maxMfe ? f(cost(maxMfe, 10)) : 'N/D'}%. Las ventanas generales en régimen alto acabaron con ${f(baseline('high', 'bullish').costs.find(item => item.bps === 10)?.netMeanPercent ?? null)}% alcista y ${f(baseline('high', 'bearish').costs.find(item => item.bps === 10)?.netMeanPercent ?? null)}% bajista. La MFE potencial por sí sola no cubre un costo realizable.`,
+    `4. El sentido importa: falla de máximo bajista (F12) tuvo retorno medio ${f(family('failed_high_bearish').meanSignedPercent)}% en ${family('failed_high_bearish').eligible} casos, mientras falla de mínimo alcista tuvo ${f(family('failed_low_bullish').meanSignedPercent)}% en ${family('failed_low_bullish').eligible}; esas poblaciones son distintas y no prueban asimetría causal.`,
+    `5. ${yearSignChanges} de las seis familias cambiaron de signo entre años con al menos 30 resultados. Las tablas anuales muestran también familias con años insuficientes; los cortes históricos no son datos nuevos.`,
+    `6. Fase 11 registró ${study.originalCounts.phase11} eventos de retroceso/ruptura; Fase 12, ${study.originalCounts.phase12} fallas. Sus seis medias familiares a 30 minutos van de ${f(Math.min(...study.familyRows.map(row => row.meanSignedPercent ?? Infinity)))}% a ${f(Math.max(...study.familyRows.map(row => row.meanSignedPercent ?? -Infinity)))}%; comparar tipos no elimina diferencias de selección y control.`,
+    `7. La diferencia frente a ventanas generales fue ${f(family('pullback_bearish').generalControl?.differenceMeanPercent ?? null)}% para retroceso bajista y ${f(family('failed_high_bearish').generalControl?.differenceMeanPercent ?? null)}% para falla de máximo bajista; ambas deben leerse con sus coberturas y tamaños en la tabla. Ninguna de las 18 celdas satisfizo todos los criterios de suficiencia y estabilidad.`,
+    `8. El horizonte fijo de 30 minutos conservó ${percent(study.decision.thirtyMinuteCoverage)} de las señales; es medible bajo el umbral predefinido del 70%. La ausencia de celda candidata no justifica sustituirlo retroactivamente por 15 o 60 minutos.`, '',
     '## Interpretación y decisión de viabilidad', '',
     `Entre las celdas familiares, la mayor MFE media observada corresponde a ${maxMfe ?
       `${names[maxMfe.family]}, régimen ${maxMfe.regime}, ${f(maxMfe.meanMfePercent)}% ` +
