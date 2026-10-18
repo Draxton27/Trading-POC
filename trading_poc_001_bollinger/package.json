@@ -26,6 +26,7 @@
     "journal:phase16": "node --experimental-strip-types src/phase16-cli.ts journal",
     "compare:phase16": "node --experimental-strip-types src/phase16-cli.ts compare",
     "dry-run:phase16": "node --experimental-strip-types src/phase16-dry-run.ts",
+    "simulate-session:phase16": "node --experimental-strip-types src/phase16-session-simulation.ts",
     "validate:strategy": "node --experimental-strip-types src/validate-strategy.ts",
     "validate:ema9": "node --experimental-strip-types src/validate-ema9.ts",
     "validate:volume": "node --experimental-strip-types src/validate-volume.ts",

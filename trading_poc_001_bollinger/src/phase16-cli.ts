@@ -9,9 +9,11 @@ import type {Candle} from './domain.ts';
 import {metadataFor, PHASE14_NVDA_SHA256, sha256, symbolPath} from './phase14-import.ts';
 import {localEasternToUtc} from './phase14-events.ts';
 import {appendCorrection, appendRecord, FORWARD_START, matchHumanSignal, parseHumanDecisionCsv,
-  sha256 as hash, validateHumanDecision, verifyLedger, type HumanDecision} from './phase16-ledger.ts';
+  humanReferenceOutcomeEnd, sha256 as hash, validateHumanDecision, verifyLedger,
+  type HumanDecision} from './phase16-ledger.ts';
 import {barId, canonicalBarHash, detectAt, settleSignal, validateBar, requireAlpacaKeys,
-  type BarReceipt, type ForwardSignal, type KnownEvent, type Symbol} from './phase16-engine.ts';
+  marketContextUpdate, type BarReceipt, type ForwardSignal, type KnownEvent,
+  type Symbol} from './phase16-engine.ts';
 
 const project = fileURLToPath(new URL('../', import.meta.url));
 const repo = fileURLToPath(new URL('../../', import.meta.url));
@@ -164,6 +166,23 @@ function allCandles(): Record<Symbol, Candle[]> {
     [...baseCandles(symbol), ...loadCached(symbol).map(r => r.candle)]])) as Record<Symbol, Candle[]>;
 }
 
+function appendMarketContextUpdates(candles: Record<Symbol, Candle[]>,
+  receipts: Map<string, BarReceipt>): number {
+  const records = verifyLedger(publicRoot);
+  const ids = new Set(records.map(record => record.id));
+  let appended = 0;
+  for (const record of records.filter(row => row.kind === 'signal')) {
+    const signal = record.payload as unknown as ForwardSignal;
+    const at = new Date().toISOString();
+    const update = marketContextUpdate(signal, candles.QQQ, candles.SMH, receipts, at);
+    if (!update || ids.has(update.id)) continue;
+    appendRecord(publicRoot, update.id, 'market_context_update', update.payload, at);
+    ids.add(update.id);
+    appended++;
+  }
+  return appended;
+}
+
 async function observe() {
   const now = new Date().toISOString();
   if (now < FORWARD_START) {console.log(`Prospectivo aún no iniciado (${FORWARD_START}); use --dry-run.`); return;}
@@ -191,35 +210,41 @@ async function observe() {
       .map(r => r.payload as unknown as ForwardSignal);
     const detected = current ? detectAt({nvdaPrefix: candles.NVDA.slice(0, index! + 1),
       qqq: candles.QQQ, smh: candles.SMH, calendar, receipts,
-      generatedAtUtc: at, codeVersion, detectorHash, events, priorSignals,
+      generatedAtUtc: at, detectionClock: () => new Date().toISOString(),
+      codeVersion, detectorHash, events, priorSignals,
       historical: Date.parse(at) - Date.parse(current.timestamp) > 86_400_000,
       recoveryReason: priorAssessment ? 'Vela NVDA ausente en evaluación anterior' :
         process.argv.find(arg => arg.startsWith('--recovery-reason='))
           ?.slice('--recovery-reason='.length) || null}) : [];
     for (const signal of detected) {
-      appendRecord(publicRoot, `signal:${signal.id}`, 'signal', signal as unknown as Record<string, unknown>, at);
+      appendRecord(publicRoot, `signal:${signal.id}`, 'signal',
+        signal as unknown as Record<string, unknown>, signal.firstDetectedAtUtc);
       newSignals++;
     }
     const qPresent = candles.QQQ.some(b => b.timestamp === timestamp);
     const sPresent = candles.SMH.some(b => b.timestamp === timestamp);
-    const assessment = {assessment: true, nvdaStartUtc: timestamp, observedAtUtc: at,
+    const assessedAt = new Date().toISOString();
+    const assessment = {assessment: true, nvdaStartUtc: timestamp, observedAtUtc: assessedAt,
       coverage: {NVDA: !!current, QQQ: qPresent, SMH: sPresent},
       status: current ? 'assessed' : 'missing_nvda', signalIds: detected.map(s => s.id)};
     if (priorAssessment) appendCorrection(publicRoot, id, `correction:${id}:nvda_recovered`,
-      'Vela NVDA recibida tras hueco; detección recuperada, no observación a tiempo', assessment, at);
-    else appendRecord(publicRoot, id, 'bar_assessment', assessment, at);
+      'Vela NVDA recibida tras hueco; detección recuperada, no observación a tiempo', assessment, assessedAt);
+    else appendRecord(publicRoot, id, 'bar_assessment', assessment, assessedAt);
     assessed++;
     }
   }
-  console.log(JSON.stringify({assessed, newSignals, journal: publicRoot,
+  const marketContextUpdates = appendMarketContextUpdates(candles, receipts);
+  console.log(JSON.stringify({assessed, newSignals, marketContextUpdates, journal: publicRoot,
     persistence: 'Commit/push del lote derivado requerido; OHLCV en caché privada'}));
 }
 
 async function settle() {
   const now = new Date().toISOString();
   if (now < FORWARD_START) {console.log('Sin observaciones prospectivas todavía.'); return;}
-  const {calendar} = await ingest(now);
-  const nvda = allCandles().NVDA;
+  const {calendar, receipts} = await ingest(now);
+  const candles = allCandles();
+  const nvda = candles.NVDA;
+  const marketContextUpdates = appendMarketContextUpdates(candles, receipts);
   const records = verifyLedger(publicRoot);
   let appended = 0;
   for (const record of records.filter(r => r.kind === 'signal')) {
@@ -233,11 +258,17 @@ async function settle() {
       appendRecord(publicRoot, id, 'settlement', {signalId: signal.id,
         horizonMinutes: Number(minutes), evaluatedAtUtc: now,
         theoreticalOnly: true, operationallyAvailable: outcomes.operationallyAvailable,
-        operationalReason: outcomes.operationalReason, ...value});
+        operationalReason: outcomes.operationalReason,
+        executionAtTheoreticalOpen: outcomes.executionAtTheoreticalOpen,
+        signalObservability: outcomes.signalObservability,
+        primaryOutcomeEndUtc: outcomes.primaryOutcomeEndUtc,
+        firstDetectedBeforePrimaryOutcome: outcomes.firstDetectedBeforePrimaryOutcome,
+        prospectiveBeforePrimaryOutcome: outcomes.prospectiveBeforePrimaryOutcome,
+        ...value});
       appended++;
     }
   }
-  console.log(JSON.stringify({newSettlements: appended, journal: publicRoot}));
+  console.log(JSON.stringify({newSettlements: appended, marketContextUpdates, journal: publicRoot}));
 }
 
 function journal(path: string) {
@@ -247,7 +278,9 @@ function journal(path: string) {
   const decision = {...input, documentedAtUtc: now};
   const status = validateHumanDecision(decision, now);
   const id = `human:${hash(JSON.stringify(decision))}`;
-  appendRecord(publicRoot, id, 'human_decision', {status, ...decision}, now);
+  appendRecord(publicRoot, id, 'human_decision', {status,
+    referenceOutcomeEndUtc: humanReferenceOutcomeEnd(decision.decisionAtUtc),
+    referenceHorizonMinutes: 30, referenceSource: 'system_fixed_window', ...decision}, now);
   console.log(JSON.stringify({id, status}));
 }
 

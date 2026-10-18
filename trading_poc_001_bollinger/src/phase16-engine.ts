@@ -59,8 +59,11 @@ export function fourBarReturn(candles: readonly Candle[], endUtc: string):
 
 export type ForwardSignal = {id: string; family: string; direction: 'bullish' | 'bearish';
   index: number; dateNy: string; barStartUtc: string; availableAtUtc: string;
-  generatedAtUtc: string; requiredDataReceivedAtUtc: string | null;
-  nextEntryOpenUtc: string; observability: string; hypothesis: string;
+  generatedAtUtc: string; firstDetectedAtUtc: string; requiredDataReceivedAtUtc: string | null;
+  nextEntryOpenUtc: string; primaryOutcomeEndUtc: string;
+  firstDetectedBeforePrimaryOutcome: boolean; prospectiveBeforePrimaryOutcome: boolean;
+  theoreticalEntryAssumesZeroLatency: true; executionAtTheoreticalOpen: 'not_demonstrated';
+  observability: string; hypothesis: string;
   ruleId: string; detectorVersion: string; detectorHash: string;
   qqqFourReturnPercent: number | null; smhFourReturnPercent: number | null;
   marketGroup: Group; regime: string; indicators: Record<string, number | string | null>;
@@ -76,12 +79,24 @@ export function knownAt(events: readonly KnownEvent[] | null, asOf: string): str
     .map(e => e.id).sort();
 }
 
+export function signalTiming(barStartUtc: string, firstDetectedAtUtc: string,
+  historical: boolean) {
+  const theoreticalEntryOpenUtc = new Date(Date.parse(barStartUtc) + 900_000).toISOString();
+  const primaryOutcomeEndUtc = new Date(Date.parse(barStartUtc) + 2_700_000).toISOString();
+  return {theoreticalEntryOpenUtc, primaryOutcomeEndUtc,
+    firstDetectedBeforePrimaryOutcome: firstDetectedAtUtc < primaryOutcomeEndUtc,
+    prospectiveBeforePrimaryOutcome: !historical && firstDetectedAtUtc < primaryOutcomeEndUtc,
+    theoreticalEntryAssumesZeroLatency: true as const,
+    executionAtTheoreticalOpen: 'not_demonstrated' as const};
+}
+
 /** Re-run frozen detectors on a prefix ending at the candidate bar. No later bar exists in the input. */
 export function detectAt(options: {nvdaPrefix: readonly Candle[]; qqq: readonly Candle[];
   smh: readonly Candle[]; calendar: MarketCalendar; receipts: Map<string, BarReceipt>;
   generatedAtUtc: string; codeVersion: string; detectorHash: string;
   events: readonly KnownEvent[] | null; priorSignals: readonly ForwardSignal[];
-  historical: boolean; recoveryReason: string | null}): ForwardSignal[] {
+  historical: boolean; recoveryReason: string | null;
+  detectionClock?: () => string}): ForwardSignal[] {
   const {nvdaPrefix: nvda, qqq, smh, calendar, receipts, generatedAtUtc} = options;
   const last = nvda.at(-1);
   if (!last) return [];
@@ -106,27 +121,38 @@ export function detectAt(options: {nvdaPrefix: readonly Candle[]; qqq: readonly 
         smaTrend: e.sma.trend}, repeated: e.repeatedWithinFourBars,
       overlapping: e.overlappingPrimaryOutcome})),
   ];
-  const q = fourBarReturn(qqq, last.timestamp), s = fourBarReturn(smh, last.timestamp);
+  const q = receivedFourBarReturn(qqq, 'QQQ', last.timestamp, receipts, generatedAtUtc);
+  const s = receivedFourBarReturn(smh, 'SMH', last.timestamp, receipts, generatedAtUtc);
   const atr = buildDailyAtr(nvda, calendar).find(row => row.dateNy === newYorkBarParts(last.timestamp).day);
-  const nvdaNeeded = nvda.filter(c => c.timestamp >= FORWARD_START)
-    .map(c => barId('NVDA', c.timestamp));
+  const nvdaNeeded = [...new Set([barId('NVDA', last.timestamp),
+    ...nvda.filter(c => c.timestamp >= FORWARD_START)
+      .map(c => barId('NVDA', c.timestamp))])];
   const needed = [...new Set([barId('NVDA', last.timestamp), ...nvdaNeeded,
     ...q.starts.map(t => barId('QQQ', t)), ...s.starts.map(t => barId('SMH', t))])];
-  const actualReceipts = needed.map(id => receipts.get(id)?.receivedAtUtc ?? null);
-  const allPresent = q.value !== null && s.value !== null && actualReceipts.every(Boolean);
-  const latestReceipt = allPresent ? actualReceipts.filter((v): v is string => v !== null)
+  const nvdaReceipts = nvdaNeeded.map(id => receipts.get(id)?.receivedAtUtc ?? null);
+  const nvdaPresent = nvdaReceipts.every(Boolean);
+  const latestReceipt = nvdaPresent ? nvdaReceipts.filter((v): v is string => v !== null)
     .sort().at(-1)! : null;
+  const firstDetectedAtUtc = options.detectionClock?.() ?? generatedAtUtc;
+  if (firstDetectedAtUtc < generatedAtUtc) throw new Error('Reloj de detección anterior al inicio.');
   return candidates.map(candidate => {
-    const observability = !allPresent ? 'missing_market_data' :
-      operationalStatus(latestReceipt!, generatedAtUtc, close,
+    const timing = signalTiming(last.timestamp, firstDetectedAtUtc, options.historical);
+    const observability = !nvdaPresent ? 'missing_nvda_data' :
+      operationalStatus(latestReceipt!, firstDetectedAtUtc, close,
         options.recoveryReason !== null, options.historical);
     const priorSame = options.priorSignals.filter(x => x.family === candidate.family &&
       x.dateNy === newYorkBarParts(last.timestamp).day && index - x.index < 4);
     return {id: candidate.id, family: candidate.family, direction: candidate.direction,
       index, dateNy: newYorkBarParts(last.timestamp).day,
       barStartUtc: last.timestamp, availableAtUtc: close,
-      generatedAtUtc, requiredDataReceivedAtUtc: latestReceipt,
-      nextEntryOpenUtc: close, observability,
+      generatedAtUtc: firstDetectedAtUtc, firstDetectedAtUtc,
+      requiredDataReceivedAtUtc: latestReceipt,
+      nextEntryOpenUtc: close,
+      primaryOutcomeEndUtc: timing.primaryOutcomeEndUtc,
+      firstDetectedBeforePrimaryOutcome: timing.firstDetectedBeforePrimaryOutcome,
+      prospectiveBeforePrimaryOutcome: timing.prospectiveBeforePrimaryOutcome,
+      theoreticalEntryAssumesZeroLatency: timing.theoreticalEntryAssumesZeroLatency,
+      executionAtTheoreticalOpen: timing.executionAtTheoreticalOpen, observability,
       hypothesis: 'Reglas congeladas Fases 11 y 12; desenlace firmado a 30 minutos pendiente',
       ruleId: candidate.id.startsWith('phase11:') ? 'phase11-frozen' : 'phase12-frozen',
       detectorVersion: options.codeVersion, detectorHash: options.detectorHash,
@@ -140,6 +166,45 @@ export function detectAt(options: {nvdaPrefix: readonly Candle[]; qqq: readonly 
       repeatedWithinFourBars: candidate.repeated || priorSame.length > 0,
       overlappingPrimaryOutcome: candidate.overlapping};
   });
+}
+
+export function receivedFourBarReturn(candles: readonly Candle[], symbol: 'QQQ' | 'SMH',
+  barStartUtc: string, receipts: ReadonlyMap<string, BarReceipt>, asOfUtc: string) {
+  const result = fourBarReturn(candles, barStartUtc);
+  if (result.value === null || result.starts.some(start => {
+    const receipt = receipts.get(barId(symbol, start));
+    return !receipt || receipt.receivedAtUtc > asOfUtc;
+  })) return {value: null, starts: []};
+  return result;
+}
+
+/** New information is appended; the frozen signal and its original market context remain intact. */
+export function marketContextUpdate(signal: ForwardSignal, qqq: readonly Candle[],
+  smh: readonly Candle[], receipts: ReadonlyMap<string, BarReceipt>, recordedAtUtc: string) {
+  const q = receivedFourBarReturn(qqq, 'QQQ', signal.barStartUtc, receipts, recordedAtUtc);
+  const s = receivedFourBarReturn(smh, 'SMH', signal.barStartUtc, receipts, recordedAtUtc);
+  const qReceipt = q.starts.map(start => receipts.get(barId('QQQ', start))!.receivedAtUtc).sort().at(-1) ?? null;
+  const sReceipt = s.starts.map(start => receipts.get(barId('SMH', start))!.receivedAtUtc).sort().at(-1) ?? null;
+  const changed = q.value !== signal.qqqFourReturnPercent || s.value !== signal.smhFourReturnPercent;
+  const late = [qReceipt, sReceipt].some(at => at !== null && at > signal.generatedAtUtc);
+  if (!changed || !late) return null;
+  const group = classify(signal.direction, q.value, s.value);
+  const availabilityAtUtc = [qReceipt, sReceipt].filter((at): at is string => at !== null).sort().at(-1)!;
+  const payload = {signalId: signal.id, originalGeneratedAtUtc: signal.generatedAtUtc,
+    originalMarketGroup: signal.marketGroup,
+    originalQqqFourReturnPercent: signal.qqqFourReturnPercent,
+    originalSmhFourReturnPercent: signal.smhFourReturnPercent,
+    qqqFourReturnPercent: q.value, smhFourReturnPercent: s.value, marketGroup: group,
+    qqqReceivedAtUtc: qReceipt, smhReceivedAtUtc: sReceipt,
+    qqqSourceBarIds: q.starts.map(start => barId('QQQ', start)),
+    smhSourceBarIds: s.starts.map(start => barId('SMH', start)),
+    availabilityAtUtc, recordedAtUtc,
+    availableBeforePrimaryOutcome: availabilityAtUtc < signal.primaryOutcomeEndUtc &&
+      recordedAtUtc < signal.primaryOutcomeEndUtc,
+    originalSignalUnchanged: true};
+  const id = `market_context:${signal.id}:${sha256(JSON.stringify({
+    q: q.value, s: s.value, qReceipt, sReceipt, qStarts: q.starts, sStarts: s.starts}))}`;
+  return {id, payload};
 }
 
 export function settleSignal(signal: ForwardSignal, nvda: readonly Candle[],
@@ -161,7 +226,12 @@ export function settleSignal(signal: ForwardSignal, nvda: readonly Candle[],
     return [String(bars * 15), {state: trajectory.reason ? 'excluded' : 'final', ...trajectory}];
   }));
   return {signalId: signal.id, evaluatedAtUtc: nowUtc, entryTheoreticalUtc: signal.nextEntryOpenUtc,
-    operationallyAvailable: signal.observability === 'on_time',
-    operationalReason: signal.observability,
+    primaryOutcomeEndUtc: signal.primaryOutcomeEndUtc,
+    firstDetectedBeforePrimaryOutcome: signal.firstDetectedBeforePrimaryOutcome,
+    prospectiveBeforePrimaryOutcome: signal.prospectiveBeforePrimaryOutcome,
+    signalObservability: signal.observability,
+    executionAtTheoreticalOpen: 'not_demonstrated',
+    operationallyAvailable: false,
+    operationalReason: 'La apertura teórica exige latencia cero; no hay precio ejecutable verificado.',
     theoreticalOnly: true, horizons};
 }

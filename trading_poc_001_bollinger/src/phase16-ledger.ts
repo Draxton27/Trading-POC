@@ -5,7 +5,7 @@ import {join} from 'node:path';
 
 export const FORWARD_START = '2026-10-19T13:30:00.000Z';
 export const sha256 = (value: string | Buffer): string => createHash('sha256').update(value).digest('hex');
-export type Kind = 'bar_receipt' | 'bar_assessment' | 'signal' | 'settlement' | 'correction' | 'human_decision';
+export type Kind = 'bar_receipt' | 'bar_assessment' | 'signal' | 'settlement' | 'correction' | 'human_decision' | 'market_context_update';
 export type LedgerRecord = {sequence: number; id: string; kind: Kind; recordedAtUtc: string;
   previousHash: string | null; payload: Record<string, unknown>; hash: string};
 const canonical = (record: Omit<LedgerRecord, 'hash'>): string => JSON.stringify(record);
@@ -23,6 +23,10 @@ export function verifyLedger(directory: string): LedgerRecord[] {
       hash !== sha256(canonical(body)) || ids.has(value.id)) throw new Error(`Diario alterado: ${name}`);
     if (value.kind === 'correction' && !ids.has(String(value.payload.correctsId ?? ''))) {
       throw new Error('Corrección sin registro original.');
+    }
+    if (value.kind === 'market_context_update' &&
+        !ids.has(`signal:${String(value.payload.signalId ?? '')}`)) {
+      throw new Error('Contexto tardío sin señal original.');
     }
     ids.add(value.id); records.push(value);
   }
@@ -130,10 +134,20 @@ export function validateHumanDecision(decision: HumanDecision, now: string):
   if (decision.direction === 'no_trade' && decision.operationType !== 'no_trade') {
     throw new Error('No operar requiere tipo no_trade.');
   }
-  if (decision.documentedAtUtc <= decision.decisionAtUtc) return 'prospective';
-  if (!decision.outcomeKnownAtUtc) return 'timing_unverified';
-  if (!Number.isFinite(Date.parse(decision.outcomeKnownAtUtc))) throw new Error('Hora de resultado inválida.');
-  return decision.documentedAtUtc < decision.outcomeKnownAtUtc ? 'prospective' : 'retrospective';
+  const referenceEnd = humanReferenceOutcomeEnd(decision.decisionAtUtc);
+  if (decision.outcomeKnownAtUtc && !Number.isFinite(Date.parse(decision.outcomeKnownAtUtc))) {
+    throw new Error('Hora de resultado inválida.');
+  }
+  const knownEnd = decision.outcomeKnownAtUtc && decision.outcomeKnownAtUtc < referenceEnd ?
+    decision.outcomeKnownAtUtc : referenceEnd;
+  return decision.documentedAtUtc < knownEnd ? 'prospective' : 'retrospective';
+}
+
+/** Fixed 30-minute reference, from the next 15-minute boundary; never supplied by the operator. */
+export function humanReferenceOutcomeEnd(decisionAtUtc: string): string {
+  const at = Date.parse(decisionAtUtc);
+  if (!Number.isFinite(at)) throw new Error('Hora de decisión inválida.');
+  return new Date(Math.ceil(at / 900_000) * 900_000 + 1_800_000).toISOString();
 }
 
 export function matchHumanSignal(signal: {direction: string; family: string; availableAtUtc: string},

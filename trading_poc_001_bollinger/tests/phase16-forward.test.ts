@@ -8,9 +8,10 @@ import {loadMarketCalendar} from '../src/alpaca-calendar.ts';
 import {parseCandlesCsv} from '../src/csv.ts';
 import {metadataFor} from '../src/phase14-import.ts';
 import {appendCorrection, appendRecord, HUMAN_TEMPLATE_COLUMNS, matchHumanSignal,
-  operationalStatus, parseHumanDecisionCsv,
+  humanReferenceOutcomeEnd, operationalStatus, parseHumanDecisionCsv,
   validateHumanDecision, verifyLedger, type HumanDecision} from '../src/phase16-ledger.ts';
-import {barId, detectAt, fourBarReturn, knownAt, requireAlpacaKeys, settleSignal, validateBar,
+import {barId, detectAt, fourBarReturn, knownAt, marketContextUpdate,
+  receivedFourBarReturn, requireAlpacaKeys, settleSignal, signalTiming, validateBar,
   type BarReceipt, type ForwardSignal} from '../src/phase16-engine.ts';
 
 function candle(timestamp: string, open = 100, close = 101): Candle {
@@ -72,6 +73,85 @@ test('latencia y recuperación no se presentan como ejecutabilidad', () => {
   assert.equal(operationalStatus(entry, entry, entry, false, true), 'historical_reconstruction');
 });
 
+test('entrada sin latencia, observación y ejecución tienen estados separados', () => {
+  const timing = signalTiming('2026-10-19T14:00:00.000Z',
+    '2026-10-19T14:00:02.000Z', false);
+  assert.equal(timing.theoreticalEntryOpenUtc, '2026-10-19T14:15:00.000Z');
+  assert.equal(timing.primaryOutcomeEndUtc, '2026-10-19T14:45:00.000Z');
+  assert.equal(timing.firstDetectedBeforePrimaryOutcome, true);
+  assert.equal(timing.executionAtTheoreticalOpen, 'not_demonstrated');
+  const calendar = new Map([['2026-10-19', {open: 570, close: 960}]]);
+  const bars = ['2026-10-19T14:00:00.000Z', '2026-10-19T14:15:00.000Z',
+    '2026-10-19T14:30:00.000Z'].map(t => candle(t));
+  const signal = {id: 'zero-latency', direction: 'bullish', dateNy: '2026-10-19',
+    barStartUtc: bars[0]!.timestamp, nextEntryOpenUtc: timing.theoreticalEntryOpenUtc,
+    primaryOutcomeEndUtc: timing.primaryOutcomeEndUtc,
+    firstDetectedBeforePrimaryOutcome: true, prospectiveBeforePrimaryOutcome: true,
+    observability: 'on_time'} as ForwardSignal;
+  const result = settleSignal(signal, bars, calendar, '2026-10-19T14:45:00.000Z');
+  assert.equal(result.operationallyAvailable, false);
+  assert.equal(result.executionAtTheoreticalOpen, 'not_demonstrated');
+  assert.equal((result.horizons['30'] as {state: string}).state, 'final');
+});
+
+test('primera detección después del desenlace principal no es anticipada', () => {
+  const start = '2026-10-19T14:00:00.000Z';
+  assert.equal(signalTiming(start, '2026-10-19T14:44:59.999Z', false)
+    .prospectiveBeforePrimaryOutcome, true);
+  assert.equal(signalTiming(start, '2026-10-19T14:45:00.000Z', false)
+    .firstDetectedBeforePrimaryOutcome, false);
+  assert.equal(signalTiming(start, '2026-10-19T15:00:00.000Z', false)
+    .prospectiveBeforePrimaryOutcome, false);
+  assert.equal(signalTiming(start, '2026-10-19T14:30:00.000Z', true)
+    .prospectiveBeforePrimaryOutcome, false);
+});
+
+test('QQQ y SMH tardíos agregan contexto sin editar señal original', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'phase16-context-test-'));
+  try {
+    const times = ['2026-10-19T13:30:00.000Z', '2026-10-19T13:45:00.000Z',
+      '2026-10-19T14:00:00.000Z', '2026-10-19T14:15:00.000Z'];
+    const qqq = times.map((t, i) => candle(t, 100 + i, 101 + i));
+    const smh = times.map((t, i) => candle(t, 200 - i, 199 - i));
+    const signal = {id: 'sample', direction: 'bullish',
+      barStartUtc: times[3], generatedAtUtc: '2026-10-19T14:30:01.000Z',
+      primaryOutcomeEndUtc: '2026-10-19T15:00:00.000Z',
+      qqqFourReturnPercent: null, smhFourReturnPercent: null,
+      marketGroup: 'missing'} as ForwardSignal;
+    const original = appendRecord(directory, 'signal:sample', 'signal',
+      signal as unknown as Record<string, unknown>, signal.generatedAtUtc);
+    const receipts = new Map<string, BarReceipt>();
+    const put = (symbol: 'QQQ' | 'SMH', bars: Candle[], at: string) => {
+      for (const bar of bars) receipts.set(barId(symbol, bar.timestamp), {
+        symbol, candle: bar, receivedAtUtc: at, provider: 'Alpaca Market Data API',
+        feed: 'sip', adjustment: 'split', status: 'delayed', inputSha256: 'fixture'});
+    };
+    put('QQQ', qqq, '2026-10-19T14:31:00.000Z');
+    assert.equal(receivedFourBarReturn(qqq, 'QQQ', times[3]!, receipts,
+      signal.generatedAtUtc).value, null);
+    const partial = marketContextUpdate(signal, qqq, smh, receipts,
+      '2026-10-19T14:32:00.000Z')!;
+    assert.equal(partial.payload.originalMarketGroup, 'missing');
+    assert.equal(partial.payload.smhFourReturnPercent, null);
+    appendRecord(directory, partial.id, 'market_context_update', partial.payload,
+      '2026-10-19T14:32:00.000Z');
+    put('SMH', smh, '2026-10-19T15:01:00.000Z');
+    const final = marketContextUpdate(signal, qqq, smh, receipts,
+      '2026-10-19T15:02:00.000Z')!;
+    assert.notEqual(final.id, partial.id);
+    assert.equal(final.payload.availableBeforePrimaryOutcome, false);
+    appendRecord(directory, final.id, 'market_context_update', final.payload,
+      '2026-10-19T15:02:00.000Z');
+    appendRecord(directory, final.id, 'market_context_update', final.payload,
+      '2026-10-19T15:02:00.000Z');
+    const rows = verifyLedger(directory);
+    assert.equal(rows.length, 3);
+    assert.equal(rows[0]!.hash, original.hash);
+    assert.equal(rows[0]!.payload.marketGroup, 'missing');
+    assert.equal(rows[2]!.payload.originalGeneratedAtUtc, signal.generatedAtUtc);
+  } finally {rmSync(directory, {recursive: true, force: true});}
+});
+
 test('resultado pendiente, 30 minutos y exclusión por cierre de sesión', () => {
   const calendar = new Map([['2026-03-09', {open: 570, close: 615}]]);
   const bars = ['2026-03-09T13:30:00.000Z','2026-03-09T13:45:00.000Z',
@@ -114,6 +194,57 @@ test('decisión humana antes/después y coincidencia independiente de no operar'
   assert.equal(matchHumanSignal({family: 'pullback_bullish', direction: 'bullish',
     availableAtUtc: '2026-10-19T14:00:00.000Z'},
   {...decision, direction: 'no_trade', operationType: 'no_trade'}), 'no_trade');
+});
+
+test('diario humano documentado antes del desenlace principal sin hora aportada por operador', () => {
+  const decision: HumanDecision = {symbol: 'NVDA', direction: 'bullish',
+    operationType: 'pullback', timeframe: '15Min',
+    decisionAtUtc: '2026-10-19T14:02:00.000Z',
+    documentedAtUtc: '2026-10-19T14:20:00.000Z',
+    sma20: null, sma40: null, sma100: null, sma200: null,
+    plannedEntry: null, plannedInvalidation: null, exitCriterion: null,
+    selectionReason: 'documentada antes del desenlace', chartCaptureId: null,
+    observedMarket: true, outcomeKnownAtUtc: null};
+  assert.equal(humanReferenceOutcomeEnd(decision.decisionAtUtc),
+    '2026-10-19T14:45:00.000Z');
+  assert.equal(validateHumanDecision(decision, '2026-10-19T14:20:00.000Z'), 'prospective');
+  assert.equal(validateHumanDecision({...decision, documentedAtUtc: '2026-10-19T14:45:00.000Z'},
+    '2026-10-19T14:45:00.000Z'), 'retrospective');
+  assert.equal(validateHumanDecision({...decision,
+    outcomeKnownAtUtc: '2026-10-19T14:15:00.000Z'},
+  '2026-10-19T14:20:00.000Z'), 'retrospective');
+});
+
+test('sesión de 26 velas conserva 26 evaluaciones tras reintento y reapertura', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'phase16-session-test-'));
+  try {
+    const start = Date.parse('2026-10-19T13:30:00.000Z');
+    const calendar = new Map([['2026-10-19', {open: 570, close: 960}]]);
+    const begin = performance.now();
+    for (let i = 0; i < 26; i++) {
+      const at = new Date(start + i * 900_000).toISOString();
+      const received = new Date(start + (i + 1) * 900_000 + 960_000).toISOString();
+      const checked = validateBar('NVDA', candle(at), received, calendar);
+      appendRecord(directory, barId('NVDA', at), 'bar_receipt',
+        {receivedAtUtc: checked.receivedAtUtc, inputSha256: checked.inputSha256}, received);
+      appendRecord(directory, `assessed:${at}`, 'bar_assessment',
+        {barStartUtc: at, signalIds: []}, received);
+    }
+    const firstPassMs = performance.now() - begin;
+    const firstHash = verifyLedger(directory).at(-1)!.hash;
+    for (let i = 0; i < 26; i++) {
+      const at = new Date(start + i * 900_000).toISOString();
+      const received = new Date(start + (i + 1) * 900_000 + 960_000).toISOString();
+      const checked = validateBar('NVDA', candle(at), received, calendar);
+      appendRecord(directory, barId('NVDA', at), 'bar_receipt',
+        {receivedAtUtc: checked.receivedAtUtc, inputSha256: checked.inputSha256}, received);
+      appendRecord(directory, `assessed:${at}`, 'bar_assessment',
+        {barStartUtc: at, signalIds: []}, received);
+    }
+    assert.equal(verifyLedger(directory).length, 52);
+    assert.equal(verifyLedger(directory).at(-1)!.hash, firstHash);
+    assert.ok(firstPassMs < 900_000, `El procesamiento local excede 15 minutos: ${firstPassMs}`);
+  } finally {rmSync(directory, {recursive: true, force: true});}
 });
 
 test('plantilla CSV humana admite motivo citado y no inventa contexto', () => {
