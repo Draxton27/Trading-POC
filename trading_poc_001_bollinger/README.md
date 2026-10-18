@@ -270,6 +270,21 @@ npm run compare:nvda-history -- data/NVDA_ALPACA_SIP_15min_<inicio>_<fin>.csv
 
 Los informes quedan en `output/real/`. El informe separa señales previas, coincidentes y posteriores a la ventana de 12 meses. Esas fechas coincidentes ya se estudiaron y no constituyen validación independiente. El corte 70/30 del historial ampliado tampoco convierte en prospectivos resultados de fechas examinadas previamente. Para el informe completo de todas las SMA, `validate:nvda-sma-context` acepta el CSV ampliado como argumento.
 
+## Fase 11: retrocesos y rupturas de NVDA
+
+El protocolo previo al análisis está en [docs/phase11-research-protocol.md](../docs/phase11-research-protocol.md). Compara dos eventos distintos, siempre dentro del contexto de tendencia definido con el último cierre diario completo frente a SMA 20 y el último cierre horario completo frente a SMA 100. La estrategia A exige tocar y recuperar en una sola vela la SMA 20 horaria; la B exige cerrar fuera de Bollinger 20/2 tras un cierre anterior dentro de bandas. EMA 9, RVOL y compresión histórica se registran sin filtrar ninguno de los eventos.
+
+Con el historial ampliado local, sus metadatos, calendario y procedencia en `data/`:
+
+```bash
+npm ci
+npm run validate:nvda-pullback-breakout -- data/NVDA_ALPACA_SIP_15min_20211017_20261017.csv
+```
+
+El comando no consulta Alpaca. Genera `output/real/nvda-pullback-breakout-study.md`, `.json` y `nvda-pullback-breakout-signals.csv`, ignorados por Git. La señal se conoce al cierre de la vela; los resultados usan una apertura hipotética de la siguiente vela y el cierre de la segunda vela posterior como horizonte principal. Se excluyen horizontes que crucen sesión o tengan barras ausentes. Las cuatro comparaciones principales son las dos estrategias por sentido alcista y bajista, con controles del mismo año y horario local y una corrección de Holm. Los horizontes de 15 y 60 minutos son secundarios.
+
+Todos los resultados hasta octubre de 2026 son exploratorios. Una división 70/30 dentro de este archivo no constituye una validación prospectiva ni permite estimar rentabilidad de opciones.
+
 ## ¿Qué significan los resultados?
 
 - **Señales válidas:** cuántas veces ocurrió la condición definida.
