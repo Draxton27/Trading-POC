@@ -15,14 +15,13 @@ if(metadata.data_class!=='real'||metadata.asset!=='NVDA'||metadata.bar_minutes!=
 }
 const calendarPath=`${path}.calendar.json`;
 const calendar=loadMarketCalendar(calendarPath);
-const raw=JSON.parse(readFileSync(calendarPath,'utf8')) as {reconstruction?:{original_alpaca_calendar?:boolean;schedule_source?:string}};
+const raw=JSON.parse(readFileSync(calendarPath,'utf8')) as {provider?:string;reconstruction?:{original_alpaca_calendar?:boolean;schedule_source?:string}};
 const provenance=raw.reconstruction?.original_alpaca_calendar===false?
   `reconstrucción local de ${raw.reconstruction.schedule_source??'fuente no especificada'}; no es calendario original certificado de Alpaca`:
-  'procedencia del calendario no certificada por este estudio';
+  raw.provider==='Alpaca Market Calendar'?
+    'declarado por el importador como respuesta del calendario de Alpaca; este estudio no certifica su origen de forma independiente':
+    'procedencia del calendario no certificada por este estudio';
 const study=studyNvdaSmaContext(candles,calendar);
-if(study.sourceSignalCount!==161||study.sourceBullishSignals!==78||study.sourceBearishSignals!==83){
-  throw new Error(`Regresión de Fase 9: se esperaban 161 señales (78/83), se obtuvieron ${study.sourceSignalCount} (${study.sourceBullishSignals}/${study.sourceBearishSignals}).`);
-}
 const output=join('output','real');
 mkdirSync(output,{recursive:true});
 writeFileSync(join(output,'nvda-sma-context.md'),renderNvdaSmaContextReport(study,basename(path),provenance));

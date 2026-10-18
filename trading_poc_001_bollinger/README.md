@@ -249,6 +249,27 @@ Para evitar información futura, una señal usa la última vela superior que ter
 
 Con el archivo local actual se reconstruyeron **1.751 intervalos horarios**, 1.749 completos, y **251 sesiones diarias**, 250 completas. Se preservaron las **161 señales** de Fase 9 (78 alcistas y 83 bajistas). La SMA 200 diaria aparece por primera vez el 6 de agosto de 2026: solo 35 señales tienen disponibles las ocho SMA, todas en el último 30%. Por tanto, este archivo no permite una evaluación independiente de las condiciones que requieren SMA 200 diaria. El informe compara posición, pendiente, orden de medias y concordancia entre temporalidades con Bollinger sobre la misma cobertura. Son asociaciones exploratorias del precio de NVDA, no reglas de entrada ni rendimientos de opciones.
 
+## Historial NVDA ampliado de Alpaca
+
+El importador independiente `import:nvda-history` consulta velas de 15 minutos con `feed=sip`, `adjustment=split` y sesión regular. Acepta tres, cuatro o cinco años, o un rango explícito de fechas inclusivas:
+
+```bash
+npm run import:nvda-history -- --years 3
+npm run import:nvda-history -- --start 2023-10-01 --end 2026-10-16
+```
+
+Requiere `APCA_API_KEY_ID` y `APCA_API_SECRET_KEY` configuradas como secretos del entorno de ejecución. Este comando no lee `.env` ni imprime credenciales. Verificar primero acceso a Alpaca y ejecutar `npm test` con respuestas simuladas antes de solicitar datos reales. El intervalo por años termina en el último día UTC completo; las fechas explícitas no pueden alcanzar velas demasiado recientes para SIP histórico.
+
+El archivo nuevo se llama `data/NVDA_ALPACA_SIP_15min_<inicio>_<fin>.csv`. Sus archivos contiguos `.meta.json`, `.calendar.json` y `.provenance.json` declaran procedencia y cobertura, sin secretos. El CSV original de 12 meses queda intacto. Los fragmentos mensuales validados se guardan en un directorio `.csv.parts/`; repetir el mismo comando tras una interrupción reutiliza los fragmentos íntegros. Una consulta con archivo final existente se rechaza para evitar sobrescribir resultados. La paginación, el límite de peticiones, los reintentos y errores de autenticación siguen el importador Alpaca compartido. Una vela interior faltante, un duplicado o una vela fuera de calendario impide publicar el CSV final. Las sesiones enteras ausentes y las sesiones parciales se registran en la cobertura; no se inventan velas. El calendario nuevo procede del endpoint de calendario de Alpaca cuando esta importación se ejecuta, a diferencia del calendario reconstruido XNYS del archivo original de 12 meses.
+
+Con ambos historiales locales presentes, el informe retrospectivo de cobertura SMA 200 diaria y señales Bollinger se genera así:
+
+```bash
+npm run compare:nvda-history -- data/NVDA_ALPACA_SIP_15min_<inicio>_<fin>.csv
+```
+
+Los informes quedan en `output/real/`. El informe separa señales previas, coincidentes y posteriores a la ventana de 12 meses. Esas fechas coincidentes ya se estudiaron y no constituyen validación independiente. El corte 70/30 del historial ampliado tampoco convierte en prospectivos resultados de fechas examinadas previamente. Para el informe completo de todas las SMA, `validate:nvda-sma-context` acepta el CSV ampliado como argumento.
+
 ## ¿Qué significan los resultados?
 
 - **Señales válidas:** cuántas veces ocurrió la condición definida.
