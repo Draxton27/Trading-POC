@@ -249,8 +249,6 @@ Para evitar información futura, una señal usa la última vela superior que ter
 
 Con el archivo local actual se reconstruyeron **1.751 intervalos horarios**, 1.749 completos, y **251 sesiones diarias**, 250 completas. Se preservaron las **161 señales** de Fase 9 (78 alcistas y 83 bajistas). La SMA 200 diaria aparece por primera vez el 6 de agosto de 2026: solo 35 señales tienen disponibles las ocho SMA, todas en el último 30%. Por tanto, este archivo no permite una evaluación independiente de las condiciones que requieren SMA 200 diaria. El informe compara posición, pendiente, orden de medias y concordancia entre temporalidades con Bollinger sobre la misma cobertura. Son asociaciones exploratorias del precio de NVDA, no reglas de entrada ni rendimientos de opciones.
 
-## ¿Qué significan los resultados?
-
 ## Historial NVDA ampliado de Alpaca
 
 El importador independiente `import:nvda-history` consulta velas de 15 minutos con `feed=sip`, `adjustment=split` y sesión regular. Acepta tres, cuatro o cinco años, o un rango explícito de fechas inclusivas:
@@ -272,6 +270,7 @@ npm run compare:nvda-history -- data/NVDA_ALPACA_SIP_15min_<inicio>_<fin>.csv
 
 Los informes quedan en `output/real/`. El informe separa señales previas, coincidentes y posteriores a la ventana de 12 meses. Esas fechas coincidentes ya se estudiaron y no constituyen validación independiente. El corte 70/30 del historial ampliado tampoco convierte en prospectivos resultados de fechas examinadas previamente. Para el informe completo de todas las SMA, `validate:nvda-sma-context` acepta el CSV ampliado como argumento.
 
+## ¿Qué significan los resultados?
 
 - **Señales válidas:** cuántas veces ocurrió la condición definida.
 - **Movimiento favorable:** porcentaje de veces en que el precio terminó en la dirección observada después del tiempo indicado. Si el precio queda igual, no cuenta.
