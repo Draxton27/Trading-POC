@@ -42,8 +42,8 @@ export function parseBarStart(value: string): number {
   return instant;
 }
 
-export function barEndTimestamp(startTimestamp: string): string {
-  return new Date(parseBarStart(startTimestamp) + BAR_MS).toISOString();
+export function barEndTimestamp(startTimestamp: string, barMinutes: 5 | 15 = 5): string {
+  return new Date(parseBarStart(startTimestamp) + barMinutes * 60_000).toISOString();
 }
 
 export function validateMetadata(value: unknown): DataMetadata {
