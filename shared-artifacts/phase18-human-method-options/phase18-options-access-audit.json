@@ -1,0 +1,74 @@
+{
+  "checkedAtUtc": "2026-10-18T21:38:19.996Z",
+  "credentialsPresent": true,
+  "requests": [
+    {
+      "label": "contracts_metadata",
+      "method": "GET",
+      "status": 200,
+      "returnedObject": true,
+      "topLevelKeys": [
+        "option_contracts",
+        "next_page_token"
+      ],
+      "records": 1,
+      "feedRequested": null
+    },
+    {
+      "label": "historical_opra_bars",
+      "method": "GET",
+      "status": 400,
+      "returnedObject": true,
+      "topLevelKeys": [],
+      "records": 0,
+      "feedRequested": "opra"
+    },
+    {
+      "label": "historical_opra_quotes",
+      "method": "GET",
+      "status": 404,
+      "returnedObject": true,
+      "topLevelKeys": [],
+      "records": 0,
+      "feedRequested": "opra"
+    },
+    {
+      "label": "latest_opra_quote",
+      "method": "GET",
+      "status": 403,
+      "returnedObject": true,
+      "topLevelKeys": [],
+      "records": 0,
+      "feedRequested": "opra"
+    },
+    {
+      "label": "historical_option_bars_without_feed",
+      "method": "GET",
+      "status": 200,
+      "topLevelKeys": [
+        "bars",
+        "next_page_token"
+      ],
+      "records": 0,
+      "feedRequested": null
+    },
+    {
+      "label": "latest_indicative_quote",
+      "method": "GET",
+      "status": 200,
+      "topLevelKeys": [
+        "quotes"
+      ],
+      "records": 1,
+      "feedRequested": "indicative"
+    }
+  ],
+  "conclusion": "Metadatos y barras históricas consultables; OPRA latest 403, endpoint de quotes históricas probado 404; sin evidencia de cotizaciones históricas OPRA autorizadas.",
+  "contractSymbol": "NVDA261019C00120000",
+  "readOnly": true,
+  "ordersSubmitted": 0,
+  "opraLatestAuthorized": false,
+  "historicalOpraQuotesVerified": false,
+  "pilotStatus": "not_run_no_authorized_historical_opra_quotes",
+  "dataHandling": "Solo estados HTTP y recuentos; no se guardaron credenciales ni respuestas de mercado."
+}

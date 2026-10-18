@@ -1,0 +1,1 @@
+signal_id,session_ny,signal_known_at_utc,quote_evaluation_utc,option_symbol,option_type,strike,expiration,multiplier,adjusted,entry_quote_utc,entry_bid,entry_ask,entry_bid_size,entry_ask_size,exit_quote_utc,exit_bid,exit_ask,exit_bid_size,exit_ask_size,midpoint_return_pct,crossed_return_pct,slipped_return_pct,evaluation_status,exclusion_reason
