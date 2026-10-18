@@ -1,0 +1,33 @@
+{
+  "type": "historical_full_session_simulation_not_prospective",
+  "simulatedSessionNy": "2026-10-13",
+  "bars": 26,
+  "codeVersion": "32ac5fae9c54625e73682d7cd081c1bfc136e382",
+  "detectorHash": "d997a855a6c49834c18589493178e1077748222bdc760089219b76cc54a1ae21",
+  "sourceHashes": {
+    "NVDA": "7b06d0a493515b18a581963d2d2d488e73a7cd0dc2c961b60a99315e7a9b0ecc",
+    "QQQ": "962696cb57499ecf0991b1915975f5fe5725e7df7185654bfa4a2f71775eb2fb",
+    "SMH": "d517e4652e9f4e44c715b5580dd4fa6d303b0a9f3246169027d142b2aac0cb55"
+  },
+  "providerDelay": "injected_not_measured",
+  "nvdaReceiptDelayMs": 960000,
+  "qqqReceiptDelayMs": 1020000,
+  "smhReceiptDelayMs": 1080000,
+  "firstDetectionOffsetAfterNvdaReceiptMs": 1,
+  "firstPassProcessingMs": 103722.51744499999,
+  "retryProcessingMs": 104272.359514,
+  "perBarProcessingP50Ms": 4120.638123000012,
+  "perBarProcessingP95Ms": 4243.182380999999,
+  "perBarProcessingMaxMs": 4246.921256000001,
+  "processingWithin15MinuteInterval": true,
+  "signalsDetected": 2,
+  "signalsBeforeMainOutcomeInSimulatedClock": 2,
+  "prospectiveSignals": 0,
+  "marketContextUpdates": 4,
+  "records": 116,
+  "firstPassLastHash": "b23cf041a9e4a569d8d7847ec3faba09d24a2a57bec01c05ef34f275575ce076",
+  "retryAddedRecords": 0,
+  "retryPreservedLastHash": true,
+  "subprocessReopenVerified": true,
+  "limitation": "No network, live provider latency, future schedule, or remote persistence measured."
+}
