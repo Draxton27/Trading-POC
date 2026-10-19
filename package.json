@@ -15,11 +15,13 @@
     "dev": "node scripts/dev.mjs",
     "dev:web": "npm run dev -w @trading-poc/web",
     "dev:api": "npm run dev -w @trading-poc/api",
+    "dev:failure-after-start": "node scripts/windows/dev-failure-after-start.mjs",
     "dev:agent": "npm run dev -w @trading-poc/ibkr-agent",
     "typecheck": "tsc --noEmit -p tsconfig.json && npm run typecheck -w trading-poc-001-bollinger",
     "test": "vitest run && npm run test -w trading-poc-001-bollinger",
     "build": "npm run build -w @trading-poc/web",
     "test:e2e": "playwright test",
+    "academy:import": "tsx apps/api/src/academy/cli.ts",
     "db:generate": "drizzle-kit generate --config apps/api/drizzle.config.ts"
   },
   "devDependencies": {

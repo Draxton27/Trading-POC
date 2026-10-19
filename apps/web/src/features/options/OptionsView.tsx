@@ -12,6 +12,11 @@ const statusText:Record<string,string>={
   permisos_insuficientes:'Permisos insuficientes',suscripcion_fallida:'Suscripción fallida',
   cotizacion_parcial:'Cotización parcial',obsoleto:'Cotización obsoleta',recibido:'Cotización recibida'
 };
+const academyText:Record<string,string>={
+  BELOW_RANGE:'ASK por debajo del rango',WITHIN_RANGE:'ASK dentro del rango',ABOVE_RANGE:'ASK por encima del rango',
+  NO_REFERENCE:'Sin referencia documental',NO_ASK:'ASK no disponible',STALE_QUOTE:'ASK obsoleto',INSUFFICIENT_DATA:'No evaluable'
+};
+const referenceText:Record<string,string>={ACTIVE:'vigente',REFERENCE_DATE:'misma fecha documental',HISTORICAL_ONLY:'referencia histórica sin vigencia declarada',CONFLICT:'referencias contradictorias',NONE:'sin referencia'};
 
 export default function OptionsView({mode,consumerId}:{mode:string;consumerId:string}){
   const [right,setRight]=useState<'CALL'|'PUT'>('CALL');
@@ -101,6 +106,17 @@ export default function OptionsView({mode,consumerId}:{mode:string;consumerId:st
       {error.requestId?<small>Solicitud {error.requestId}</small>:null}</p>)}</div>:null}
     {q.data?.referenceSource&&q.data.referenceSource!=='NONE'?<p className="subtle options-reference">
       Selección de strikes: {q.data.referenceSource}. Una cotización retrasada no es un precio actual ejecutable.</p>:null}
+    </Card>
+    <Card className="academy-reference"><h3>Referencia de la academia</h3>
+      <p>Los rangos documentales se expresan como prima ASK por acción. No son una señal de compra ni sustituyen la cotización del bróker.</p>
+      {rows.length?<div className="academy-grid">{rows.map(row=>{const evaluation=row.academyEvaluation,reference=evaluation?.reference;
+        return <div className="academy-row" key={`academy-${row.conId}`}><strong>{row.right} ${fmt(row.strike)}</strong>
+          {reference?<><span>ASK documentado: ${fmt(reference.minAskCents/100)} a ${fmt(reference.maxAskCents/100)}</span>
+            <small>Fecha: {reference.referenceDate??'sin fecha'} · {referenceText[evaluation.referenceStatus]??evaluation.referenceStatus}</small>
+            <small>Fuente privada local: {reference.sourceFile} · {reference.sourceLocation}</small></>:<span>Sin rango documental aplicable</span>}
+          <Badge tone={evaluation?.status==='WITHIN_RANGE'?'success':evaluation?.status==='BELOW_RANGE'||evaluation?.status==='ABOVE_RANGE'?'warning':'info'}>{academyText[evaluation?.status]??'Pendiente'}</Badge>
+          <small>{evaluation?.reason??'Pendiente de evaluación'}{evaluation?.distancePercent!=null?` · distancia ${fmt(evaluation.distancePercent,2)}%`:''}</small>
+        </div>;})}</div>:<p className="subtle">La comparación aparecerá cuando haya contratos visibles.</p>}
     </Card>
     <div className="info-row"><Card><h3>La prima es por acción</h3><p>Multiplicador nominal: 100 para contratos estándar. Los precios sintéticos sirven solo para ensayar la interfaz.</p></Card>
       <Card><h3>Calidad temporal</h3><p>Resolver el contrato no demuestra permisos OPRA. Compruebe bid/ask, feed y hora de recepción de cada cotización.</p></Card></div>

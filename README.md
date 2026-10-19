@@ -23,6 +23,18 @@ En PAPER, la última cotización IBKR se presenta por separado del histórico SI
 
 En Opciones PAPER, el vencimiento y los strikes se pueden consultar por rango y página. Si NVDA no tiene una última cotización reciente, seleccione un strike o un rango explícito: la aplicación no supone que el centro de toda la cadena sea el precio de NVDA. Cada contrato puede mostrar por separado definición válida, cotización pendiente, permisos insuficientes o error de IBKR. Los precios OPRA no se presumen disponibles. [Diagnóstico e instrucciones de repetición](shared-artifacts/phase19-ibkr-ui/phase19-option-contracts-fix.md).
 
+## Referencias documentales de primas ASK (Fase 20)
+
+La sección **Referencia de la academia** compara, cuando la fecha documental lo permite, el **ASK por acción** de un contrato con un rango extraído de un documento privado. Un resultado `WITHIN_RANGE` solo describe esa comparación; no es una señal, una recomendación ni una orden. El precio del subyacente, el strike y el costo total del contrato no sustituyen esa prima ASK.
+
+Los originales permanecen locales y se excluyen de Git. Importe una copia autorizada de manera explícita desde la raíz:
+
+```powershell
+npm run academy:import -- C:\ruta\privada\rangos.xlsx
+```
+
+Se admiten hojas XLSX ordinarias, CSV y HTML de una hoja exportada. La base local guarda solo metadatos de procedencia, el hash SHA-256 y los valores normalizados en centavos; no guarda ni sirve el archivo original. La importación es idempotente. Las reglas de fechas, los límites del lector y la interpretación de los hallazgos están en [Fase 20](docs/phase20-academy-documents.md).
+
 ## Estructura
 
 - `apps/web`: React, KLineCharts 10 y formularios de decisión.

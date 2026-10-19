@@ -15,6 +15,13 @@
       "when": 1792373972292,
       "tag": "0001_eager_hannibal_king",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1792500000000,
+      "tag": "0002_academy_ranges",
+      "breakpoints": true
     }
   ]
 }

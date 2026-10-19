@@ -1,6 +1,7 @@
 import {defineConfig} from '@playwright/test';
+const webPort=process.env.TRADING_POC_WEB_PORT??'5173';
 export default defineConfig({
   testDir:'./tests/phase19-e2e',timeout:30000,workers:1,
-  use:{baseURL:'http://127.0.0.1:5173',browserName:'chromium',launchOptions:process.env.TRADING_POC_CHROMIUM_PATH?{executablePath:process.env.TRADING_POC_CHROMIUM_PATH}:process.platform==='linux'?{executablePath:'/usr/bin/chromium',args:['--no-sandbox']}:{}},
-  webServer:{command:'npm run dev',url:'http://127.0.0.1:5173/',reuseExistingServer:!process.env.CI,timeout:60000}
+  use:{baseURL:`http://127.0.0.1:${webPort}`,browserName:'chromium',launchOptions:process.env.TRADING_POC_CHROMIUM_PATH?{executablePath:process.env.TRADING_POC_CHROMIUM_PATH}:process.platform==='linux'?{executablePath:'/usr/bin/chromium',args:['--no-sandbox']}:{}},
+  webServer:{command:'npm run dev',url:`http://127.0.0.1:${webPort}/`,reuseExistingServer:!process.env.CI,timeout:60000}
 });

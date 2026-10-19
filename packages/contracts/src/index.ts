@@ -7,6 +7,20 @@ export const symbol = z.enum(['NVDA', 'QQQ', 'SMH']);
 export const Mode = z.enum(['DEMO', 'OFFLINE', 'PAPER']);
 export const FeedType = z.enum(['LIVE', 'DELAYED', 'FROZEN', 'DELAYED_FROZEN', 'UNKNOWN']);
 export const MarketDataErrorStatus=z.enum(['permission_denied','unavailable','partial']);
+export const AcademyValidationStatus=z.enum(['DOCUMENTED','HYPOTHESIS','DERIVED','UNVERIFIED']);
+export const AcademyEvaluationStatus=z.enum(['BELOW_RANGE','WITHIN_RANGE','ABOVE_RANGE','NO_REFERENCE','NO_ASK','STALE_QUOTE','INSUFFICIENT_DATA']);
+export const AcademyReferenceStatus=z.enum(['ACTIVE','REFERENCE_DATE','HISTORICAL_ONLY','CONFLICT','NONE']);
+export const AcademyAskRange=z.object({id:z.string().min(1),asset:z.string().regex(/^[A-Z.]{1,12}$/),optionRight:z.enum(['CALL','PUT']).nullable(),
+  minAskCents:z.number().int().positive(),maxAskCents:z.number().int().positive(),currency:z.literal('USD'),unit:z.literal('PER_SHARE'),
+  referenceDate:z.string().date().nullable(),validFrom:z.string().date().nullable(),validTo:z.string().date().nullable(),
+  documentHash:z.string().regex(/^[a-f0-9]{64}$/),sourceFile:z.string().min(1),sourceLocation:z.string().min(1),versionId:z.string().min(1),
+  extractionMethod:z.enum(['XLSX_TABLE','CSV_TABLE','HTML_TABLE','MANUAL_REVIEW']),validationStatus:AcademyValidationStatus,
+  notes:z.string().nullable(),importedAtUtc:utc});
+export type AcademyAskRange=z.infer<typeof AcademyAskRange>;
+export const AcademyAskEvaluation=z.object({status:AcademyEvaluationStatus,referenceStatus:AcademyReferenceStatus,
+  reference:AcademyAskRange.nullable(),askCents:z.number().int().positive().nullable(),distancePercent:z.number().nullable(),
+  reason:z.string().min(1),quoteReceivedAtUtc:utc.nullable()});
+export type AcademyAskEvaluation=z.infer<typeof AcademyAskEvaluation>;
 export const MarketBar = z.object({symbol, timeframe:z.enum(['15m','1h','1d']), startUtc:utc,endUtc:utc,
   open:z.number().positive(), high:z.number().positive(),low:z.number().positive(),close:z.number().positive(),
   volume:z.number().nonnegative().nullable(),provider:z.string().min(1),adjustment:z.string(),

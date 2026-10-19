@@ -30,6 +30,7 @@ Aplicación privada de análisis en español; código probado en el commit 82c69
 | phase19-demo-dashboard.png | captura Chromium de Inicio DEMO |
 | phase19-demo-options.png | captura Chromium de Opciones DEMO |
 | phase19-demo-journal.png | captura Chromium de Diario DEMO |
+| phase19-windows-cleanup-fix.md | cierre sincronizado del launcher tras fallo de un servicio |
 | SHA256SUMS.txt | hashes de todos los archivos anteriores y este README |
 
 Reproducción desde la raíz del repositorio: npm ci; npm run typecheck; npm test; npm run build; npm run test:e2e. Esta última orden genera las tres capturas de DEMO en `test-results/phase19-smoke`, fuera de Git. Solo defina `TRADING_POC_SCREENSHOT_DIR=shared-artifacts/phase19-ibkr-ui` si desea reemplazar expresamente los PNG originales. En un Windows con Chrome instalado puede definir `TRADING_POC_CHROMIUM_PATH` si falta Chromium de Playwright. Para OFFLINE se requieren fuentes SIP locales autorizadas. La conexión TWS Paper auténtica no fue probada; el agente MOCK se etiqueta como simulado. Los resultados iniciales y las imágenes anteriores se conservan como evidencia del commit original.
