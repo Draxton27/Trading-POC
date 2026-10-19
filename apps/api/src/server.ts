@@ -7,7 +7,7 @@ import websocket from '@fastify/websocket';
 import {z} from 'zod';
 import {Mode,HumanDecision,symbol} from '@trading-poc/contracts';
 import {calculateIndicators,spread,previousSessionLevels} from '@trading-poc/market-domain';
-import {demoBars,offlineAvailable,offlineBars,pageBars,historicalSignals,historicalEvents,priorCalendarSession,type Timeframe,type Symbol} from '@trading-poc/research-adapter';
+import {demoBars,offlineAvailable,offlineBars,offlineMetadata,pageBars,historicalSignals,historicalEvents,priorCalendarSession,type Timeframe,type Symbol} from '@trading-poc/research-adapter';
 import {verifyLedger} from '../../../trading_poc_001_bollinger/src/phase16-ledger.ts';
 import {appendPhase17Decision,PHASE17_TEMPLATE_COLUMNS} from '../../../trading_poc_001_bollinger/src/phase17-journal.ts';
 import {csvCell} from '../../../trading_poc_001_bollinger/src/phase17-csv.ts';
@@ -17,8 +17,9 @@ import * as tables from './persistence/schema.ts';
 import {AgentHub,AgentRequestError} from './streams/agent-hub.ts';
 import {registerOptionRoutes} from './options/routes.ts';
 import {registerAcademyRoutes} from './academy/routes.ts';
+import {registerAssistantRoutes} from './assistant/routes.ts';
 
-type Options={mode?:'DEMO'|'OFFLINE'|'PAPER';privateDir?:string;phase17Private?:string;phase16Ledger?:string;dbPath?:string;agentSecret?:string};
+type Options={mode?:'DEMO'|'OFFLINE'|'PAPER';privateDir?:string;phase17Private?:string;phase16Ledger?:string;dbPath?:string;agentSecret?:string;assistantFetch?:typeof fetch;assistantTimeoutMs?:number};
 const repoRoot=fileURLToPath(new URL('../../../',import.meta.url));
 const frame=z.enum(['15m','1h','1d']);
 const browserOrigin=(origin:string|undefined)=>!origin||/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(origin);
@@ -129,6 +130,7 @@ export async function createApp(options:Options={}){
   });
   registerOptionRoutes(app,hub,mode,demoOptions,db.sqlite);
   registerAcademyRoutes(app,db.sqlite);
+  registerAssistantRoutes(app,{mode,hub,sqlite:db.sqlite,barsFor,offlineAvailable,offlineMetadata,transport:options.assistantFetch,timeoutMs:options.assistantTimeoutMs});
   app.get('/api/v1/options/quotes',async()=>({items:mode==='DEMO'?demoOptions():[],source:mode==='DEMO'?'DEMO sintético':'Consulte /options/contracts para suscribirse a contratos visibles'}));
   app.get('/api/v1/positions',async()=>{if(mode!=='PAPER'||!hub.status().connected)return {items:[],source:'IBKR desconectado'};
     const m=await hub.request('broker.positions.request',{});return {items:m.kind==='broker.positions.snapshot'?m.payload.items:[],source:hub.status().simulation?'Agente simulado':'IBKR Paper'};});

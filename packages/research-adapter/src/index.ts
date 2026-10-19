@@ -3,6 +3,7 @@ import {fileURLToPath} from 'node:url';
 import {resolve} from 'node:path';
 import type {MarketBar} from '@trading-poc/contracts';
 import {loadDataset} from '../../../trading_poc_001_bollinger/src/csv.ts';
+import {loadMetadata} from '../../../trading_poc_001_bollinger/src/data-contract.ts';
 import {loadMarketCalendar} from '../../../trading_poc_001_bollinger/src/alpaca-calendar.ts';
 import {buildDailyCandles,buildHourlyCandles} from '../../../trading_poc_001_bollinger/src/multitimeframe.ts';
 import {parseCsvRows} from '../../../trading_poc_001_bollinger/src/phase17-csv.ts';
@@ -11,6 +12,7 @@ export type Symbol='NVDA'|'QQQ'|'SMH';export type Timeframe='15m'|'1h'|'1d';
 const root=resolve(fileURLToPath(new URL('../../../trading_poc_001_bollinger/',import.meta.url)));
 const cache=new Map<string,MarketBar[]>();
 const source=(symbol:Symbol)=>resolve(root,'data',`${symbol}_ALPACA_SIP_15min_20211017_20261017.csv`);
+export function offlineMetadata(symbol:Symbol){return loadMetadata(source(symbol));}
 export function offlineAvailable(){return (['NVDA','QQQ','SMH'] as Symbol[]).every(s=>existsSync(source(s))&&existsSync(`${source(s)}.meta.json`)&&existsSync(`${source(s)}.calendar.json`));}
 const dateNy=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'});
 export function priorCalendarSession(symbol:Symbol,asOfUtc:string):string|null{
