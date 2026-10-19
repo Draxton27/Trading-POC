@@ -1,0 +1,31 @@
+{
+  "name": "trading-poc",
+  "private": true,
+  "version": "0.19.0",
+  "type": "module",
+  "engines": {"node": ">=22.16.0"},
+  "workspaces": ["apps/*", "packages/*", "trading_poc_001_bollinger"],
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:web": "npm run dev -w @trading-poc/web",
+    "dev:api": "npm run dev -w @trading-poc/api",
+    "dev:agent": "npm run dev -w @trading-poc/ibkr-agent",
+    "typecheck": "tsc --noEmit -p tsconfig.json && npm run typecheck -w trading-poc-001-bollinger",
+    "test": "vitest run && npm run test -w trading-poc-001-bollinger",
+    "build": "npm run build -w @trading-poc/web",
+    "test:e2e": "playwright test",
+    "db:generate": "drizzle-kit generate --config apps/api/drizzle.config.ts"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1",
+    "@types/better-sqlite3": "9.6.0",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@types/ws": "8.18.2",
+    "@types/node": "22.16.5",
+    "drizzle-kit": "0.31.11",
+    "tsx": "4.20.6",
+    "typescript": "5.9.3",
+    "vitest": "5.0.5"
+  }
+}

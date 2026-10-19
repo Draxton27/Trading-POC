@@ -1,0 +1,13 @@
+node_modules/
+apps/web/dist/
+apps/api/dist/
+apps/ibkr-agent/dist/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+private/
+*.sqlite
+*.sqlite-*
+playwright-report/
+test-results/

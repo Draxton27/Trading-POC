@@ -1,0 +1,23 @@
+name: Phase 19 Windows
+on:
+  pull_request:
+    paths:
+      - 'apps/**'
+      - 'packages/**'
+      - 'scripts/windows/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/phase19-windows.yml'
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
