@@ -55,8 +55,12 @@ export function appendRecord(directory: string, id: string, kind: Kind,
     const fd = openSync(temporary, 'wx');
     try {writeFileSync(fd, JSON.stringify(record) + '\n'); fsyncSync(fd);} finally {closeSync(fd);}
     renameSync(temporary, join(directory, name));
-    const dirFd = openSync(directory, 'r');
-    try {fsyncSync(dirFd);} finally {closeSync(dirFd);}
+    // Windows no permite abrir un directorio como descriptor de archivo en Node.
+    // El archivo ya fue sincronizado antes del rename atómico.
+    if (process.platform !== 'win32') {
+      const dirFd = openSync(directory, 'r');
+      try {fsyncSync(dirFd);} finally {closeSync(dirFd);}
+    }
     return record;
   } finally {closeSync(lock); unlinkSync(lockPath);}
 }

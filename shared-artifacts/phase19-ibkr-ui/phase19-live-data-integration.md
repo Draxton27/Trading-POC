@@ -1,0 +1,9 @@
+# Flujo PAPER de solo lectura
+
+La serie de velas de la aplicación procede de DEMO sintético u OFFLINE Alpaca SIP local. En PAPER las velas visibles siguen etiquetadas como historial local; los ticks de IBKR se muestran aparte en el encabezado y en la tabla de opciones. No se fabrican velas de 15 minutos a partir de ticks, ni se rellena una desconexión.
+
+El agente envía cotizaciones y estado por el canal privado validado. El backend emite eventos WebSocket al navegador, conserva solo la última cotización de cada contrato en memoria para consulta, y la marca obsoleta tras 30 segundos sin nueva recepción. Al desconectar borra ese caché. Las suscripciones usan clave por símbolo o `conId`, consumidores con UUID, deduplicación simultánea, liberación al dejar la vista, límite de 10 y reenvío de suscripciones al reconectar. Los parámetros de opciones se cachean 60 segundos por ID de conexión. La resolución de contratos visibles limita a cinco por vista por defecto; nunca descarga toda la cadena.
+
+LIVE/FROZEN/DELAYED/DELAYED_FROZEN/UNKNOWN son propiedades observadas por solicitud. `PAPER SIMULADO` queda identificado por separado. Una cotización con `last` no se representa como bid/ask ejecutable. Los tamaños, griegas, IV, spread y recepción se muestran si llegan. Los permisos OPRA se mantienen como no verificados hasta prueba auténtica. TWS puede devolver una ventana limitada de ejecuciones; su hora cruda no se convierte a UTC sin zona confirmada.
+
+Prueba posterior en dos equipos: A ejecuta TWS Paper y agente, B API/UI/SQLite. Comprobar en orden cuenta Paper, API Read-Only y loopback, Tailscale privado autenticado, NVDA, fuente/feed/timestamps, QQQ y SMH, cadena NVDA, bid/ask y tamaños, reconexión, datos obsoletos y ausencia de cualquier solicitud de órdenes. No introducir contraseña IBKR en `.env` ni publicar API/Vite en la red.

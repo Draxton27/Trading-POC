@@ -1,0 +1,21 @@
+import {sqliteTable,text,integer,real,uniqueIndex,index} from 'drizzle-orm/sqlite-core';
+
+const id=()=>text('id').primaryKey();
+export const dataSources=sqliteTable('data_sources',{id:id(),provider:text('provider').notNull(),feed:text('feed'),sha256:text('sha256'),createdAtUtc:text('created_at_utc').notNull()});
+export const marketBars=sqliteTable('market_bars',{id:id(),symbol:text('symbol').notNull(),timeframe:text('timeframe').notNull(),startUtc:text('start_utc').notNull(),endUtc:text('end_utc').notNull(),open:real('open').notNull(),high:real('high').notNull(),low:real('low').notNull(),close:real('close').notNull(),volume:real('volume'),sourceId:text('source_id')},t=>[index('market_bars_lookup').on(t.symbol,t.timeframe,t.startUtc)]);
+export const marketQuotes=sqliteTable('market_quotes',{id:id(),symbol:text('symbol').notNull(),receivedAtUtc:text('received_at_utc').notNull(),payload:text('payload').notNull()});
+export const optionContracts=sqliteTable('option_contracts',{id:id(),environment:text('environment').notNull(),conId:integer('con_id').notNull(),occSymbol:text('occ_symbol'),payload:text('payload').notNull()});
+export const optionQuotes=sqliteTable('option_quotes',{id:id(),environment:text('environment').notNull(),conId:integer('con_id').notNull(),receivedAtUtc:text('received_at_utc').notNull(),payload:text('payload').notNull()});
+export const brokerConnectionEvents=sqliteTable('broker_connection_events',{id:id(),environment:text('environment').notNull(),atUtc:text('at_utc').notNull(),status:text('status').notNull()});
+export const brokerPositions=sqliteTable('broker_positions',{id:id(),environment:text('environment').notNull(),accountAlias:text('account_alias').notNull(),conId:integer('con_id').notNull(),payload:text('payload').notNull()});
+export const brokerExecutions=sqliteTable('broker_executions',{id:id(),environment:text('environment').notNull(),accountAlias:text('account_alias').notNull(),executionId:text('execution_id').notNull(),conId:integer('con_id').notNull(),payload:text('payload').notNull()},t=>[uniqueIndex('broker_execution_identity').on(t.environment,t.accountAlias,t.executionId)]);
+export const tradeLots=sqliteTable('trade_lots',{id:id(),environment:text('environment').notNull(),executionId:text('execution_id').notNull(),quantity:real('quantity').notNull()});
+export const tradeMatches=sqliteTable('trade_matches',{id:id(),buyLotId:text('buy_lot_id').notNull(),sellExecutionId:text('sell_execution_id').notNull(),quantity:real('quantity').notNull()});
+export const tradeCommissions=sqliteTable('trade_commissions',{id:id(),executionId:text('execution_id').notNull(),amount:real('amount')});
+export const signalReferences=sqliteTable('signal_references',{id:id(),sourcePath:text('source_path').notNull(),sourceHash:text('source_hash').notNull()});
+export const journalReferences=sqliteTable('journal_references',{id:id(),ledgerId:text('ledger_id').notNull(),ledgerHash:text('ledger_hash').notNull()});
+export const marketEvents=sqliteTable('market_events',{id:id(),category:text('category').notNull(),publishedAtUtc:text('published_at_utc'),payload:text('payload').notNull()});
+export const ingestionRuns=sqliteTable('ingestion_runs',{id:id(),sourceId:text('source_id').notNull(),startedAtUtc:text('started_at_utc').notNull(),finishedAtUtc:text('finished_at_utc'),status:text('status').notNull()});
+export const subscriptionEvents=sqliteTable('subscription_events',{id:id(),agentSessionId:text('agent_session_id').notNull(),kind:text('kind').notNull(),atUtc:text('at_utc').notNull()});
+export const agentSessions=sqliteTable('agent_sessions',{id:id(),agentId:text('agent_id').notNull(),connectionId:text('connection_id').notNull(),environment:text('environment').notNull(),openedAtUtc:text('opened_at_utc').notNull(),closedAtUtc:text('closed_at_utc')});
+export const chartDrawings=sqliteTable('chart_drawings',{id:id(),symbol:text('symbol').notNull(),timeframe:text('timeframe').notNull(),kind:text('kind').notNull(),price:real('price').notNull(),price2:real('price2'),createdAtUtc:text('created_at_utc').notNull(),author:text('author').notNull(),editedAtUtc:text('edited_at_utc')});

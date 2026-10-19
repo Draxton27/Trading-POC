@@ -1,0 +1,9 @@
+# Fase 19: despliegue privado futuro
+
+**No hay despliegue remoto en esta fase.** La primera instalación une frontend, API y SQLite en la computadora B. La API HTTP solo escucha en `127.0.0.1`; el canal del agente se enlaza a la IP privada específica elegida para B. TWS y el agente permanecen juntos en la computadora A. El agente no recibe credenciales de usuario IBKR: el usuario inicia sesión y completa el segundo factor en TWS.
+
+Para trasladar B a un servidor privado, mantener cinco límites: web, API, datos históricos autorizados, SQLite/diarios privados y secretos. El agente A conservaría una conexión saliente a la IP privada del servidor. La autenticación actual mediante secreto de agente y origen local solo cubre el uso privado inicial; **antes de abrir acceso remoto** hacen falta identidad de usuario, autorización por recurso y cuenta Paper/Live, TLS extremo a extremo, protección de cookies/CSRF y WebSocket, rotación de secretos, rate limits externos, auditoría, respaldos cifrados con prueba de restauración, firewall y observabilidad. Tailscale Funnel y puertos públicos de TWS no forman parte del diseño.
+
+Hay que revisar los términos de redistribución de Alpaca SIP e IBKR/OPRA para cada recurso servido remotamente; una red privada no elimina las restricciones del proveedor. Nunca transferir al servidor el usuario, contraseña ni segundo factor de TWS. Live sigue deshabilitado hasta una decisión separada y un almacén distinto. El software continuaría estrictamente sin órdenes.
+
+Migración sugerida: copiar el código desde un commit fijado, ejecutar `npm ci` y migraciones Drizzle en un servidor privado, verificar integridad de los diarios antes de indexarlos, restaurar SQLite de una copia cifrada, configurar las ACL privadas, ejecutar las pruebas y solo entonces habilitar la interfaz detrás de autenticación. Probar conexión física A→B y latencia con TWS Paper autenticado; una simulación no demuestra permisos ni calidad de feed reales.

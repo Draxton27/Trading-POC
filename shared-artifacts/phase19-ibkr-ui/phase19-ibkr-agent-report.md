@@ -1,0 +1,7 @@
+# Agente IBKR de solo lectura
+
+Implementación: apps/ibkr-agent. @stoqey/ib está aislado en connection/tws.ts detrás de ReadOnlyBrokerAdapter. Expone conexión, estado, contrato de acciones, contrato y parámetros de opciones, barras históricas, suscripciones de cotizaciones, posiciones y ejecuciones. No expone colocación, modificación, cancelación ni ejercicio de órdenes. TWS debe estar autenticado manualmente por el usuario y configurado Read-Only.
+
+La sesión Paper se acepta únicamente después de nextValidId y managedAccounts que incluya exactamente la cuenta Paper esperada; el puerto 7497 no constituye evidencia de entorno. Se exige loopback para TWS, clientId dedicado, timeout de handshake, pacing de aproximadamente cinco solicitudes por segundo, máximo de diez contratos visibles por solicitud, cancelación de suscripciones y reconexión exponencial. Se normaliza estado LIVE/FROZEN/DELAYED/DELAYED_FROZEN recibido; UNKNOWN no se promociona a LIVE. Se rechazan valores especiales o no finitos de cotización. Posiciones y ejecuciones usan alias HMAC de cuenta; la hora cruda de ejecuciones TWS queda sin UTC verificado y no se inventa conversión.
+
+El agente MOCK y el backend se probaron como dos procesos: hello autenticado, modo PAPER simulado, parámetros de opciones y consulta de posiciones vacía. El frontend lo etiqueta PAPER SIMULADO. No hay prueba real con TWS, permisos de datos, OPRA, latencia ni reconexión física A/B. El parser definitivo de Flex está pendiente de un archivo auténtico autorizado; la API no promete historial completo de TWS.

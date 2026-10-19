@@ -1,0 +1,7 @@
+# SQLite privada y migraciones
+
+Fuente Drizzle: apps/api/src/persistence/schema.ts; migraciones versionadas en apps/api/drizzle. Tablas: data_sources, market_bars, market_quotes, option_contracts, option_quotes, broker_connection_events, broker_positions, broker_executions, trade_lots, trade_matches, trade_commissions, signal_references, journal_references, market_events, ingestion_runs, subscription_events, agent_sessions y chart_drawings. No se exige poblar todas las tablas para DEMO: representan proyecciones previstas, no duplican el ledger fuente.
+
+Al iniciar la API, db.ts aplica migraciones en un archivo SQLite configurable fuera de Vite/Git, con WAL. Las cotizaciones y snapshots recibidos conservan payload normalizado. La identidad de ejecución usa ambiente, alias de cuenta y execution_id; una importación repetida no duplica, y contenido contradictorio se rechaza. Paper es la única identidad aceptada por el agente actual. Dibujos manuales guardan origen, creación UTC y edición nullable. Los datos brutos del bróker permanecen en el almacén privado Fase 17.
+
+Respaldo: detener la API o usar mecanismo SQLite de copia consistente, copiar base y ledger junto con sus hashes a almacenamiento cifrado, restaurar primero en directorio de prueba y ejecutar PRAGMA integrity_check y verificación del ledger. No publicar bases o archivos de importación. Live requeriría un almacén separado y aprobación futura.

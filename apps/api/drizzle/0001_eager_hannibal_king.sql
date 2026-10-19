@@ -1,0 +1,2 @@
+CREATE UNIQUE INDEX `broker_execution_identity` ON `broker_executions` (`environment`,`account_alias`,`execution_id`);--> statement-breakpoint
+CREATE INDEX `market_bars_lookup` ON `market_bars` (`symbol`,`timeframe`,`start_utc`);
