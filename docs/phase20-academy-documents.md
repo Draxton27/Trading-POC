@@ -2,7 +2,7 @@
 
 ## Propósito y límites
 
-Esta fase incorpora evidencia documental privada para **describir** rangos orientativos de prima ASK por acción de contratos de opciones. No crea una señal, una recomendación, un filtro histórico, una orden ni una estimación de rentabilidad. Un contrato estándar puede tener multiplicador 100, pero el rango documental y su evaluación permanecen en prima unitaria, expresada en centavos enteros.
+Esta fase incorpora evidencia documental privada para **describir** rangos orientativos interpretados por el operador como prima ASK por acción de contratos de opciones; esa unidad no está explícitamente verificada en el documento. No crea una señal, una recomendación, un filtro histórico, una orden ni una estimación de rentabilidad. Un contrato estándar puede tener multiplicador 100, pero el rango documental y su evaluación permanecen en prima unitaria, expresada en centavos enteros. Los límites adicionales de Fase 22 se documentan en [phase22-academy-bounds.md](phase22-academy-bounds.md) y no alteran esa evaluación.
 
 Los detectores de Fases 11–12 y los estudios de Fases 9–18 no se modifican. La referencia tampoco se usa para recalcular resultados históricos: faltan cotizaciones de opciones y versiones documentales con vigencia suficiente para hacerlo sin sesgo temporal.
 

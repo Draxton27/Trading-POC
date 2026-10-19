@@ -11,7 +11,7 @@ export const AcademyValidationStatus=z.enum(['DOCUMENTED','HYPOTHESIS','DERIVED'
 export const AcademyEvaluationStatus=z.enum(['BELOW_RANGE','WITHIN_RANGE','ABOVE_RANGE','NO_REFERENCE','NO_ASK','STALE_QUOTE','INSUFFICIENT_DATA']);
 export const AcademyReferenceStatus=z.enum(['ACTIVE','REFERENCE_DATE','HISTORICAL_ONLY','CONFLICT','NONE']);
 export const AcademyAskRange=z.object({id:z.string().min(1),asset:z.string().regex(/^[A-Z.]{1,12}$/),optionRight:z.enum(['CALL','PUT']).nullable(),
-  minAskCents:z.number().int().positive(),maxAskCents:z.number().int().positive(),currency:z.literal('USD'),unit:z.literal('PER_SHARE'),
+  minAskCents:z.number().int().positive(),maxAskCents:z.number().int().positive(),outerMinCents:z.number().int().positive().safe().nullable().optional(),outerMaxCents:z.number().int().positive().safe().nullable().optional(),currency:z.literal('USD'),unit:z.literal('PER_SHARE'),
   referenceDate:z.string().date().nullable(),validFrom:z.string().date().nullable(),validTo:z.string().date().nullable(),
   documentHash:z.string().regex(/^[a-f0-9]{64}$/),sourceFile:z.string().min(1),sourceLocation:z.string().min(1),versionId:z.string().min(1),
   extractionMethod:z.enum(['XLSX_TABLE','CSV_TABLE','HTML_TABLE','MANUAL_REVIEW']),validationStatus:AcademyValidationStatus,
