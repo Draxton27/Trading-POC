@@ -13,4 +13,4 @@ Rama: `codex/phase19-ibkr-desktop-web`. Base de revisión: `f47343996fa9d7e79351
 | Operaciones | Marcadores por cada fill con UTC validado; faltantes visibles. | Pruebas de fills parciales, fin exclusivo y varios días. |
 | Seguridad | Token de sesión exige solicitud del mismo origen, validación temporal y correlación de mensajes. | Pruebas de origen, replay, tipo de respuesta y ausencia de rutas de órdenes. |
 
-El modo DEMO se probó con Chrome local y datos sintéticos. OFFLINE y PAPER mantienen fuentes separadas; no hay barras nuevas construidas a partir de ticks. Los informes y CSV privados siguen fuera de Git. La ejecución CI de Windows y la prueba física de dos computadoras siguen pendientes de verificación externa.
+El modo DEMO se probó con Chrome local y datos sintéticos. OFFLINE y PAPER mantienen fuentes separadas; no hay barras nuevas construidas a partir de ticks. Los informes y CSV privados siguen fuera de Git. Windows CI pasó en Node 22 y 24 en [el run 39197162416](https://github.com/Draxton27/Trading-POC/actions/runs/39197162416). La prueba física de dos computadoras sigue pendiente.

@@ -17,7 +17,7 @@
     {"command": "scripts/windows/dev-smoke.ps1", "status": "partial locally",
       "apiAndViteFromPathWithSpaces": true,
       "processTreeInspection": "denied by execution sandbox; test processes stopped manually",
-      "githubActionsResult": "pending"}
+      "githubActionsResult": "passed on Node 22 and 24, run 39197162416, code commit a0ee87cd0e394713f4eb6e26ceb7f5d8166548b1"}
   ],
   "realTwsPaperVerified": false,
   "opraPermissionsVerified": false,

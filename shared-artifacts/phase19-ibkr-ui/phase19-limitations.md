@@ -13,7 +13,7 @@
 
 ## Estado adicional tras revisión del PR #25
 
-- Arranque local Windows Node 24 verificado por HTTP; el script de humo desde ruta con espacios verificó ambos servicios, pero este sandbox negó permisos de inspección/terminación de árboles de procesos. El Ctrl+C inyectado por la terminal de automatización tampoco completó el cierre; se liberaron los procesos de prueba manualmente. Resultado de GitHub Actions Windows Node 22/24 y Git Bash físico pendiente.
+- Arranque local Windows Node 24 verificado por HTTP; el script de humo desde ruta con espacios verificó ambos servicios, pero este sandbox negó permisos de inspección/terminación de árboles de procesos. El Ctrl+C inyectado por la terminal de automatización tampoco completó el cierre; se liberaron los procesos de prueba manualmente. GitHub Actions Windows pasó en Node 22 y 24; la prueba física desde Git Bash sigue pendiente.
 - Ticks delayed/frozen, permisos OPRA y mercado Paper auténtico siguen sin validar contra TWS. Solo hay fixtures sintéticos y agente MOCK. `marketTimestampUtc` es nulo si TWS no aporta hora verificable.
 - En PAPER no se construyen velas a partir de ticks; el gráfico permanece sobre DEMO u OFFLINE local. La interrupción del agente borra las últimas cotizaciones en memoria; no se garantiza continuidad intradía.
 - El formulario breve de diario no aporta evidencia de mercado observado; se clasifica `timing_unverified`. Las entradas F19 antiguas permanecen solo lectura. Para campos F17 completos se requiere CSV oficial y capturas privadas previamente importadas.
