@@ -1,0 +1,14 @@
+{
+  "phase": "19-pr25-option-contracts-correction",
+  "environment": {"os": "Windows", "node": "24.20.0", "data": "synthetic fixtures only"},
+  "checks": [
+    {"command": "npm.cmd run typecheck", "status": "passed"},
+    {"command": "npm.cmd test", "status": "passed", "appTests": 41, "historicalTests": 168},
+    {"command": "npm.cmd run build", "status": "passed", "warning": "Vite client chunk over 500 kB"},
+    {"command": "npm.cmd run test:e2e", "status": "inconclusive locally", "reason": "An existing PAPER development server occupied the default E2E port; the E2E DEMO fixtures must run in an isolated environment."}
+  ],
+  "testsAdded": ["backend timeout and late response", "reconnection", "late subscription cleanup", "strike pagination", "missing underlying quote", "per-contract partial result", "market-data permission error"],
+  "realTwsPaperAfterFixVerified": false,
+  "opraPermissionsVerified": false,
+  "publicationTarget": "existing PR #25 on codex/phase19-ibkr-desktop-web"
+}

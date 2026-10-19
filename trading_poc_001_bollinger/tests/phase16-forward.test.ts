@@ -3,6 +3,7 @@ import {strict as assert} from 'node:assert';
 import {existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
+import {fileURLToPath} from 'node:url';
 import type {Candle} from '../src/domain.ts';
 import {loadMarketCalendar} from '../src/alpaca-calendar.ts';
 import {parseCandlesCsv} from '../src/csv.ts';
@@ -281,8 +282,8 @@ test('las seis familias históricas se detectan con prefijos causales y preserva
     const source = new URL('../data/NVDA_ALPACA_SIP_15min_20211017_20261017.csv', import.meta.url);
     const bars = parseCandlesCsv(readFileSync(source, 'utf8'),
       {...metadataFor('QQQ'), asset: 'NVDA'});
-    const calendar = loadMarketCalendar(new URL('../data/NVDA_ALPACA_SIP_15min_20211017_20261017.csv.calendar.json',
-      import.meta.url).pathname);
+    const calendar = loadMarketCalendar(fileURLToPath(new URL('../data/NVDA_ALPACA_SIP_15min_20211017_20261017.csv.calendar.json',
+      import.meta.url)));
     const prior = JSON.parse(readFileSync(new URL('../output/real/nvda-volatility-regimes.json',
       import.meta.url), 'utf8')) as {study: {events: Array<{id: string; family: string;
       index: number; originalHorizons: Record<string, {value: number | null}>}>}};

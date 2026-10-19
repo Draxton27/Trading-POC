@@ -14,3 +14,5 @@ Rama: `codex/phase19-ibkr-desktop-web`. Base de revisión: `f47343996fa9d7e79351
 | Seguridad | Token de sesión exige solicitud del mismo origen, validación temporal y correlación de mensajes. | Pruebas de origen, replay, tipo de respuesta y ausencia de rutas de órdenes. |
 
 El modo DEMO se probó con Chrome local y datos sintéticos. OFFLINE y PAPER mantienen fuentes separadas; no hay barras nuevas construidas a partir de ticks. Los informes y CSV privados siguen fuera de Git. Windows CI pasó en Node 22 y 24 en [el run 39197162416](https://github.com/Draxton27/Trading-POC/actions/runs/39197162416). La prueba física de dos computadoras sigue pendiente.
+
+La consulta de contratos se corrigió después de la prueba Paper auténtica reportada por el usuario. Consulte [presupuestos, errores por contrato y repetición en Windows](phase19-option-contracts-fix.md). La resolución Paper posterior a este cambio sigue pendiente de verificación; no se ha confirmado OPRA.

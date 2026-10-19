@@ -1,13 +1,21 @@
 import {randomUUID,timingSafeEqual} from 'node:crypto';
-import {AgentMessage,MarketQuote,OptionQuote,BrokerPosition,FeedType,allowedRequestKinds,type AgentMessage as Message} from '@trading-poc/contracts';
+import {AgentMessage,MarketQuote,OptionQuote,BrokerPosition,FeedType,allowedRequestKinds,agentRequestBudgets,type AgentMessage as Message} from '@trading-poc/contracts';
 import {z} from 'zod';
 
 type Socket={send:(data:string)=>void;close:(code?:number,reason?:string)=>void;on:(event:string,callback:(data:any)=>void)=>void;readyState:number};
 const MAX_BYTES=65536;
+export class AgentRequestError extends Error {
+  constructor(public readonly code:string,public readonly stage:string,public readonly requestId:string,
+    public readonly ibkrCode:number|null=null){super(code==='DISCONNECTED'?'Agente desconectado':code);this.name='AgentRequestError';}
+}
+const diagnostic=(event:string,kind:string,requestId:string,durationMs:number,stage:string,code?:string,ibkrCode?:number|null)=>
+  console.warn(JSON.stringify({component:'agent-hub',event,kind,requestId,durationMs,stage,...(code?{code}:{}),...(ibkrCode!=null?{ibkrCode}:{})}));
 export class AgentHub {
   private socket:Socket|null=null;private agentId:string|null=null;private connectionId:string|null=null;
   private lastSequence=-1;private outboundSequence=0;private lastHeartbeat:string|null=null;
-  private pending=new Map<string,{kind:string;resolve:(value:Message)=>void;reject:(e:Error)=>void;timer:NodeJS.Timeout}>();
+  private pending=new Map<string,{kind:string;startedAt:number;resolve:(value:Message)=>void;reject:(e:Error)=>void;timer:NodeJS.Timeout}>();
+  private expired=new Map<string,{kind:string;at:number;payload:Record<string,unknown>}>();
+  private readonly budgets=agentRequestBudgets();
   private subscriptions=new Map<string,Record<string,unknown>>();
   private subscribing=new Map<string,Promise<Message>>();
   private consumers=new Map<string,Set<string>>();
@@ -25,9 +33,12 @@ export class AgentHub {
   onEvent(listener:(event:Record<string,unknown>)=>void){this.listeners.add(listener);return ()=>this.listeners.delete(listener);}
   private publish(event:Record<string,unknown>){for(const listener of this.listeners)listener(event);}
   attach(socket:Socket){
-    this.socket?.close(1000,'replaced');this.socket=socket;this.agentId=null;this.connectionId=null;this.lastSequence=-1;this.outboundSequence=0;this.environment='UNKNOWN';this.simulation=false;this.feedType='UNKNOWN';this.lastHeartbeat=null;this.lastDataReceivedAtUtc=null;this.quotes.clear();this.subscribing.clear();this.seenIds.clear();this.seenOrder=[];this.minuteStart=Date.now();this.receivedInMinute=0;
+    for(const [id,wait] of this.pending){clearTimeout(wait.timer);wait.reject(new AgentRequestError('DISCONNECTED','transport',id));}
+    this.pending.clear();
+    this.socket?.close(1000,'replaced');this.socket=socket;this.agentId=null;this.connectionId=null;this.lastSequence=-1;this.outboundSequence=0;this.environment='UNKNOWN';this.simulation=false;this.feedType='UNKNOWN';this.lastHeartbeat=null;this.lastDataReceivedAtUtc=null;this.quotes.clear();this.subscribing.clear();this.expired.clear();this.seenIds.clear();this.seenOrder=[];this.minuteStart=Date.now();this.receivedInMinute=0;
     this.publish({kind:'broker.status',broker:this.status(),atUtc:new Date().toISOString()});
     socket.on('message',(raw:Buffer|string)=>{
+      if(this.socket!==socket)return;
       if(Buffer.byteLength(raw)>MAX_BYTES){socket.close(1009,'message too large');return;}
       let parsed:ReturnType<typeof AgentMessage.safeParse>;
       try{parsed=AgentMessage.safeParse(JSON.parse(String(raw)));}catch{socket.close(1003,'invalid JSON');return;}
@@ -51,17 +62,30 @@ export class AgentHub {
         this.feedType=FeedType.safeParse(initialFeed).success?String(initialFeed):'UNKNOWN';
         queueMicrotask(()=>{for(const payload of this.subscriptions.values())this.request('market.subscribe',payload).catch(()=>{});});
       }else if(message.agentId!==this.agentId||message.connectionId!==this.connectionId||message.sequence<=this.lastSequence){socket.close(1008,'replay or identity mismatch');return;}
+      let late=false;
       if(message.requestId){
         const wait=this.pending.get(message.requestId);
+        const expired=this.expired.get(message.requestId);
         const expected:Record<string,string>={'market.subscribe':'agent.status','market.unsubscribe':'agent.status',
           'option.resolve':'option.resolve','option.parameters':'option.parameters',
           'broker.positions.request':'broker.positions.snapshot',
           'broker.executions.request':'broker.executions.snapshot'};
-        if(!wait||message.kind!==expected[wait.kind]&&message.kind!=='agent.error'){
+        if(!wait&&!expired||message.kind!==expected[(wait??expired)!.kind]&&message.kind!=='agent.error'){
           socket.close(1008,'unexpected request response');return;
         }
+        late=!wait;
       }
       this.lastSequence=message.sequence;this.lastHeartbeat=new Date().toISOString();
+      if(late&&message.requestId){
+        const expired=this.expired.get(message.requestId)!;this.expired.delete(message.requestId);
+        diagnostic('late_response_discarded',expired.kind,message.requestId,Date.now()-expired.at,'backend',message.kind);
+        if(expired.kind==='market.subscribe'&&message.kind==='agent.status'){
+          const key=String(expired.payload.conId??expired.payload.symbol??'');
+          queueMicrotask(()=>{if(key&&!this.consumers.has(key)&&!this.subscriptions.has(key)&&!this.subscribing.has(key))
+            this.request('market.unsubscribe',expired.payload).catch(error=>diagnostic('late_unsubscribe_failed','market.unsubscribe',message.requestId!,0,'backend',error instanceof AgentRequestError?error.code:'BROKER_ERROR'));});
+        }
+        return;
+      }
       try{this.onValidatedMessage?.(message);}catch{socket.close(1011,'private storage failure');return;}
       if(message.kind==='market.quote'||message.kind==='option.quote'){
         this.quotes.set(String(message.payload.symbol??message.payload.conId??''),message);
@@ -73,17 +97,18 @@ export class AgentHub {
       if(message.kind==='agent.hello'||message.kind==='agent.status'||message.kind==='agent.error')this.publish({kind:'broker.status',broker:this.status(),atUtc:new Date().toISOString()});
       if(message.requestId){const wait=this.pending.get(message.requestId);if(wait){clearTimeout(wait.timer);this.pending.delete(message.requestId);wait.resolve(message);}}
     });
-    socket.on('close',()=>{if(this.socket!==socket)return;this.socket=null;this.environment='UNKNOWN';this.quotes.clear();this.subscribing.clear();for(const wait of this.pending.values()){clearTimeout(wait.timer);wait.reject(new Error('Agente desconectado'));}this.pending.clear();this.publish({kind:'broker.status',broker:this.status(),atUtc:new Date().toISOString()});});
+    socket.on('close',()=>{if(this.socket!==socket)return;this.socket=null;this.environment='UNKNOWN';this.quotes.clear();this.subscribing.clear();this.expired.clear();for(const [id,wait] of this.pending){clearTimeout(wait.timer);wait.reject(new AgentRequestError('DISCONNECTED','transport',id));}this.pending.clear();this.publish({kind:'broker.status',broker:this.status(),atUtc:new Date().toISOString()});});
   }
   latestQuote(key:string){return this.status().connected?this.quotes.get(key)?.payload??null:null;}
-  async subscribe(payload:Record<string,unknown>,consumer='server'){
+  optionPageTimeoutMs(){return this.budgets.optionPageMs;}
+  async subscribe(payload:Record<string,unknown>,consumer='server',timeoutMs?:number){
     const key=String(payload.conId??payload.symbol??'');
     if(!key)throw new Error('Contrato sin identidad');
     const addConsumer=()=>{const users=this.consumers.get(key)??new Set<string>();users.add(consumer);this.consumers.set(key,users);};
     if(this.subscriptions.has(key)){addConsumer();return;}
     const pending=this.subscribing.get(key);if(pending){await pending;addConsumer();return;}
     if(this.subscriptions.size+this.subscribing.size>=10)throw new Error('Límite de 10 suscripciones IBKR');
-    const request=this.request('market.subscribe',payload);
+    const request=this.request('market.subscribe',payload,timeoutMs);
     this.subscribing.set(key,request);
     try{await request;addConsumer();}finally{this.subscribing.delete(key);}
   }
@@ -97,11 +122,32 @@ export class AgentHub {
     else this.subscriptions.delete(key);
     this.quotes.delete(key);
   }
-  async request(kind:typeof allowedRequestKinds[number],payload:Record<string,unknown>,timeoutMs=5000):Promise<Message>{
-    if(!allowedRequestKinds.includes(kind)||!this.status().connected||this.environment!=='PAPER')throw new Error('Agente PAPER no disponible');
+  async request(kind:typeof allowedRequestKinds[number],payload:Record<string,unknown>,timeoutMs?:number):Promise<Message>{
+    if(!allowedRequestKinds.includes(kind)||!this.status().connected||this.environment!=='PAPER')throw new AgentRequestError('DISCONNECTED','backend','');
+    const defaultMs=kind==='option.resolve'?this.budgets.optionResolveMs:kind==='option.parameters'?this.budgets.optionParametersMs:kind==='market.subscribe'?this.budgets.optionSubscribeMs:this.budgets.ordinaryMs;
+    const budget=timeoutMs===undefined?defaultMs:Math.max(1000,Math.min(defaultMs,Math.floor(timeoutMs)));
     const requestId=randomUUID();const message:Message={protocolVersion:1,messageId:randomUUID(),requestId,agentId:'backend',connectionId:this.connectionId!,sequence:++this.outboundSequence,issuedAtUtc:new Date().toISOString(),kind,payload};
-    const result=await new Promise<Message>((resolve,reject)=>{const timer=setTimeout(()=>{this.pending.delete(requestId);reject(new Error('Tiempo de espera del agente'));},timeoutMs);this.pending.set(requestId,{kind,resolve,reject,timer});this.socket!.send(JSON.stringify(message));});
-    if(result.kind==='agent.error')throw new Error(String(result.payload.message??'Error del agente'));
+    const startedAt=Date.now();
+    const result=await new Promise<Message>((resolve,reject)=>{
+      const timer=setTimeout(()=>{
+        this.pending.delete(requestId);this.expired.set(requestId,{kind,at:Date.now(),payload});
+        for(const [id,item] of this.expired)if(Date.now()-item.at>120000||this.expired.size>1000)this.expired.delete(id);
+        diagnostic('timeout',kind,requestId,Date.now()-startedAt,'backend','TIMEOUT');
+        reject(new AgentRequestError('TIMEOUT','backend',requestId));
+      },budget);
+      this.pending.set(requestId,{kind,startedAt,resolve,reject,timer});
+      try{this.socket!.send(JSON.stringify(message));}catch{
+        clearTimeout(timer);this.pending.delete(requestId);reject(new AgentRequestError('DISCONNECTED','transport',requestId));
+      }
+    });
+    if(result.kind==='agent.error'){
+      const code=typeof result.payload.code==='string'?result.payload.code:'BROKER_ERROR';
+      const stage=typeof result.payload.stage==='string'?result.payload.stage:'agent';
+      const ibkrCode=typeof result.payload.ibkrCode==='number'?result.payload.ibkrCode:null;
+      diagnostic('agent_error',kind,requestId,Date.now()-startedAt,stage,code,ibkrCode);
+      throw new AgentRequestError(code,stage,requestId,ibkrCode);
+    }
+    diagnostic('completed',kind,requestId,Date.now()-startedAt,'agent');
     if(kind==='market.subscribe'||kind==='market.unsubscribe'){
       const key=String(payload.conId??payload.symbol??'');
       if(result.payload[kind==='market.subscribe'?'subscribed':'unsubscribed']!==key)

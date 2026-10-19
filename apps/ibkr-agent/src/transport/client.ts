@@ -15,6 +15,7 @@ export class AgentTransport {
   private socket:WebSocket|null=null;private sequence=0;private connectionId=randomUUID();private lastBackendSequence=-1;
   private handles=new Map<string,SubscriptionHandle>();private heartbeat:NodeJS.Timeout|null=null;
   private subscribing=new Map<string,Promise<SubscriptionHandle>>();
+  private resolvedOptions=new Map<number,ResolvedContract>();
   private closedResolver:(()=>void)|null=null;private closedPromise:Promise<void>=Promise.resolve();
   constructor(private readonly adapter:ReadOnlyBrokerAdapter,private readonly config:{url:string;agentId:string;secret:string;simulation?:boolean}){
     if(!allowedUrl(config.url))throw new Error('Transporte remoto requiere wss o Tailscale privada');
@@ -28,15 +29,17 @@ export class AgentTransport {
   async connect():Promise<void>{
     const status=await this.adapter.getStatus();
     if(!status.connected||status.environment!=='PAPER'||!status.accountVerified)throw new Error('Agente requiere Paper verificado');
-    this.connectionId=randomUUID();this.sequence=0;this.lastBackendSequence=-1;
+    this.connectionId=randomUUID();this.sequence=0;this.lastBackendSequence=-1;this.resolvedOptions.clear();
     this.closedPromise=new Promise(resolve=>{this.closedResolver=resolve;});
     await new Promise<void>((resolve,reject)=>{
       const socket=new WebSocket(this.config.url,{headers:{Authorization:'Bearer '+this.config.secret},maxPayload:65536});
       this.socket=socket;const timer=setTimeout(()=>{socket.terminate();reject(new Error('Timeout de canal privado'));},10000);
       socket.on('open',()=>{clearTimeout(timer);this.send('agent.hello',{environment:'PAPER',accountVerified:true,simulation:!!this.config.simulation,status});this.heartbeat=setInterval(()=>this.send('agent.heartbeat',{status:'connected'}),10000);resolve();});
       socket.on('error',e=>{clearTimeout(timer);reject(e);});
-      socket.on('message',raw=>{if(Buffer.byteLength(String(raw))>65536){socket.close(1009);return;}this.onMessage(String(raw)).catch(e=>this.send('agent.error',{message:String(e)}));});
-      socket.on('close',()=>{if(this.heartbeat)clearInterval(this.heartbeat);this.heartbeat=null;this.socket=null;this.closedResolver?.();});
+      socket.on('message',raw=>{if(Buffer.byteLength(String(raw))>65536){socket.close(1009);return;}this.onMessage(String(raw)).catch(()=>{
+        console.warn(JSON.stringify({component:'ibkr-agent',event:'request_handler_failure',stage:'agent',code:'BROKER_ERROR'}));
+      });});
+      socket.on('close',()=>{if(this.socket!==socket)return;if(this.heartbeat)clearInterval(this.heartbeat);this.heartbeat=null;this.socket=null;this.closedResolver?.();});
     });
   }
   get connected(){return this.socket?.readyState===WebSocket.OPEN;}
@@ -48,39 +51,55 @@ export class AgentTransport {
     const m=parsed.data;
     if(m.agentId!=='backend'||m.connectionId!==this.connectionId||m.sequence<=this.lastBackendSequence||!allowedRequestKinds.includes(m.kind as any)||!m.requestId)return;
     this.lastBackendSequence=m.sequence;
+    const connectionId=this.connectionId;
+    const respond=(kind:Message['kind'],payload:Record<string,unknown>,requestId:string|null=m.requestId)=>{
+      if(this.connectionId===connectionId)this.send(kind,payload,requestId);
+    };
+    const startedAt=Date.now();
     try{
       if(m.kind==='market.subscribe'){
         const symbol=String(m.payload.symbol??'');
         const key=String(m.payload.conId??symbol);
-        if(this.handles.has(key)){this.send('agent.status',{subscribed:key,alreadyPresent:true},m.requestId);return;}
+        if(this.handles.has(key)){respond('agent.status',{subscribed:key,alreadyPresent:true});return;}
         let pending=this.subscribing.get(key);
         if(!pending){pending=(async()=>{
           let c:ResolvedContract;
           if(m.payload.conId!==undefined){
             const q=m.payload;
-            c=await this.adapter.resolveOption({symbol:'NVDA',expiration:String(q.expiration),right:q.right==='PUT'?'PUT':'CALL',strike:Number(q.strike)});
+            const cached=this.resolvedOptions.get(Number(q.conId));
+            c=cached?.expiration===String(q.expiration)&&cached.right===(q.right==='PUT'?'PUT':'CALL')&&cached.strike===Number(q.strike)?cached:
+              await this.adapter.resolveOption({symbol:'NVDA',expiration:String(q.expiration),right:q.right==='PUT'?'PUT':'CALL',strike:Number(q.strike)});
             if(c.conId!==Number(q.conId))throw new Error('Contrato resuelto distinto de conId solicitado');
           }else c=await this.adapter.resolveStock(symbol);
-          return this.adapter.subscribeQuotes([c],quote=>this.send(c.secType==='OPT'?'option.quote':'market.quote',quote as unknown as Record<string,unknown>));
+          return this.adapter.subscribeQuotes([c],quote=>respond(c.secType==='OPT'?'option.quote':'market.quote',quote as unknown as Record<string,unknown>,null));
         })();this.subscribing.set(key,pending);}
         let handle:SubscriptionHandle;try{handle=await pending;}finally{this.subscribing.delete(key);}
-        this.handles.set(key,handle);this.send('agent.status',{subscribed:key},m.requestId);
+        if(this.connectionId!==connectionId){await handle.cancel();return;}
+        this.handles.set(key,handle);respond('agent.status',{subscribed:key});
       }else if(m.kind==='market.unsubscribe'){
         const key=String(m.payload.conId??m.payload.symbol??'');
         if(this.subscribing.has(key))await this.subscribing.get(key);
-        const h=this.handles.get(key);if(h){await h.cancel();this.handles.delete(key);}this.send('agent.status',{unsubscribed:key},m.requestId);
+        const h=this.handles.get(key);if(h){await h.cancel();this.handles.delete(key);}respond('agent.status',{unsubscribed:key});
       }else if(m.kind==='option.resolve'){
         const c=await this.adapter.resolveOption({symbol:'NVDA',expiration:String(m.payload.expiration),right:m.payload.right==='PUT'?'PUT':'CALL',strike:Number(m.payload.strike)});
-        this.send('option.resolve',{contract:c},m.requestId);
+        if(this.connectionId===connectionId){this.resolvedOptions.set(c.conId,c);respond('option.resolve',{contract:c});}
       }else if(m.kind==='option.parameters'){
         const stock=await this.adapter.resolveStock('NVDA');
-        const p=await this.adapter.getOptionParameters(stock.conId);this.send('option.parameters',{items:p},m.requestId);
+        const p=await this.adapter.getOptionParameters(stock.conId);respond('option.parameters',{items:p});
       }else if(m.kind==='broker.positions.request'){
-        this.send('broker.positions.snapshot',{items:await this.adapter.getPositions()},m.requestId);
+        respond('broker.positions.snapshot',{items:await this.adapter.getPositions()});
       }else if(m.kind==='broker.executions.request'){
-        this.send('broker.executions.snapshot',{items:await this.adapter.getExecutions({})},m.requestId);
+        respond('broker.executions.snapshot',{items:await this.adapter.getExecutions({})});
       }
-    }catch(e){this.send('agent.error',{message:String(e)},m.requestId);}
+    }catch(e){
+      const error=e as {code?:unknown;stage?:unknown;ibkrCode?:unknown};
+      const code=typeof error.code==='string'&&['TIMEOUT','NOT_FOUND','AMBIGUOUS','PERMISSION','PACING','DISCONNECTED','BROKER_ERROR'].includes(error.code)?error.code:'BROKER_ERROR';
+      const stage=typeof error.stage==='string'&&['contract_details','option_parameters','market_data','agent'].includes(error.stage)?error.stage:'agent';
+      const ibkrCode=typeof error.ibkrCode==='number'?error.ibkrCode:null;
+      console.warn(JSON.stringify({component:'ibkr-agent',event:'request_failed',kind:m.kind,requestId:m.requestId,
+        durationMs:Date.now()-startedAt,stage,code,...(ibkrCode!==null?{ibkrCode}:{})}));
+      respond('agent.error',{code,stage,...(ibkrCode!==null?{ibkrCode}:{})});
+    }
   }
-  async close(){if(this.heartbeat)clearInterval(this.heartbeat);for(const h of this.handles.values())await h.cancel();this.handles.clear();this.subscribing.clear();this.socket?.close();this.closedResolver?.();}
+  async close(){if(this.heartbeat)clearInterval(this.heartbeat);for(const h of this.handles.values())await h.cancel();this.handles.clear();this.subscribing.clear();this.resolvedOptions.clear();this.socket?.close();this.closedResolver?.();}
 }

@@ -25,6 +25,8 @@ Aplicación privada de análisis en español; código probado en el commit 82c69
 | phase19-live-data-integration.md | circuito PAPER y prueba posterior |
 | phase19-journal-compatibility.md | ledger F17, temporalidad y operaciones |
 | phase19-pr25-regression-results.json | pruebas de la revisión, separadas del informe inicial |
+| phase19-option-contracts-fix.md | timeout y contratos parciales; repetición exacta en Windows |
+| phase19-option-contracts-results.json | resultados locales de esta corrección y verificaciones pendientes |
 | phase19-demo-dashboard.png | captura Chromium de Inicio DEMO |
 | phase19-demo-options.png | captura Chromium de Opciones DEMO |
 | phase19-demo-journal.png | captura Chromium de Diario DEMO |

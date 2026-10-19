@@ -14,7 +14,8 @@ import {csvCell} from '../../../trading_poc_001_bollinger/src/phase17-csv.ts';
 import {readBrokerStore,importBrokerSource} from '../../../trading_poc_001_bollinger/src/phase17-broker-store.ts';
 import {openDatabase} from './persistence/db.ts';
 import * as tables from './persistence/schema.ts';
-import {AgentHub} from './streams/agent-hub.ts';
+import {AgentHub,AgentRequestError} from './streams/agent-hub.ts';
+import {registerOptionRoutes} from './options/routes.ts';
 
 type Options={mode?:'DEMO'|'OFFLINE'|'PAPER';privateDir?:string;phase17Private?:string;phase16Ledger?:string;dbPath?:string;agentSecret?:string};
 const repoRoot=fileURLToPath(new URL('../../../',import.meta.url));
@@ -104,9 +105,10 @@ export async function createApp(options:Options={}){
     const parsed=z.object({symbol,consumerId:z.uuid()}).safeParse(req.query);if(!parsed.success)return bad(reply,'Consulta de cotización inválida');
     if(mode!=='PAPER'||!hub.status().connected)return {item:null,dataStatus:'desconectado',source:mode==='DEMO'?'DEMO sintético':'IBKR desconectado'};
     const s=parsed.data.symbol;await hub.subscribe({symbol:s},parsed.data.consumerId);
-    const item=hub.latestQuote(s) as {receivedAtUtc?:string}|null;
+    const item=hub.latestQuote(s) as {receivedAtUtc?:string;marketDataStatus?:string;last?:number|null;bid?:number|null;ask?:number|null}|null;
     const stale=!!item&&(!item.receivedAtUtc||Date.now()-Date.parse(item.receivedAtUtc)>30000);
-    return {item,dataStatus:!item?'pendiente':stale?'obsoleto':'recibido',stale,
+    return {item,dataStatus:!item?'pendiente':stale?'obsoleto':item.marketDataStatus==='permission_denied'?'permisos_insuficientes':
+      item.marketDataStatus==='partial'?'cotizacion_parcial':item.marketDataStatus==='unavailable'||item.last==null&&item.bid==null&&item.ask==null?'cotizacion_no_disponible':'recibido',stale,
       source:hub.status().simulation?'PAPER SIMULADO':'IBKR Paper'};
   });
   app.delete('/api/v1/market/subscriptions/:key',async(req,reply)=>{
@@ -124,52 +126,7 @@ export async function createApp(options:Options={}){
     db.sqlite.prepare('INSERT INTO chart_drawings(id,symbol,timeframe,kind,price,price2,created_at_utc,author) VALUES (?,?,?,?,?,?,?,?)').run(id,x.symbol,x.timeframe,x.kind,x.price,x.price2??null,at,x.author);
     return reply.code(201).send({id,...x,createdAtUtc:at});
   });
-  let parametersCache:{until:number;connectionId:string|null;items:Array<{exchange:string;tradingClass:string;multiplier:number;expirations:string[];strikes:number[]}>}|null=null;
-  const contractCache=new Map<string,{until:number;connectionId:string|null;contract:Record<string,unknown>}>();
-  const optionParameters=async()=>{if(mode!=='PAPER'||!hub.status().connected)return [];
-    if(parametersCache&&parametersCache.until>Date.now()&&
-      parametersCache.connectionId===hub.status().connectionId)return parametersCache.items;
-    const message=await hub.request('option.parameters',{symbol:'NVDA'});
-    if(message.kind==='agent.error')throw new Error('IBKR: '+String(message.payload.message??'sin detalles'));
-    const items=z.array(z.object({exchange:z.string(),tradingClass:z.string(),multiplier:z.number(),expirations:z.array(z.string()),strikes:z.array(z.number())})).parse(message.payload.items)
-      .filter(p=>p.tradingClass==='NVDA'&&p.multiplier===100);
-    parametersCache={items,until:Date.now()+60000,connectionId:hub.status().connectionId};return items;
-  };
-  app.get('/api/v1/options/expirations',async()=>({items:mode==='DEMO'?['2026-10-23']:[...new Set((await optionParameters()).flatMap(p=>p.expirations))].sort(),source:mode==='DEMO'?'DEMO sintético':hub.status().connected?hub.status().simulation?'Agente simulado':'IBKR':'IBKR desconectado'}));
-  app.get('/api/v1/options/strikes',async()=>({items:mode==='DEMO'?[210,215,220,225,230]:[...new Set((await optionParameters()).flatMap(p=>p.strikes))].sort((a,b)=>a-b).slice(0,100),source:mode==='DEMO'?'DEMO sintético':hub.status().connected?hub.status().simulation?'Agente simulado':'IBKR':'IBKR desconectado'}));
-  app.get('/api/v1/options/contracts',async(req,reply)=>{
-    if(mode==='DEMO')return {items:demoOptions(),source:'DEMO sintético'};
-    if(mode!=='PAPER'||!hub.status().connected)return {items:[],source:'IBKR desconectado'};
-    const query=z.object({right:z.enum(['CALL','PUT']).default('CALL'),expiration:z.string().regex(/^\d{8}$/).optional(),limit:z.coerce.number().int().min(1).max(10).default(5),consumerId:z.uuid()}).safeParse(req.query);
-    if(!query.success)return bad(reply,'Consulta de opciones inválida');
-    const params=await optionParameters();const expiration=query.data.expiration??params.flatMap(p=>p.expirations).sort()[0];
-    if(!expiration)return {items:[],source:'IBKR sin vencimientos'};
-    const allStrikes=[...new Set(params.filter(p=>p.expirations.includes(expiration)).flatMap(p=>p.strikes))].sort((a,b)=>a-b);
-    const spot=Number(hub.latestQuote('NVDA')?.last);
-    const pivot=Number.isFinite(spot)&&spot>0?spot:allStrikes[Math.floor(allStrikes.length/2)]??0;
-    const strikes=allStrikes.sort((a,b)=>Math.abs(a-pivot)-Math.abs(b-pivot)||a-b).slice(0,query.data.limit).sort((a,b)=>a-b);
-    const items=[];for(const strike of strikes){
-      const cacheKey=`${expiration}:${query.data.right}:${strike}`;
-      const cached=contractCache.get(cacheKey);
-      let contract=cached&&cached.until>Date.now()&&cached.connectionId===hub.status().connectionId?
-        cached.contract:undefined;
-      if(!contract){
-        const response=await hub.request('option.resolve',{expiration,right:query.data.right,strike});
-        contract=response.payload.contract as Record<string,unknown>|undefined;
-        if(!contract||typeof contract.conId!=='number')continue;
-        contractCache.set(cacheKey,{contract,until:Date.now()+60000,
-          connectionId:hub.status().connectionId});
-      }
-      await hub.subscribe({conId:contract.conId,expiration,right:query.data.right,strike},query.data.consumerId);
-      const quote=hub.latestQuote(String(contract.conId)) as {receivedAtUtc?:string;bid?:number|null;ask?:number|null;feedType?:string}|null;
-      const stale=!!quote&&(!quote.receivedAtUtc||Date.now()-Date.parse(quote.receivedAtUtc)>30000);
-      items.push({...contract,...(quote??{}),spread:spread(quote?.bid??null,quote?.ask??null),
-        dataStatus:!quote?'pendiente':stale?'obsoleto':'recibido',stale,
-        permissions:quote?'No verificados':'Pendientes',
-        provider:hub.status().simulation?'PAPER SIMULADO':'IBKR'});
-    }
-    return {items,source:hub.status().simulation?'Agente simulado':'IBKR Paper',expiration};
-  });
+  registerOptionRoutes(app,hub,mode,demoOptions);
   app.get('/api/v1/options/quotes',async()=>({items:mode==='DEMO'?demoOptions():[],source:mode==='DEMO'?'DEMO sintético':'Consulte /options/contracts para suscribirse a contratos visibles'}));
   app.get('/api/v1/positions',async()=>{if(mode!=='PAPER'||!hub.status().connected)return {items:[],source:'IBKR desconectado'};
     const m=await hub.request('broker.positions.request',{});return {items:m.kind==='broker.positions.snapshot'?m.payload.items:[],source:hub.status().simulation?'Agente simulado':'IBKR Paper'};});

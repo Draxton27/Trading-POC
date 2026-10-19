@@ -1,20 +1,22 @@
 import {z} from 'zod';
+export {boundedMs,agentRequestBudgets,twsRequestBudgets} from './request-budgets.ts';
 
 export const PROTOCOL_VERSION = 1 as const;
 export const utc = z.iso.datetime({offset: true});
 export const symbol = z.enum(['NVDA', 'QQQ', 'SMH']);
 export const Mode = z.enum(['DEMO', 'OFFLINE', 'PAPER']);
 export const FeedType = z.enum(['LIVE', 'DELAYED', 'FROZEN', 'DELAYED_FROZEN', 'UNKNOWN']);
+export const MarketDataErrorStatus=z.enum(['permission_denied','unavailable','partial']);
 export const MarketBar = z.object({symbol, timeframe:z.enum(['15m','1h','1d']), startUtc:utc,endUtc:utc,
   open:z.number().positive(), high:z.number().positive(),low:z.number().positive(),close:z.number().positive(),
   volume:z.number().nonnegative().nullable(),provider:z.string().min(1),adjustment:z.string(),
   receivedAtUtc:utc.nullable(),isComplete:z.boolean()}).refine(b=>b.high>=Math.max(b.open,b.close,b.low)&&b.low<=Math.min(b.open,b.close), 'OHLC inválido');
 export type MarketBar=z.infer<typeof MarketBar>;
-export const MarketQuote=z.object({symbol, bid:z.number().nonnegative().nullable(),ask:z.number().nonnegative().nullable(),last:z.number().nonnegative().nullable(),marketTimestampUtc:utc.nullable(),receivedAtUtc:utc,feedType:FeedType,provider:z.string()});
+export const MarketQuote=z.object({symbol, bid:z.number().nonnegative().nullable(),ask:z.number().nonnegative().nullable(),last:z.number().nonnegative().nullable(),marketTimestampUtc:utc.nullable(),receivedAtUtc:utc,feedType:FeedType,provider:z.string(),marketDataStatus:MarketDataErrorStatus.optional(),ibkrErrorCode:z.number().int().optional()});
 export type MarketQuote=z.infer<typeof MarketQuote>;
 export const OptionContract=z.object({conId:z.number().int().positive(),occSymbol:z.string().nullable(),underlying:symbol,right:z.enum(['CALL','PUT']),strike:z.number().positive(),expiration:z.string(),multiplier:z.number().positive().default(100),tradingClass:z.string().nullable()});
 export type OptionContract=z.infer<typeof OptionContract>;
-export const OptionQuote=z.object({conId:z.number().int().positive(),occSymbol:z.string().nullable(),bid:z.number().nonnegative().nullable(),ask:z.number().nonnegative().nullable(),bidSize:z.number().nonnegative().nullable(),askSize:z.number().nonnegative().nullable(),last:z.number().nonnegative().nullable(),delta:z.number().nullable(),gamma:z.number().nullable(),theta:z.number().nullable(),vega:z.number().nullable(),impliedVolatility:z.number().nonnegative().nullable(),greeksSource:z.string().nullable(),marketTimestampUtc:utc.nullable(),receivedAtUtc:utc,feedType:FeedType,provider:z.literal('IBKR')});
+export const OptionQuote=z.object({conId:z.number().int().positive(),occSymbol:z.string().nullable(),bid:z.number().nonnegative().nullable(),ask:z.number().nonnegative().nullable(),bidSize:z.number().nonnegative().nullable(),askSize:z.number().nonnegative().nullable(),last:z.number().nonnegative().nullable(),delta:z.number().nullable(),gamma:z.number().nullable(),theta:z.number().nullable(),vega:z.number().nullable(),impliedVolatility:z.number().nonnegative().nullable(),greeksSource:z.string().nullable(),marketTimestampUtc:utc.nullable(),receivedAtUtc:utc,feedType:FeedType,provider:z.literal('IBKR'),marketDataStatus:MarketDataErrorStatus.optional(),ibkrErrorCode:z.number().int().optional()});
 export type OptionQuote=z.infer<typeof OptionQuote>;
 export const BrokerPosition=z.object({accountAlias:z.string(),environment:z.enum(['PAPER','LIVE']),conId:z.number().int(),occSymbol:z.string().nullable(),quantity:z.number(),averageCost:z.number().nullable(),asOfUtc:utc});
 export const BrokerExecution=z.object({executionId:z.string(),accountAlias:z.string(),environment:z.enum(['PAPER','LIVE']),conId:z.number().int(),occSymbol:z.string().nullable(),side:z.enum(['BUY','SELL']),quantity:z.number().positive(),price:z.number().nonnegative(),commission:z.number().nullable(),executedAtUtc:utc,receivedAtUtc:utc});

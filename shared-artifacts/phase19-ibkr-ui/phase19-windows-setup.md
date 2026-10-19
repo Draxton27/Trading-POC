@@ -1,5 +1,7 @@
 # Instalación local Windows 10/11
 
+Para repetir la consulta de contratos corregida en el PR #25, siga [los comandos de actualización y verificación Paper](phase19-option-contracts-fix.md). Actualice y reinicie tanto el backend B como el agente A; ambos deben ejecutar el mismo commit.
+
 1. Instalar Node.js 22 LTS o superior y Git para Windows. Abrir PowerShell, clonar el repositorio y situarse en su raíz. Ejecutar npm ci. El módulo SQLite usa binario nativo: si falla en su Windows, conservar el error completo para diagnosticar Node/arquitectura y ejecutar el workflow Windows; WSL/Docker no son requisitos.
 2. Iniciar DEMO con .\scripts\windows\Start-TradingPoc.ps1 -Mode DEMO y abrir http://127.0.0.1:5173 solo en ese equipo. No necesita TWS ni credenciales. Comprobar opciones, gráfico y diario. Para detener, Ctrl+C.
 3. OFFLINE: colocar los CSV NVDA, QQQ y SMH autorizados de 15 minutos, sus .meta.json y .calendar.json en trading_poc_001_bollinger/data. Ejecutar .\scripts\windows\Start-TradingPoc.ps1 -Mode OFFLINE. Los CSV no están incluidos en Git.

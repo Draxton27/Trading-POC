@@ -21,6 +21,8 @@ Los datos privados se guardan fuera de Vite y se excluyen de Git. El diario de l
 
 En PAPER, la última cotización IBKR se presenta por separado del histórico SIP local, con tipo de feed, hora de recepción y estado obsoleto. Los ticks no se convierten en velas. Las SMA 20/40/100/200 y Bollinger 20/2 visibles proceden de `/market/indicators`; los niveles de la sesión previa requieren un `asOfUtc` explícito. [Correcciones y pruebas del PR #25](shared-artifacts/phase19-ibkr-ui/phase19-pr25-review-fixes.md).
 
+En Opciones PAPER, el vencimiento y los strikes se pueden consultar por rango y página. Si NVDA no tiene una última cotización reciente, seleccione un strike o un rango explícito: la aplicación no supone que el centro de toda la cadena sea el precio de NVDA. Cada contrato puede mostrar por separado definición válida, cotización pendiente, permisos insuficientes o error de IBKR. Los precios OPRA no se presumen disponibles. [Diagnóstico e instrucciones de repetición](shared-artifacts/phase19-ibkr-ui/phase19-option-contracts-fix.md).
+
 ## Estructura
 
 - `apps/web`: React, KLineCharts 10 y formularios de decisión.
