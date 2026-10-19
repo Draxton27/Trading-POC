@@ -4,6 +4,10 @@ Aplicación privada en español para observar NVDA, QQQ y SMH, consultar estudio
 
 ## Inicio rápido en Windows 10/11
 
+### Comparador de opciones
+
+En Opciones se pueden seleccionar hasta cuatro contratos por `conId`, incluso de diferentes vencimientos o tipos. DTE cuenta días calendario desde la fecha de Nueva York. El spread porcentual usa `(ASK − BID) / ((ASK + BID) / 2)`; si falta un precio, la cotización está cruzada o el punto medio es cero, se muestra `N/D`. El costo nominal es ASK por multiplicador y el equilibrio al vencimiento es strike más ASK para CALL largo o strike menos ASK para PUT largo, sin comisiones. Son cálculos descriptivos basados en la cotización recibida y no garantizan ejecución. El feed, estado y evaluación documental conservan sus restricciones; DEMO es sintético. Las suscripciones Paper seleccionadas se comparten con la cadena y se liberan al quitar el contrato o salir de la vista.
+
 Instale Node.js 22 o posterior y ejecute en PowerShell desde este repositorio:
 
 ```powershell

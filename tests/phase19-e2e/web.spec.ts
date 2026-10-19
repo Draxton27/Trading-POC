@@ -1,4 +1,45 @@
 import {test,expect} from '@playwright/test';
+test('libera la seleccion PAPER incluso si se quita mientras llega la suscripcion',async({page})=>{
+  let finishResponse:()=>void=()=>{};
+  const gate=new Promise<void>(resolve=>{finishResponse=resolve;});
+  let selectedConsumer='',released:string[]=[];
+  const item={conId:12345,right:'CALL',strike:200,expiration:'20261023',multiplier:100,bid:null,ask:null};
+  await page.route('**/api/v1/health',route=>route.fulfill({json:{ok:true,mode:'PAPER',offlineAvailable:false,timeUtc:new Date().toISOString()}}));
+  await page.route('**/api/v1/options/expirations',route=>route.fulfill({json:{items:['20261023'],source:'simulado'}}));
+  await page.route('**/api/v1/options/strikes?*',route=>route.fulfill({json:{items:[200],total:1,offset:0,nextOffset:null,expiration:'20261023'}}));
+  await page.route('**/api/v1/options/contracts?*',route=>route.fulfill({json:{items:[item],source:'simulado'}}));
+  await page.route('**/api/v1/options/comparison',async route=>{
+    selectedConsumer=route.request().postDataJSON().consumerId;
+    await gate;
+    await route.fulfill({json:{item}});
+  });
+  await page.route('**/api/v1/market/subscriptions/*',route=>{
+    released.push(new URL(route.request().url()).searchParams.get('consumerId')??'');
+    return route.fulfill({json:{released:'12345'}});
+  });
+  await page.goto('/');await page.getByRole('button',{name:'Opciones'}).click();
+  await page.getByRole('checkbox',{name:'Comparar contrato 12345'}).check();
+  await expect.poll(()=>selectedConsumer).not.toBe('');
+  await page.getByRole('button',{name:'Quitar contrato 12345'}).click();
+  expect(released).not.toContain(selectedConsumer);
+  finishResponse();
+  await expect.poll(()=>released).toContain(selectedConsumer);
+});
+test('compara hasta cuatro contratos DEMO y conserva la seleccion al cambiar de tipo',async({page})=>{
+  await page.goto('/');await page.getByRole('button',{name:'Opciones'}).click();
+  const boxes=page.getByRole('checkbox',{name:/Comparar contrato/});
+  await expect(boxes).toHaveCount(5);
+  for(let i=0;i<4;i++)await boxes.nth(i).check();
+  await expect(boxes.nth(4)).toBeDisabled();
+  const table=page.getByRole('table',{name:'Comparador de opciones'});
+  await expect(table.locator('tbody tr')).toHaveCount(4);
+  await expect(table.getByText('conId 90000')).toBeVisible();
+  await page.getByRole('button',{name:'PUT',exact:true}).click();
+  await expect(table.locator('tbody tr')).toHaveCount(4);
+  await table.getByRole('button',{name:'Quitar contrato 90000'}).click();
+  await page.getByRole('checkbox',{name:'Comparar contrato 90100'}).check();
+  await expect(table.getByText('conId 90100')).toBeVisible();
+});
 test('inicio DEMO muestra series, estado y gráfico funcional',async({page})=>{
   const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto('/');await expect(page.getByRole('heading',{name:/Buenos días/})).toBeVisible();

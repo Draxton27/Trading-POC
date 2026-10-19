@@ -86,6 +86,20 @@ describe('respuestas tardías y reconexión',()=>{
 });
 
 describe('API de contratos Paper simulados',()=>{
+  it('conserva un contrato por conId con consumidor separado y sin inventar cotizaciones',async()=>{
+    const {app,hub,token}=await fixture();
+    vi.spyOn(hub,'request').mockImplementation(async(kind,payload)=>kind==='option.parameters'?response(kind,{items:parameters}) as any:
+      response(kind,{contract:{conId:1150,symbol:'NVDA',right:'CALL',expiration:'20261023',strike:Number(payload.strike),multiplier:100}}) as any);
+    const subscribe=vi.spyOn(hub,'subscribe').mockResolvedValue(undefined);
+    const chainConsumer=randomUUID(),comparisonConsumer=randomUUID();
+    await app.inject(`/api/v1/options/contracts?expiration=20261023&centerStrike=150&limit=1&consumerId=${chainConsumer}`);
+    const result=await app.inject({method:'POST',url:'/api/v1/options/comparison',headers:{'x-local-token':token},payload:{conId:1150,consumerId:comparisonConsumer}});
+    expect(result.statusCode).toBe(200);
+    expect(result.json().item).toMatchObject({conId:1150,dataStatus:'cotizacion_pendiente',academyEvaluation:{status:'NO_REFERENCE'}});
+    expect(subscribe).toHaveBeenCalledWith(expect.objectContaining({conId:1150}),comparisonConsumer);
+    const unknown=await app.inject({method:'POST',url:'/api/v1/options/comparison',headers:{'x-local-token':token},payload:{conId:9999,consumerId:comparisonConsumer}});
+    expect(unknown.statusCode).toBe(404);
+  });
   it('pagina más de 100 strikes y exige selección sin cotización NVDA',async()=>{
     const {app,hub}=await fixture();
     vi.spyOn(hub,'request').mockResolvedValue(response('option.parameters',{items:parameters}) as any);

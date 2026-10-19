@@ -5,6 +5,7 @@ import {AgentHub,AgentRequestError} from '../streams/agent-hub.ts';
 import {availableStrikes,selectContractStrikes,quoteReference,type OptionParameter} from './selection.ts';
 import type Database from 'better-sqlite3';
 import {academyRanges,evaluateAcademyAskRange,selectAcademyReference} from '../academy/service.ts';
+import {OptionComparisonRequest} from '@trading-poc/contracts';
 
 type Issue={strike:number|null;code:string;message:string;stage:string;requestId:string|null;ibkrCode:number|null};
 const messages:Record<string,string>={
@@ -71,6 +72,36 @@ export function registerOptionRoutes(app:FastifyInstance,hub:AgentHub,mode:'DEMO
       return {items:all.slice(offset,offset+limit),expiration:selected,total:all.length,offset,
         nextOffset:offset+limit<all.length?offset+limit:null,source:hub.status().simulation?'Agente simulado':'IBKR Paper'};
     }catch(error){return unavailable(reply,error);}
+  });
+  app.post('/api/v1/options/comparison',async(req,reply)=>{
+    const parsed=OptionComparisonRequest.safeParse(req.body);
+    if(!parsed.success)return reply.code(400).send({error:'Seleccion de contrato invalida'});
+    const {conId,consumerId}=parsed.data;
+    if(mode==='DEMO'){
+      const item=(demoOptions() as Array<Record<string,unknown>>).find(row=>row.conId===conId);
+      if(!item)return reply.code(404).send({error:'Contrato no encontrado'});
+      return {item:{...item,academyEvaluation:{status:'INSUFFICIENT_DATA',referenceStatus:'NONE',reference:null,askCents:null,distancePercent:null,quoteReceivedAtUtc:null,reason:'DEMO usa contratos sinteticos; no se comparan con referencias documentales'}},source:'DEMO sintetico'};
+    }
+    if(mode!=='PAPER'||!hub.status().connected)return reply.code(503).send({error:'IBKR Paper desconectado'});
+    const cached=[...contractCache.values()].find(entry=>entry.contract.conId===conId);
+    if(!cached)return reply.code(404).send({error:'Contrato no disponible; vuelva a consultarlo en la cadena'});
+    const contract=cached.contract;
+    let subscribeError:Issue|null=null;
+    try{await hub.subscribe({conId,expiration:contract.expiration,right:contract.right,strike:contract.strike},consumerId);}
+    catch(error){subscribeError=issue(error,Number(contract.strike));}
+    const received=hub.latestQuote(String(conId)) as {receivedAtUtc?:string;marketTimestampUtc?:string;bid?:number|null;ask?:number|null;feedType?:string;marketDataStatus?:string;provider?:string}|null;
+    const stale=!!received&&(!received.receivedAtUtc||Date.now()-Date.parse(received.receivedAtUtc)>30000);
+    const right=contract.right==='PUT'?'PUT':'CALL';
+    const reference=selectAcademyReference(academyRanges(sqlite,'NVDA'),new Date().toISOString(),right);
+    const evaluatedQuote=subscribeError?.code==='PERMISSION'?{...(received??{}),marketDataStatus:'permission_denied'}:
+      received&&hub.status().simulation?{...received,provider:'PAPER SIMULADO'}:received;
+    const academyEvaluation=evaluateAcademyAskRange(reference,evaluatedQuote,Date.now(),String(contract.currency??'USD'),Number(contract.multiplier??100));
+    return {item:{...contract,...(received??{}),academyEvaluation,spread:spread(received?.bid??null,received?.ask??null),
+      dataStatus:subscribeError?subscribeError.code==='PERMISSION'?'permisos_insuficientes':'suscripcion_fallida':
+        !received?'cotizacion_pendiente':stale?'obsoleto':received.marketDataStatus==='permission_denied'?'permisos_insuficientes':
+        received.marketDataStatus==='partial'?'cotizacion_parcial':received.marketDataStatus==='unavailable'||received.bid==null&&received.ask==null?'cotizacion_no_disponible':'recibido',
+      permissions:subscribeError?.code==='PERMISSION'||received?.marketDataStatus==='permission_denied'?'Insuficientes':'No verificados',
+      stale,provider:hub.status().simulation?'PAPER SIMULADO':'IBKR'},error:subscribeError,source:hub.status().simulation?'Agente simulado':'IBKR Paper'};
   });
   app.get('/api/v1/options/contracts',async(req,reply)=>{
     if(mode==='DEMO')return {items:(demoOptions() as Array<Record<string,unknown>>).map(item=>({...item,academyEvaluation:{status:'INSUFFICIENT_DATA',referenceStatus:'NONE',reference:null,askCents:null,distancePercent:null,quoteReceivedAtUtc:null,reason:'DEMO usa contratos sintéticos; no se comparan con referencias documentales'}})),errors:[],source:'DEMO sintético'};
