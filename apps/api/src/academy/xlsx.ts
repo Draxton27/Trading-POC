@@ -18,7 +18,8 @@ export function readZip(input:Buffer){
     if(flags&1||!name||name.includes('..')||name.startsWith('/')||(method!==0&&method!==8)||compressed>MAX_ENTRY_BYTES||size>MAX_ENTRY_BYTES||(total+=size)>MAX_TOTAL_BYTES)throw new Error('Entrada XLSX no permitida');
     if(local+30>input.length||input.readUInt32LE(local)!==0x04034b50)throw new Error('Entrada XLSX corrupta');
     const localName=input.readUInt16LE(local+26),localExtra=input.readUInt16LE(local+28),start=local+30+localName+localExtra,raw=input.subarray(start,start+compressed);
-    const decoded=method===0?raw:inflateRawSync(raw);if(decoded.length!==size)throw new Error('Tamaño XLSX inconsistente');files.set(name,decoded);
+    let decoded:Buffer;try{decoded=method===0?raw:inflateRawSync(raw,{maxOutputLength:MAX_ENTRY_BYTES});}catch{throw new Error('Contenido XLSX excede el límite de descompresión');}
+    if(decoded.length>MAX_ENTRY_BYTES||decoded.length!==size)throw new Error('Tamaño XLSX inconsistente');files.set(name,decoded);
   }return files;
 }
 function textFromXml(value:string){return entity(value.replace(/<[^>]+>/g,''));}

@@ -118,7 +118,7 @@ export function registerOptionRoutes(app:FastifyInstance,hub:AgentHub,mode:'DEMO
       try{await hub.subscribe({conId:contract.conId,expiration:selectedExpiration,right:query.right,strike},query.consumerId,
         deadline-Date.now());}
       catch(error){subscribeError=issue(error,strike);errors.push(subscribeError);}
-      const received=hub.latestQuote(String(contract.conId)) as {receivedAtUtc?:string;bid?:number|null;ask?:number|null;feedType?:string;marketDataStatus?:string;ibkrErrorCode?:number}|null;
+      const received=hub.latestQuote(String(contract.conId)) as {receivedAtUtc?:string;marketTimestampUtc?:string;bid?:number|null;ask?:number|null;feedType?:string;marketDataStatus?:string;ibkrErrorCode?:number;provider?:string}|null;
       const stale=!!received&&(!received.receivedAtUtc||Date.now()-Date.parse(received.receivedAtUtc)>30000);
       const noBidAsk=!received||received.bid==null&&received.ask==null;
       const academyEvaluation=evaluateAcademyAskRange(academyReference,received,Date.now(),String(contract.currency??'USD'),Number(contract.multiplier??100));

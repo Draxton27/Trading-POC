@@ -7,9 +7,11 @@ export type ImportedRange={id:string;asset:string;optionRight:null|'CALL'|'PUT';
 type Table={name:string;rows:Array<Record<string,string>>;method:ImportedRange['extractionMethod']};
 const normalized=(value:string)=>value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]/g,'');
 const money=(value:string)=>{const values=[...value.replace(/,/g,'').matchAll(/\$?\s*(\d+(?:\.\d{1,2})?)/g)].map(x=>x[1]!);if(values.length!==2)return null;const cents=values.map(v=>Math.round(Number(v)*100));return cents.every(Number.isSafeInteger)&&cents[0]!>0&&cents[1]!>0&&cents[0]!<=cents[1]!?[cents[0]!,cents[1]!] as const:null;};
-type ParsedDate={value:string|null;note:string|null};
-const date=(raw:string):ParsedDate=>{const value=raw.trim();if(!value)return {value:null,note:null};if(/^\d{4}-\d{2}-\d{2}$/.test(value))return Number.isNaN(Date.parse(value+'T00:00:00Z'))?{value:null,note:'Fecha no interpretable'}:{value,note:null};if(/^\d+(?:\.0+)?$/.test(value)){const days=Number(value);if(days<1||days>100000)return {value:null,note:'Fecha no interpretable'};return {value:new Date(Date.UTC(1899,11,30)+Math.round(days)*86400000).toISOString().slice(0,10),note:null};}
-  const m=/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/.exec(value);if(!m)return {value:null,note:'Fecha no interpretable'};if(Number(m[1])<=12&&Number(m[2])<=12)return {value:null,note:'Fecha ambigua'};const output=`${m[3]}-${m[1]!.padStart(2,'0')}-${m[2]!.padStart(2,'0')}`;return Number.isNaN(Date.parse(output+'T00:00:00Z'))?{value:null,note:'Fecha no interpretable'}:{value:output,note:null};};
+type ParsedDate={value:string|null;note:string|null;invalid:boolean};
+const validDate=(year:number,month:number,day:number)=>{const parsed=new Date(Date.UTC(year,month-1,day));return parsed.getUTCFullYear()===year&&parsed.getUTCMonth()===month-1&&parsed.getUTCDate()===day;};
+const asDate=(year:number,month:number,day:number):ParsedDate=>validDate(year,month,day)?{value:`${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`,note:null,invalid:false}:{value:null,note:'Fecha imposible',invalid:true};
+const date=(raw:string):ParsedDate=>{const value=raw.trim();if(!value)return {value:null,note:null,invalid:false};const iso=/^(\d{4})-(\d{2})-(\d{2})$/.exec(value);if(iso)return asDate(Number(iso[1]),Number(iso[2]),Number(iso[3]));if(/^\d+(?:\.0+)?$/.test(value)){const days=Number(value);if(days<1||days>100000)return {value:null,note:'Fecha no interpretable',invalid:false};const parsed=new Date(Date.UTC(1899,11,30)+Math.round(days)*86400000);return asDate(parsed.getUTCFullYear(),parsed.getUTCMonth()+1,parsed.getUTCDate());}
+  const m=/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/.exec(value);if(!m)return {value:null,note:'Fecha no interpretable',invalid:false};const first=Number(m[1]),second=Number(m[2]),year=Number(m[3]);if(first<=12&&second<=12)return {value:null,note:'Fecha ambigua',invalid:false};if(first>12&&second<=12)return asDate(year,second,first);if(second>12&&first<=12)return asDate(year,first,second);return {value:null,note:'Fecha imposible',invalid:true};};
 function csvRows(input:string){
   const records:string[][]=[];let row:string[]=[],field='',quoted=false;const source=input.replace(/^\uFEFF/,'');
   for(let index=0;index<source.length;index++){const char=source[index]!;
@@ -38,7 +40,8 @@ export function normalizeAcademyRanges(input:Buffer,sourceFile:string,importedAt
     for(let index=1;index<table.rows.length;index++){
       const record=table.rows[index]!,asset=(record[ticker]??'').trim().toUpperCase(),amount=money(record[range]??'');if(!asset&&!amount)continue;
       if(!/^[A-Z.]{1,12}$/.test(asset)||!amount)throw new Error(`Fila inválida en ${safe}:${table.name}:${index+1}`);
-      const parsedDate=reference?date(record[reference]??''):{value:null,note:null};
+      const parsedDate=reference?date(record[reference]??''):{value:null,note:null,invalid:false};
+      if(parsedDate.invalid)throw new Error(`Fecha inválida en ${safe}:${table.name}:${index+1}`);
       rows.push({id:randomUUID(),asset,optionRight:null,minAskCents:amount[0],maxAskCents:amount[1],currency:'USD',unit:'PER_SHARE',referenceDate:parsedDate.value,validFrom:null,validTo:null,documentHash:hash,sourceFile:safe,sourceLocation:`${table.name}!${index+1}`,versionId:hash.slice(0,16),extractionMethod:table.method,validationStatus:'DOCUMENTED',notes:parsedDate.note,importedAtUtc});
     }
   }if(!rows.length)throw new Error('No se encontró una tabla con TICKER y RANGO ÓPTIMO/ASK RANGE');return rows;

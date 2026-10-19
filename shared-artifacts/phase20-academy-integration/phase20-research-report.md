@@ -9,7 +9,7 @@ Se revisaron localmente una tabla de rangos, dos exportaciones de tabla fechadas
 - Los rangos se tratan como prima ASK unitaria por instrucción explícita del operador.
 - Hay fecha de análisis por fila, pero no un período de vigencia declarado.
 - No hay evidencia suficiente de una fórmula reproducible ni de que un rango antiguo siga vigente.
-- La evaluación exige ASK actual, reciente, USD y multiplicador 100. No usa `last` ni inventa precios cuando OPRA no está disponible.
+- La evaluación exige ASK LIVE, timestamps de mercado y recepción recientes, USD y multiplicador 100. No usa `last` ni presenta feeds retrasados, congelados, desconocidos o simulados como precios ejecutables.
 
 ## Límites
 

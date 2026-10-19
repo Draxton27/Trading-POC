@@ -19,17 +19,17 @@ La comparación local de las tres fuentes encontró registros repetidos y fechas
 1. Un intervalo de vigencia explícito tiene prioridad (`ACTIVE`).
 2. Sin intervalo, un registro solo es aplicable en su misma fecha de referencia (`REFERENCE_DATE`).
 3. Una referencia anterior se conserva para investigación como `HISTORICAL_ONLY`; no se evalúa contra un ASK actual.
-4. Dos referencias aplicables para la misma fecha, o dos candidatas de la última fecha anterior, producen `CONFLICT`.
+4. Dos referencias aplicables para la misma fecha, o dos candidatas de la última fecha anterior, producen `CONFLICT` solo si sus rangos ASK son distintos. Fuentes equivalentes conservan ambas procedencias y representan una única referencia evaluable.
 5. Si una fuente futura omite un activo, no elimina su historial ni lo convierte en recomendación vigente.
 
-Las fechas ISO y seriales de Excel se normalizan de forma reproducible. Una fecha numérica con día y mes ambos menores o iguales que 12 no se adivina: se conserva sin fecha de referencia con la nota `Fecha ambigua`. La fecha incluida en un nombre de archivo se guarda solo como metadato secundario, nunca como vigencia.
+Las fechas ISO y seriales de Excel se normalizan mediante validación exacta de año, mes y día. También se admiten DD/MM/YYYY y MM/DD/YYYY cuando uno de sus componentes descarta la otra interpretación. Una fecha numérica con día y mes ambos menores o iguales que 12 no se adivina: se conserva sin fecha de referencia con la nota `Fecha ambigua`. Una fecha imposible, como 2026-02-30, se rechaza antes de persistir. La fecha incluida en un nombre de archivo se guarda solo como metadato secundario, nunca como vigencia.
 
 ## Arquitectura y privacidad
 
-- `apps/api/src/academy/xlsx.ts` lee XLSX ordinarios con límites de 200 entradas, 5 MiB por entrada y 12 MiB descomprimidos. Rechaza cifrado, rutas relativas, entradas corruptas y expansiones excesivas.
+- `apps/api/src/academy/xlsx.ts` lee XLSX ordinarios con límites de 200 entradas, 5 MiB por entrada y 12 MiB descomprimidos. El límite se aplica durante la descompresión, por lo que metadatos ZIP falsificados no permiten expandir una entrada más allá del máximo. Rechaza cifrado, rutas relativas, entradas corruptas y expansiones excesivas.
 - El importador acepta XLSX, CSV con comillas y HTML de una tabla. Exige `TICKER`/`SYMBOL` y `RANGO ÓPTIMO`/`ASK RANGE`, normaliza dinero a centavos y no rellena campos ausentes.
 - `academy_documents` conserva hash SHA-256, archivo base, formato, fecha secundaria de nombre, momento de importación y conteo. `academy_ask_ranges` conserva rango, fecha, ubicación, versión, método y estado. Los originales no se guardan.
-- El evaluador compara solo un ASK reciente de IBKR. No usa `last`; cero, ausencia de ASK, permiso denegado, timestamp inválido u obsoleto, moneda distinta de USD o multiplicador distinto de 100 dejan el resultado no evaluable.
+- El evaluador compara solo un ASK LIVE reciente de IBKR. Comprueba timestamp de mercado y de recepción; no usa `last`. Feeds DELAYED, FROZEN, DELAYED_FROZEN, UNKNOWN o simulados, cotización parcial/no disponible, cero, ausencia de ASK, permiso denegado, timestamp inválido u obsoleto, moneda distinta de USD o multiplicador distinto de 100 dejan el resultado no evaluable. La referencia documental sigue visible en esos casos.
 - `GET /api/v1/academy/summary` y `GET /api/v1/academy/ranges?symbol=NVDA&asOf=YYYY-MM-DD` exponen metadatos y registros normalizados, nunca archivos fuente. La importación es una CLI local, no una API pública.
 
 ```powershell
