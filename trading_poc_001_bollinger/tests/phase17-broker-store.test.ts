@@ -54,7 +54,10 @@ test('tres archivos sintéticos reconstruyen una posición, ventas parciales y r
   assert.equal(repeated.alreadyPresent, true);
   assert.equal(repeated.state.stateSha256, c.state.stateSha256);
   assert.equal(repeated.state.sourceFiles.length, 3);
-  assert.equal(statSync(join(root,'broker-sources',`${a.sourceSha256}.json`)).mode & 0o777, 0o600);
+  const stored = statSync(join(root,'broker-sources',`${a.sourceSha256}.json`));
+  assert.ok(stored.size > 0);
+  // NTFS aplica ACL; los bits POSIX de stat.mode no prueban privacidad en Windows.
+  if (process.platform !== 'win32') assert.equal(stored.mode & 0o777, 0o600);
   assert.equal(readBrokerStore(root, at('16:04')).stateSha256, c.state.stateSha256);
 }));
 

@@ -28,7 +28,9 @@ function demoOptions(){
 }
 export async function createApp(options:Options={}){
   const parsedMode=Mode.safeParse(options.mode??process.env.TRADING_POC_MODE??'DEMO');if(!parsedMode.success)throw new Error('Modo inválido');
-  const mode=parsedMode.data;const privateDir=options.privateDir??(process.env.TRADING_POC_PRIVATE_DIR?resolve(process.env.TRADING_POC_PRIVATE_DIR):resolve(repoRoot,'private'));
+  const mode=parsedMode.data;const defaultPrivateDir=process.platform==='win32'&&process.env.LOCALAPPDATA?
+    resolve(process.env.LOCALAPPDATA,'Trading-POC'):resolve(repoRoot,'private');
+  const privateDir=options.privateDir??(process.env.TRADING_POC_PRIVATE_DIR?resolve(process.env.TRADING_POC_PRIVATE_DIR):defaultPrivateDir);
   const phase17Private=options.phase17Private??(process.env.TRADING_POC_PHASE17_PRIVATE_DIR?resolve(process.env.TRADING_POC_PHASE17_PRIVATE_DIR):resolve(repoRoot,'trading_poc_001_bollinger/output/phase17-private'));
   const phase16Ledger=options.phase16Ledger??(process.env.TRADING_POC_PHASE16_LEDGER?resolve(process.env.TRADING_POC_PHASE16_LEDGER):resolve(repoRoot,'shared-artifacts/phase16-forward-observation/live/ledger'));
   const db=openDatabase(options.dbPath??process.env.TRADING_POC_DB_PATH??resolve(privateDir,'trading-poc.sqlite'));
