@@ -141,8 +141,12 @@ export function importBrokerSource(privateRoot: string, raw: Buffer,
     try {writeFileSync(fd, JSON.stringify(source) + '\n'); fsyncSync(fd);}
     finally {closeSync(fd);}
     renameSync(temporary, target);
-    const dirFd = openSync(directory, 'r');
-    try {fsyncSync(dirFd);} finally {closeSync(dirFd);}
+    // Windows no permite fsync del directorio mediante fs.openSync de Node.
+    // El sobre privado ya fue sincronizado antes del rename atómico.
+    if (process.platform !== 'win32') {
+      const dirFd = openSync(directory, 'r');
+      try {fsyncSync(dirFd);} finally {closeSync(dirFd);}
+    }
     return {state: next, sourceSha256, alreadyPresent: false};
   } finally {closeSync(lock); unlinkSync(lockPath);}
 }
