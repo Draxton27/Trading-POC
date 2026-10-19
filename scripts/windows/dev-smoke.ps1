@@ -19,6 +19,17 @@ function StopTree([int]$processId) {
   Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue
 }
 
+function AssertPortsClosed([int[]]$ports, [string]$context) {
+  foreach ($port in $ports) {
+    $client = [System.Net.Sockets.TcpClient]::new()
+    try {
+      $client.Connect('127.0.0.1', $port)
+      throw "Proceso huerfano $context en puerto $port"
+    } catch [System.Net.Sockets.SocketException] { }
+    finally { $client.Dispose() }
+  }
+}
+
 $env:TRADING_POC_API_PORT = [string](FreePort)
 $env:TRADING_POC_WEB_PORT = [string](FreePort)
 $env:TRADING_POC_MODE = 'DEMO'
@@ -51,7 +62,6 @@ try {
   $process.WaitForExit(10000) | Out-Null
 }
 
-Start-Sleep -Seconds 1
 foreach ($port in @($env:TRADING_POC_API_PORT, $env:TRADING_POC_WEB_PORT)) {
   $client = [System.Net.Sockets.TcpClient]::new()
   try {
@@ -82,3 +92,37 @@ foreach ($port in @($env:TRADING_POC_API_PORT, $env:TRADING_POC_WEB_PORT)) {
   finally { $client.Dispose() }
 }
 Write-Host 'Fallo del hijo propagado y ambos puertos liberados.'
+
+$failedAfterStart = Start-Process -FilePath 'node.exe' -ArgumentList 'scripts/windows/dev-failure-after-start-fixture.mjs' `
+  -WorkingDirectory $junction -WindowStyle Hidden -PassThru `
+  -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+try {
+  if (-not $failedAfterStart.WaitForExit(45000)) {
+    throw "El launcher no cerrÃ³ Vite tras un fallo posterior a su arranque. stdout=$(Get-Content $stdout -Raw) stderr=$(Get-Content $stderr -Raw)"
+  }
+  if ($failedAfterStart.ExitCode -eq 0) { throw 'El launcher ocultÃ³ el fallo posterior al arranque de Vite.' }
+} finally {
+  if (-not $failedAfterStart.HasExited) { StopTree $failedAfterStart.Id }
+}
+AssertPortsClosed @([int]$env:TRADING_POC_API_PORT, [int]$env:TRADING_POC_WEB_PORT) 'despues de fallo con Vite disponible'
+Write-Host 'Fallo posterior al arranque propagado y puertos liberados.'
+
+$occupiedApiPort = FreePort
+$env:TRADING_POC_API_PORT = [string]$occupiedApiPort
+$env:TRADING_POC_WEB_PORT = [string](FreePort)
+$occupiedListener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, $occupiedApiPort)
+$occupiedListener.Start()
+try {
+  $blocked = Start-Process -FilePath 'node.exe' -ArgumentList 'scripts/dev.mjs' `
+    -WorkingDirectory $junction -WindowStyle Hidden -PassThru `
+    -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+  if (-not $blocked.WaitForExit(10000)) {
+    StopTree $blocked.Id
+    throw 'El launcher no rechazÃ³ el puerto API ocupado.'
+  }
+  if ($blocked.ExitCode -eq 0) { throw 'El launcher iniciÃ³ con el puerto API ocupado.' }
+  AssertPortsClosed @([int]$env:TRADING_POC_WEB_PORT) 'despues de rechazar un puerto ocupado'
+} finally {
+  $occupiedListener.Stop()
+}
+Write-Host 'Puerto ocupado rechazado sin iniciar servicios adicionales.'

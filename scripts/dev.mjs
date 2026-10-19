@@ -29,34 +29,68 @@ export async function assertPortsFree(env=process.env){
   }
 }
 
-export function startDev({names=scripts,env=process.env,spawnProcess=spawn}={}){
+export function startDev({names=scripts,env=process.env,spawnProcess=spawn,platform=process.platform}={}){
   const cli=npmCli(env);
   const children=[];
-  let stopping=false,exitCode=0,remaining=names.length;
+  let stopping=false,exitCode=0,remaining=0,pendingTerminators=0,finished=false;
+  let onSignal;
+  let resolveCompletion;
+  const completion=new Promise(resolve=>{resolveCompletion=resolve;});
+  const cleanup=()=>{
+    if(onSignal){process.off('SIGINT',onSignal);process.off('SIGTERM',onSignal);}
+  };
+  const finish=()=>{
+    if(finished||remaining!==0||pendingTerminators!==0)return;
+    finished=true;
+    process.exitCode=exitCode;
+    cleanup();
+    resolveCompletion(exitCode);
+  };
+  const terminateWindowsTree=child=>{
+    pendingTerminators++;
+    let settled=false;
+    const settle=()=>{
+      if(settled)return;
+      settled=true;
+      pendingTerminators--;
+      finish();
+    };
+    let killer;
+    try{
+      killer=spawnProcess('taskkill.exe',['/PID',String(child.pid),'/T','/F'],
+        {stdio:'ignore',windowsHide:true});
+    }catch{
+      child.kill();
+      settle();
+      return;
+    }
+    killer.once('error',()=>{child.kill();settle();});
+    killer.once('close',code=>{if(code!==0)child.kill();settle();});
+  };
   const stop=(code=0)=>{
-    if(stopping)return;
+    if(stopping)return completion;
     stopping=true;exitCode=code;
     for(const child of children){
       if(child.exitCode!==null||child.signalCode!==null||!child.pid)continue;
-      if(process.platform==='win32'){
+      if(platform==='win32'){
         // npm launches a shell for each script; terminate its entire process tree.
-        const killer=spawnProcess('taskkill.exe',['/PID',String(child.pid),'/T','/F'],
-          {stdio:'ignore',windowsHide:true});
-        killer.on('error',()=>child.kill());
-        killer.on('close',code=>{if(code!==0)child.kill();});
+        terminateWindowsTree(child);
       }else{
         try{process.kill(-child.pid,'SIGTERM');}catch{child.kill('SIGTERM');}
       }
     }
+    finish();
+    return completion;
   };
   for(const name of names){
     let child;
     try{
       child=spawnProcess(process.execPath,[cli,'run',name],
         {cwd:root,stdio:'inherit',env:{...env},shell:false,windowsHide:true,
-          detached:process.platform!=='win32'});
-    }catch(error){console.error(`No se pudo iniciar ${name}:`,error);remaining=children.length;stop(1);if(!remaining)process.exitCode=1;break;}
+          detached:platform!=='win32'});
+    }catch(error){console.error(`No se pudo iniciar ${name}:`,error);stop(1);break;}
     children.push(child);
+    remaining++;
     child.on('error',error=>{console.error(`No se pudo iniciar ${name}:`,error);stop(1);});
     child.on('close',(code,signal)=>{
       remaining--;
@@ -64,13 +98,13 @@ export function startDev({names=scripts,env=process.env,spawnProcess=spawn}={}){
         console.error(`${name} terminó${signal?` por ${signal}`:` con código ${code}`}; deteniendo los servicios.`);
         stop(code&&code!==0?code:1);
       }
-      if(remaining===0){process.exitCode=exitCode;cleanup();}
+      finish();
     });
   }
-  const onSignal=()=>stop(0);
-  const cleanup=()=>{process.off('SIGINT',onSignal);process.off('SIGTERM',onSignal);};
+  onSignal=()=>stop(0);
   process.on('SIGINT',onSignal);process.on('SIGTERM',onSignal);
-  return {children,stop};
+  finish();
+  return {children,stop,completion};
 }
 
 if(process.argv[1]&&realpathSync(resolve(process.argv[1]))===realpathSync(fileURLToPath(import.meta.url))){
