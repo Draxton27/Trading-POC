@@ -62,13 +62,14 @@ foreach ($port in @($env:TRADING_POC_API_PORT, $env:TRADING_POC_WEB_PORT)) {
 }
 Write-Host 'Ambos puertos cerrados tras detener el árbol del launcher.'
 
-$env:TRADING_POC_MODE = 'INVALID'
-$failed = Start-Process -FilePath 'cmd.exe' -ArgumentList '/d','/s','/c','npm.cmd run dev' `
+$failed = Start-Process -FilePath 'node.exe' -ArgumentList 'scripts/windows/dev-failure-fixture.mjs' `
   -WorkingDirectory $junction -WindowStyle Hidden -PassThru `
   -RedirectStandardOutput $stdout -RedirectStandardError $stderr
 try {
-  if (-not $failed.WaitForExit(30000)) { throw 'El launcher no cerró Vite al fallar la API.' }
-  if ($failed.ExitCode -eq 0) { throw 'El launcher ocultó el fallo de la API.' }
+  if (-not $failed.WaitForExit(30000)) {
+    throw "El launcher no cerró Vite al fallar el otro script. stdout=$(Get-Content $stdout -Raw) stderr=$(Get-Content $stderr -Raw)"
+  }
+  if ($failed.ExitCode -eq 0) { throw 'El launcher ocultó el fallo del otro script.' }
 } finally {
   if (-not $failed.HasExited) { StopTree $failed.Id }
 }
