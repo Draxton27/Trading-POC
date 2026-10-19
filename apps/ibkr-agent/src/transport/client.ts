@@ -14,6 +14,7 @@ const allowedUrl=(raw:string)=>{
 export class AgentTransport {
   private socket:WebSocket|null=null;private sequence=0;private connectionId=randomUUID();private lastBackendSequence=-1;
   private handles=new Map<string,SubscriptionHandle>();private heartbeat:NodeJS.Timeout|null=null;
+  private subscribing=new Map<string,Promise<SubscriptionHandle>>();
   private closedResolver:(()=>void)|null=null;private closedPromise:Promise<void>=Promise.resolve();
   constructor(private readonly adapter:ReadOnlyBrokerAdapter,private readonly config:{url:string;agentId:string;secret:string;simulation?:boolean}){
     if(!allowedUrl(config.url))throw new Error('Transporte remoto requiere wss o Tailscale privada');
@@ -52,15 +53,22 @@ export class AgentTransport {
         const symbol=String(m.payload.symbol??'');
         const key=String(m.payload.conId??symbol);
         if(this.handles.has(key)){this.send('agent.status',{subscribed:key,alreadyPresent:true},m.requestId);return;}
-        let c:ResolvedContract;
-        if(m.payload.conId!==undefined){
-          const q=m.payload;
-          c=await this.adapter.resolveOption({symbol:'NVDA',expiration:String(q.expiration),right:q.right==='PUT'?'PUT':'CALL',strike:Number(q.strike)});
-        }else c=await this.adapter.resolveStock(symbol);
-        const handle=await this.adapter.subscribeQuotes([c],quote=>this.send(c.secType==='OPT'?'option.quote':'market.quote',quote as unknown as Record<string,unknown>));
+        let pending=this.subscribing.get(key);
+        if(!pending){pending=(async()=>{
+          let c:ResolvedContract;
+          if(m.payload.conId!==undefined){
+            const q=m.payload;
+            c=await this.adapter.resolveOption({symbol:'NVDA',expiration:String(q.expiration),right:q.right==='PUT'?'PUT':'CALL',strike:Number(q.strike)});
+            if(c.conId!==Number(q.conId))throw new Error('Contrato resuelto distinto de conId solicitado');
+          }else c=await this.adapter.resolveStock(symbol);
+          return this.adapter.subscribeQuotes([c],quote=>this.send(c.secType==='OPT'?'option.quote':'market.quote',quote as unknown as Record<string,unknown>));
+        })();this.subscribing.set(key,pending);}
+        let handle:SubscriptionHandle;try{handle=await pending;}finally{this.subscribing.delete(key);}
         this.handles.set(key,handle);this.send('agent.status',{subscribed:key},m.requestId);
       }else if(m.kind==='market.unsubscribe'){
-        const key=String(m.payload.conId??m.payload.symbol??'');const h=this.handles.get(key);if(h){await h.cancel();this.handles.delete(key);}this.send('agent.status',{unsubscribed:key},m.requestId);
+        const key=String(m.payload.conId??m.payload.symbol??'');
+        if(this.subscribing.has(key))await this.subscribing.get(key);
+        const h=this.handles.get(key);if(h){await h.cancel();this.handles.delete(key);}this.send('agent.status',{unsubscribed:key},m.requestId);
       }else if(m.kind==='option.resolve'){
         const c=await this.adapter.resolveOption({symbol:'NVDA',expiration:String(m.payload.expiration),right:m.payload.right==='PUT'?'PUT':'CALL',strike:Number(m.payload.strike)});
         this.send('option.resolve',{contract:c},m.requestId);
@@ -74,5 +82,5 @@ export class AgentTransport {
       }
     }catch(e){this.send('agent.error',{message:String(e)},m.requestId);}
   }
-  async close(){if(this.heartbeat)clearInterval(this.heartbeat);for(const h of this.handles.values())await h.cancel();this.handles.clear();this.socket?.close();this.closedResolver?.();}
+  async close(){if(this.heartbeat)clearInterval(this.heartbeat);for(const h of this.handles.values())await h.cancel();this.handles.clear();this.subscribing.clear();this.socket?.close();this.closedResolver?.();}
 }

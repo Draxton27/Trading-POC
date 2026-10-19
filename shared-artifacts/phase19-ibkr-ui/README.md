@@ -17,11 +17,19 @@ Aplicación privada de análisis en español; código probado en el commit 82c69
 | phase19-test-results.json | resultados reproducibles y pendientes |
 | phase19-limitations.md | diferencias respecto al alcance deseado |
 | phase19-report.md | informe en español |
+| phase19-pr25-review-fixes.md | mapa de correcciones del PR #25 |
+| phase19-windows-startup-fix.md | causa y pruebas del error `spawn EINVAL` |
+| phase19-ibkr-tick-validation.md | códigos TWS y normalización por feed |
+| phase19-indicator-equivalence.md | SMA/Bollinger entre motor y gráfico |
+| phase19-historical-context-audit.md | niveles sin información futura |
+| phase19-live-data-integration.md | circuito PAPER y prueba posterior |
+| phase19-journal-compatibility.md | ledger F17, temporalidad y operaciones |
+| phase19-pr25-regression-results.json | pruebas de la revisión, separadas del informe inicial |
 | phase19-demo-dashboard.png | captura Chromium de Inicio DEMO |
 | phase19-demo-options.png | captura Chromium de Opciones DEMO |
 | phase19-demo-journal.png | captura Chromium de Diario DEMO |
 | SHA256SUMS.txt | hashes de todos los archivos anteriores y este README |
 
-Reproducción desde la raíz del repositorio: npm ci; npm run typecheck; npm test; npm run build; npm run test:e2e. Esta última orden vuelve a producir las tres capturas con la aplicación DEMO activa. Para Windows consulte phase19-windows-setup.md. Para OFFLINE se requieren fuentes SIP locales autorizadas. La conexión TWS Paper auténtica no fue probada; el agente MOCK se etiqueta como simulado.
+Reproducción desde la raíz del repositorio: npm ci; npm run typecheck; npm test; npm run build; npm run test:e2e. Esta última orden genera las tres capturas de DEMO en `test-results/phase19-smoke`, fuera de Git. Solo defina `TRADING_POC_SCREENSHOT_DIR=shared-artifacts/phase19-ibkr-ui` si desea reemplazar expresamente los PNG originales. En un Windows con Chrome instalado puede definir `TRADING_POC_CHROMIUM_PATH` si falta Chromium de Playwright. Para OFFLINE se requieren fuentes SIP locales autorizadas. La conexión TWS Paper auténtica no fue probada; el agente MOCK se etiqueta como simulado. Los resultados iniciales y las imágenes anteriores se conservan como evidencia del commit original.
 
-Verificación de integridad: ejecutar sha256sum -c SHA256SUMS.txt desde este directorio en un entorno con sha256sum, o Get-FileHash por archivo en PowerShell. SHA256SUMS.txt no se incluye a sí mismo.
+Verificación de integridad: los hashes corresponden a los bytes publicados en Git. Ejecute `sha256sum -c SHA256SUMS.txt` sobre los archivos extraídos con `git archive` o en un checkout con `core.autocrlf=false`. En Windows, la conversión automática de LF a CRLF puede cambiar el hash del archivo de trabajo aunque el contenido versionado sea correcto. SHA256SUMS.txt no se incluye a sí mismo.

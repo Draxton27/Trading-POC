@@ -1,24 +1,25 @@
 import {createHmac} from 'node:crypto';
 import {EventEmitter} from 'node:events';
-import {IBApi,EventName,SecType,OptionType,type Contract,type ContractDetails,type Execution} from '@stoqey/ib';
+import {IBApi,EventName,SecType,OptionType,MarketDataType,type Contract,type ContractDetails,type Execution} from '@stoqey/ib';
 import {MarketBar,MarketQuote,OptionQuote,type MarketBar as Bar,type MarketQuote as Quote,type OptionQuote as OQuote} from '@trading-poc/contracts';
-import {quoteNumber,priceNumber} from '@trading-poc/market-domain';
+import {quoteNumber} from '@trading-poc/market-domain';
 import type {ReadOnlyBrokerAdapter,ResolvedContract,OptionParameters,SubscriptionHandle} from './adapter.ts';
+import {TickBook} from './tick-normalizer.ts';
 
 type Feed='LIVE'|'DELAYED'|'FROZEN'|'DELAYED_FROZEN'|'UNKNOWN';
-export const normalizeFeed=(code:number):Feed=>({1:'LIVE',2:'FROZEN',3:'DELAYED',4:'DELAYED_FROZEN'} as Record<number,Feed>)[code]??'UNKNOWN';
+export {normalizeFeed} from './tick-normalizer.ts';
 const contract=(c:ResolvedContract):Contract=>({conId:c.conId,symbol:c.symbol,secType:c.secType==='STK'?SecType.STK:SecType.OPT,exchange:c.exchange,currency:c.currency});
 export class TwsReadOnlyAdapter implements ReadOnlyBrokerAdapter {
   private readonly api:IBApi;private readonly bus:EventEmitter;
   private ready=false;private accountVerified=false;private req=1000;private lastRequest=0;
-  private feed:Feed='UNKNOWN';private feedByReq=new Map<number,Feed>();private subscriptions=new Set<number>();
+  private books=new Map<number,TickBook>();private subscriptions=new Set<number>();
   constructor(private readonly config:{host:string;port:number;clientId:number;expectedPaperAccount:string;aliasSecret:string}){
     if(!['127.0.0.1','localhost'].includes(config.host))throw new Error('TWS solo en loopback');
     if(!config.expectedPaperAccount||!config.aliasSecret)throw new Error('Cuenta Paper esperada y secreto local requeridos');
     this.api=new IBApi({host:config.host,port:config.port,maxReqPerSec:5});this.bus=this.api as unknown as EventEmitter;
-    this.bus.on(EventName.disconnected,()=>{this.ready=false;this.accountVerified=false;this.feed='UNKNOWN';});
-    this.bus.on(EventName.connectionClosed,()=>{this.ready=false;this.accountVerified=false;});
-    this.bus.on(EventName.marketDataType,(id:number,kind:number)=>{this.feedByReq.set(id,normalizeFeed(kind));this.feed=normalizeFeed(kind);});
+    this.bus.on(EventName.disconnected,()=>{this.ready=false;this.accountVerified=false;this.books.clear();});
+    this.bus.on(EventName.connectionClosed,()=>{this.ready=false;this.accountVerified=false;this.books.clear();});
+    this.bus.on(EventName.marketDataType,(id:number,kind:number)=>this.books.get(id)?.setFeed(kind));
   }
   private async pace(){const wait=220-(Date.now()-this.lastRequest);if(wait>0)await new Promise(r=>setTimeout(r,wait));this.lastRequest=Date.now();}
   private requireReady(){if(!this.ready||!this.accountVerified||!this.api.isConnected)throw new Error('Handshake de TWS Paper incompleto');}
@@ -26,7 +27,8 @@ export class TwsReadOnlyAdapter implements ReadOnlyBrokerAdapter {
     await new Promise<void>((resolve,reject)=>{
       let id=false,account=false;
       const cleanup=()=>{clearTimeout(timer);this.bus.off(EventName.nextValidId,onId);this.bus.off(EventName.managedAccounts,onAccounts);};
-      const done=()=>{if(id&&account){cleanup();this.ready=true;this.accountVerified=true;resolve();}};
+      const done=()=>{if(id&&account){cleanup();this.api.reqMarketDataType(MarketDataType.DELAYED);
+        this.ready=true;this.accountVerified=true;resolve();}};
       const onId=()=>{id=true;done();};
       const onAccounts=(list:string)=>{account=list.split(',').includes(this.config.expectedPaperAccount);
         if(!account){cleanup();this.api.disconnect();reject(new Error('Cuenta Paper no coincide'));}else done();};
@@ -34,8 +36,9 @@ export class TwsReadOnlyAdapter implements ReadOnlyBrokerAdapter {
       this.bus.on(EventName.nextValidId,onId);this.bus.on(EventName.managedAccounts,onAccounts);this.api.connect(this.config.clientId);
     });
   }
-  async disconnect(){for(const id of this.subscriptions)this.api.cancelMktData(id);this.subscriptions.clear();this.api.disconnect();this.ready=false;}
-  async getStatus(){return {connected:this.ready&&this.api.isConnected,environment:this.accountVerified?'PAPER' as const:'UNKNOWN' as const,accountVerified:this.accountVerified,feedType:this.feed,asOfUtc:new Date().toISOString(),detail:this.ready?null:'TWS no disponible'};}
+  async disconnect(){for(const id of this.subscriptions)this.api.cancelMktData(id);this.subscriptions.clear();this.books.clear();this.api.disconnect();this.ready=false;}
+  async getStatus(){const feeds=new Set([...this.books.values()].map(book=>book.feed));const feedType:Feed=feeds.size===1?feeds.values().next().value!:'UNKNOWN';
+    return {connected:this.ready&&this.api.isConnected,environment:this.accountVerified?'PAPER' as const:'UNKNOWN' as const,accountVerified:this.accountVerified,feedType,asOfUtc:new Date().toISOString(),detail:this.ready?null:'TWS no disponible'};}
   private async details(query:Contract):Promise<ResolvedContract>{
     this.requireReady();await this.pace();const id=++this.req,rows:ContractDetails[]=[];
     return new Promise((resolve,reject)=>{
@@ -80,17 +83,17 @@ export class TwsReadOnlyAdapter implements ReadOnlyBrokerAdapter {
   }
   async subscribeQuotes(contracts:ResolvedContract[],callback:(quote:Quote|OQuote)=>void):Promise<SubscriptionHandle>{
     this.requireReady();if(contracts.length>10)throw new Error('Límite de 10 contratos visibles');
-    const ids:number[]=[],byId=new Map<number,ResolvedContract>(),state=new Map<number,{bid:number|null;ask:number|null;last:number|null;bidSize:number|null;askSize:number|null;delta:number|null;gamma:number|null;theta:number|null;vega:number|null;impliedVolatility:number|null}>();
-    const emit=(id:number)=>{const c=byId.get(id),s=state.get(id);if(!c||!s)return;const now=new Date().toISOString(),feedType=this.feedByReq.get(id)??'UNKNOWN';
+    const ids:number[]=[],byId=new Map<number,ResolvedContract>();
+    const emit=(id:number)=>{const c=byId.get(id),book=this.books.get(id);if(!c||!book)return;const s=book.snapshot(),now=new Date().toISOString(),feedType=s.feedType;
       if(c.secType==='STK'){const p=MarketQuote.safeParse({symbol:c.symbol,bid:s.bid,ask:s.ask,last:s.last,marketTimestampUtc:null,receivedAtUtc:now,feedType,provider:'IBKR'});if(p.success)callback(p.data);}
-      else{const p=OptionQuote.safeParse({conId:c.conId,occSymbol:c.localSymbol,bid:s.bid,ask:s.ask,bidSize:s.bidSize,askSize:s.askSize,last:s.last,delta:s.delta,gamma:s.gamma,theta:s.theta,vega:s.vega,impliedVolatility:s.impliedVolatility,greeksSource:s.delta===null?null:'IBKR MODEL_OPTION',marketTimestampUtc:null,receivedAtUtc:now,feedType,provider:'IBKR'});if(p.success)callback(p.data);}
+      else{const p=OptionQuote.safeParse({conId:c.conId,occSymbol:c.localSymbol,bid:s.bid,ask:s.ask,bidSize:s.bidSize,askSize:s.askSize,last:s.last,delta:s.delta,gamma:s.gamma,theta:s.theta,vega:s.vega,impliedVolatility:s.impliedVolatility,greeksSource:s.greeksSource,marketTimestampUtc:null,receivedAtUtc:now,feedType,provider:'IBKR'});if(p.success)callback(p.data);}
     };
-    const onPrice=(id:number,field:number,value:number)=>{const s=state.get(id);if(!s)return;if(field===1)s.bid=priceNumber(value);if(field===2)s.ask=priceNumber(value);if(field===4)s.last=priceNumber(value);emit(id);};
-    const onSize=(id:number,field:number,value:number)=>{const s=state.get(id);if(!s)return;if(field===0)s.bidSize=quoteNumber(value);if(field===3)s.askSize=quoteNumber(value);emit(id);};
-    const onGreek=(id:number,field:number,_attr:number,iv:number,delta:number,_opt:number,_pv:number,gamma:number,vega:number,theta:number)=>{if(field!==13)return;const s=state.get(id);if(!s)return;s.impliedVolatility=quoteNumber(iv);s.delta=Number.isFinite(delta)&&Math.abs(delta)<=1?delta:null;s.gamma=quoteNumber(gamma);s.vega=quoteNumber(vega);s.theta=Number.isFinite(theta)?theta:null;emit(id);};
+    const onPrice=(id:number,field:number,value:number)=>{if(this.books.get(id)?.price(field,value))emit(id);};
+    const onSize=(id:number,field:number,value:number)=>{if(this.books.get(id)?.size(field,value))emit(id);};
+    const onGreek=(id:number,field:number,_attr:number,iv:number,delta:number,_opt:number,_pv:number,gamma:number,vega:number,theta:number)=>{if(this.books.get(id)?.greeks(field,iv,delta,gamma,vega,theta))emit(id);};
     this.bus.on(EventName.tickPrice,onPrice);this.bus.on(EventName.tickSize,onSize);this.bus.on(EventName.tickOptionComputation,onGreek);
-    for(const c of contracts){await this.pace();const id=++this.req;ids.push(id);this.subscriptions.add(id);byId.set(id,c);state.set(id,{bid:null,ask:null,last:null,bidSize:null,askSize:null,delta:null,gamma:null,theta:null,vega:null,impliedVolatility:null});this.api.reqMktData(id,contract(c),'',false,false);}
-    return {cancel:async()=>{for(const id of ids){this.api.cancelMktData(id);this.subscriptions.delete(id);this.feedByReq.delete(id);}this.bus.off(EventName.tickPrice,onPrice);this.bus.off(EventName.tickSize,onSize);this.bus.off(EventName.tickOptionComputation,onGreek);}};
+    for(const c of contracts){await this.pace();const id=++this.req;ids.push(id);this.subscriptions.add(id);byId.set(id,c);this.books.set(id,new TickBook());this.api.reqMktData(id,contract(c),'',false,false);}
+    return {cancel:async()=>{for(const id of ids){this.api.cancelMktData(id);this.subscriptions.delete(id);this.books.delete(id);}this.bus.off(EventName.tickPrice,onPrice);this.bus.off(EventName.tickSize,onSize);this.bus.off(EventName.tickOptionComputation,onGreek);}};
   }
   private alias(account:string){return createHmac('sha256',this.config.aliasSecret).update(account).digest('hex').slice(0,16);}
   async getPositions():Promise<Array<Record<string,unknown>>>{this.requireReady();await this.pace();const rows:Array<Record<string,unknown>>=[];

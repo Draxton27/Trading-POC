@@ -12,6 +12,12 @@ const root=resolve(fileURLToPath(new URL('../../../trading_poc_001_bollinger/',i
 const cache=new Map<string,MarketBar[]>();
 const source=(symbol:Symbol)=>resolve(root,'data',`${symbol}_ALPACA_SIP_15min_20211017_20261017.csv`);
 export function offlineAvailable(){return (['NVDA','QQQ','SMH'] as Symbol[]).every(s=>existsSync(source(s))&&existsSync(`${source(s)}.meta.json`)&&existsSync(`${source(s)}.calendar.json`));}
+const dateNy=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'});
+export function priorCalendarSession(symbol:Symbol,asOfUtc:string):string|null{
+  const path=`${source(symbol)}.calendar.json`;if(!existsSync(path))return null;
+  const date=dateNy.format(new Date(asOfUtc));
+  return [...loadMarketCalendar(path).keys()].filter(day=>day<date).sort().at(-1)??null;
+}
 export function demoBars(symbol:Symbol,timeframe:Timeframe='15m'):MarketBar[]{
   const base={NVDA:214,QQQ:614,SMH:357}[symbol];const bars:MarketBar[]=[];
   // Datos sintéticos de 15 sesiones de lunes a viernes, todos anteriores al inicio de Fase 19.
@@ -19,7 +25,7 @@ export function demoBars(symbol:Symbol,timeframe:Timeframe='15m'):MarketBar[]{
     for(let slot=0;slot<26;slot++){
     const start=new Date(Date.UTC(date.getUTCFullYear(),date.getUTCMonth(),date.getUTCDate(),13,30+slot*15));const i=session*26+slot;
     const drift=i*0.035,osc=Math.sin(i/9+base)*1.7,open=base+drift+osc,close=open+Math.sin(i/4+base)*0.46;
-    bars.push({symbol,timeframe:'15m',startUtc:start.toISOString(),endUtc:new Date(start.getTime()+900000).toISOString(),open,high:Math.max(open,close)+0.35,low:Math.min(open,close)-0.35,close,volume:Math.round(100000+30000*Math.abs(Math.sin(i/3))),provider:'DEMO sintético',adjustment:'none',receivedAtUtc:start.toISOString(),isComplete:true});
+    bars.push({symbol,timeframe:'15m',startUtc:start.toISOString(),endUtc:new Date(start.getTime()+900000).toISOString(),open,high:Math.max(open,close)+0.35,low:Math.min(open,close)-0.35,close,volume:Math.round(100000+30000*Math.abs(Math.sin(i/3))),provider:'DEMO sintético',adjustment:'none',receivedAtUtc:null,isComplete:true});
   }session++;}
   return aggregateSimple(bars,timeframe);
 }

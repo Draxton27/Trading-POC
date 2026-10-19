@@ -17,7 +17,9 @@ Para OFFLINE, conserve los tres CSV SIP autorizados, sus metadatos y calendarios
 
 Para Paper con dos computadoras, lea [la guía Windows](shared-artifacts/phase19-ibkr-ui/phase19-windows-setup.md) y [el modelo de red](shared-artifacts/phase19-ibkr-ui/phase19-network-security.md). La API HTTP escucha solo en `127.0.0.1`. El agente se ejecuta junto a TWS en A y sale hacia un puerto privado de B. Necesita un secreto de aplicación propio y una cuenta Paper esperada para comprobar la sesión. La conexión auténtica con TWS y la prueba física entre equipos **no se han verificado en Codex**.
 
-Los datos privados se guardan fuera de Vite y se excluyen de Git. El diario Fase 19 es append-only; el almacén FIFO de Fase 17 conserva los archivos originales de operaciones. Las capturas publicadas en [artefactos](shared-artifacts/phase19-ibkr-ui/README.md) son de la aplicación real ejecutada en DEMO, con datos sintéticos.
+Los datos privados se guardan fuera de Vite y se excluyen de Git. El diario de la interfaz escribe en el ledger original de Fase 17; las entradas F19 anteriores siguen legibles y de solo lectura. El formulario breve no prueba contexto prospectivo; el CSV oficial F17 conserva capturas, contratos y revisiones. El almacén FIFO F17 conserva los archivos originales de operaciones. Las capturas publicadas en [artefactos](shared-artifacts/phase19-ibkr-ui/README.md) son de DEMO, con datos sintéticos.
+
+En PAPER, la última cotización IBKR se presenta por separado del histórico SIP local, con tipo de feed, hora de recepción y estado obsoleto. Los ticks no se convierten en velas. Las SMA 20/40/100/200 y Bollinger 20/2 visibles proceden de `/market/indicators`; los niveles de la sesión previa requieren un `asOfUtc` explícito. [Correcciones y pruebas del PR #25](shared-artifacts/phase19-ibkr-ui/phase19-pr25-review-fixes.md).
 
 ## Estructura
 

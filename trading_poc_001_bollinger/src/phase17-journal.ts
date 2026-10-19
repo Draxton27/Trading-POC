@@ -113,11 +113,14 @@ export function parsePhase17DecisionCsv(csv: string): Phase17Decision {
 
 export function validatePhase17Decision(value: Phase17Decision, documentedAtUtc: string) {
   const decision = {...value.decision, documentedAtUtc};
-  const timing = validateHumanDecision(decision, documentedAtUtc);
+  if (!Number.isFinite(Date.parse(decision.decisionAtUtc))) {
+    throw new Error('Decisión humana incompleta o fechada en el futuro.');
+  }
   if (!validUtc(decision.decisionAtUtc) || !validUtc(documentedAtUtc) ||
       decision.outcomeKnownAtUtc && !validUtc(decision.outcomeKnownAtUtc)) {
     throw new Error('La decisión F17 requiere timestamps UTC completos.');
   }
+  const timing = validateHumanDecision(decision, documentedAtUtc);
   if (Date.parse(decision.decisionAtUtc) > Date.parse(documentedAtUtc)) {
     throw new Error('La decisión no puede ocurrir después de documentarse.');
   }
@@ -160,7 +163,8 @@ export function validatePhase17Decision(value: Phase17Decision, documentedAtUtc:
   }
   const recordClass = extension.recordMode === 'historical_reconstruction' ?
     'historical_reconstruction' : extension.recordMode === 'post_outcome_annotation' ?
-    'post_outcome_annotation' : timing === 'prospective' ?
+    'post_outcome_annotation' : decision.observedMarket !== true ?
+      'timing_unverified' : timing === 'prospective' ?
       'live_before_primary_outcome' : 'post_outcome_annotation';
   return {decision, extension, status: recordClass === 'live_before_primary_outcome' ?
     'prospective' : 'retrospective', recordClass,

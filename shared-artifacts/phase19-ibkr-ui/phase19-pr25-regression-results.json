@@ -1,0 +1,27 @@
+{
+  "phase": "19-pr25-review",
+  "referenceCommit": "f47343996fa9d7e7935174b3c5cae2c29a52d3db",
+  "environment": {"os": "Windows", "node": "24.20.0", "data": "synthetic fixtures only"},
+  "checks": [
+    {"command": "npm run typecheck", "status": "passed"},
+    {"command": "npm test", "status": "passed", "vitest": 33,
+      "historicalNodeTotal": 168, "historicalPassed": 167, "historicalSkipped": 1},
+    {"command": "npm run build", "status": "passed",
+      "warning": "Vite reports a client chunk over 500 kB"},
+    {"command": "npm run test:e2e", "status": "passed", "tests": 4,
+      "browser": "installed Google Chrome via TRADING_POC_CHROMIUM_PATH",
+      "screenshots": "ignored test-results/phase19-smoke"},
+    {"command": "npm run dev", "status": "passed locally on configurable ports",
+      "apiHealth": true, "viteHttp": true, "ctrlCClosedPorts": false,
+      "identicalGitBashRun": false},
+    {"command": "scripts/windows/dev-smoke.ps1", "status": "partial locally",
+      "apiAndViteFromPathWithSpaces": true,
+      "processTreeInspection": "denied by execution sandbox; test processes stopped manually",
+      "githubActionsResult": "pending"}
+  ],
+  "realTwsPaperVerified": false,
+  "opraPermissionsVerified": false,
+  "twoComputerTailscaleVerified": false,
+  "historicalValidators": "not rerun: authorized SIP source CSVs and sidecars absent locally; historical unit suite passed",
+  "publicationTarget": "PR #25 on codex/phase19-ibkr-desktop-web"
+}

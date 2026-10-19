@@ -6,9 +6,11 @@ import Fastify from 'fastify';
 import websocket from '@fastify/websocket';
 import {z} from 'zod';
 import {Mode,HumanDecision,symbol} from '@trading-poc/contracts';
-import {calculateIndicators,spread} from '@trading-poc/market-domain';
-import {demoBars,offlineAvailable,offlineBars,pageBars,historicalSignals,historicalEvents,type Timeframe,type Symbol} from '@trading-poc/research-adapter';
-import {appendRecord,verifyLedger} from '../../../trading_poc_001_bollinger/src/phase16-ledger.ts';
+import {calculateIndicators,spread,previousSessionLevels} from '@trading-poc/market-domain';
+import {demoBars,offlineAvailable,offlineBars,pageBars,historicalSignals,historicalEvents,priorCalendarSession,type Timeframe,type Symbol} from '@trading-poc/research-adapter';
+import {verifyLedger} from '../../../trading_poc_001_bollinger/src/phase16-ledger.ts';
+import {appendPhase17Decision,PHASE17_TEMPLATE_COLUMNS} from '../../../trading_poc_001_bollinger/src/phase17-journal.ts';
+import {csvCell} from '../../../trading_poc_001_bollinger/src/phase17-csv.ts';
 import {readBrokerStore,importBrokerSource} from '../../../trading_poc_001_bollinger/src/phase17-broker-store.ts';
 import {openDatabase} from './persistence/db.ts';
 import * as tables from './persistence/schema.ts';
@@ -66,6 +68,9 @@ export async function createApp(options:Options={}){
   const app=Fastify({logger:false,bodyLimit:2*1024*1024});await app.register(websocket);
   app.addHook('onRequest',async(request,reply)=>{
     if(!browserOrigin(request.headers.origin))return bad(reply,'Origen no autorizado',403);
+    if(request.url.startsWith('/api/v1/session')&&!request.headers.origin&&
+        request.headers['sec-fetch-site']!=='same-origin')
+      return bad(reply,'La sesión requiere una solicitud del mismo origen',403);
     if(request.method!=='GET'&&request.method!=='HEAD'&&!validToken(request.headers['x-local-token'] as string|undefined,token))return bad(reply,'Token local requerido',403);
   });
   const barsFor=(s:Symbol,t:Timeframe)=>mode==='DEMO'?demoBars(s,t):offlineBars(s,t);
@@ -87,15 +92,29 @@ export async function createApp(options:Options={}){
     const {symbol:s,timeframe:t,before,limit}=parsed.data;return pageBars(calculateIndicators(barsFor(s,t)) as any,before,limit);
   });
   app.get('/api/v1/market/context',async(req,reply)=>{
-    const parsed=z.object({symbol}).safeParse(req.query);if(!parsed.success)return bad(reply,'Símbolo inválido');
-    if(mode!=='DEMO'&&!offlineAvailable())return {symbol:parsed.data.symbol,previousHigh:null,previousLow:null,source:'no disponible'};
-    const bars=barsFor(parsed.data.symbol,'1d').filter(b=>b.isComplete);const prior=bars.at(-2);
-    return {symbol:parsed.data.symbol,previousHigh:prior?.high??null,previousLow:prior?.low??null,source:mode==='DEMO'?'DEMO sintético':'Alpaca SIP local',asOfUtc:prior?.endUtc??null};
+    const parsed=z.object({symbol,asOfUtc:z.iso.datetime({offset:true})}).safeParse(req.query);
+    if(!parsed.success)return bad(reply,'Símbolo o asOfUtc inválido');
+    const {symbol:s,asOfUtc}=parsed.data;
+    if(mode!=='DEMO'&&!offlineAvailable())return {symbol:s,...previousSessionLevels([],asOfUtc),source:'no disponible'};
+    return {symbol:s,...previousSessionLevels(barsFor(s,'1d'),asOfUtc,
+      mode==='DEMO'?undefined:priorCalendarSession(s,asOfUtc)),
+      source:mode==='DEMO'?'DEMO sintético':'Alpaca SIP local'};
   });
   app.get('/api/v1/market/quotes',async(req,reply)=>{
-    const parsed=z.object({symbol}).safeParse(req.query);if(!parsed.success)return bad(reply,'Símbolo inválido');
-    if(mode!=='PAPER'||!hub.status().connected)return {item:null,source:mode==='DEMO'?'DEMO sintético':'IBKR desconectado'};
-    const s=parsed.data.symbol;await hub.request('market.subscribe',{symbol:s});return {item:hub.latestQuote(s),source:hub.status().simulation?'Agente simulado':'IBKR Paper'};
+    const parsed=z.object({symbol,consumerId:z.uuid()}).safeParse(req.query);if(!parsed.success)return bad(reply,'Consulta de cotización inválida');
+    if(mode!=='PAPER'||!hub.status().connected)return {item:null,dataStatus:'desconectado',source:mode==='DEMO'?'DEMO sintético':'IBKR desconectado'};
+    const s=parsed.data.symbol;await hub.subscribe({symbol:s},parsed.data.consumerId);
+    const item=hub.latestQuote(s) as {receivedAtUtc?:string}|null;
+    const stale=!!item&&(!item.receivedAtUtc||Date.now()-Date.parse(item.receivedAtUtc)>30000);
+    return {item,dataStatus:!item?'pendiente':stale?'obsoleto':'recibido',stale,
+      source:hub.status().simulation?'PAPER SIMULADO':'IBKR Paper'};
+  });
+  app.delete('/api/v1/market/subscriptions/:key',async(req,reply)=>{
+    const parsed=z.object({consumerId:z.uuid()}).safeParse(req.query);
+    const key=(req.params as {key:string}).key;
+    if(!parsed.success||!/^([0-9]{1,12}|NVDA|QQQ|SMH)$/.test(key))return bad(reply,'Suscripción inválida');
+    if(mode==='PAPER')await hub.release(key,parsed.data.consumerId);
+    return {released:key};
   });
   const readDrawings=(s?:string)=>db.sqlite.prepare(`SELECT * FROM chart_drawings ${s?'WHERE symbol = ?':''} ORDER BY created_at_utc`).all(...(s?[s]:[]));
   app.get('/api/v1/market/drawings',async(req,reply)=>{const p=z.object({symbol:symbol.optional()}).safeParse(req.query);if(!p.success)return bad(reply,'Símbolo inválido');return {items:readDrawings(p.data.symbol)};});
@@ -105,18 +124,23 @@ export async function createApp(options:Options={}){
     db.sqlite.prepare('INSERT INTO chart_drawings(id,symbol,timeframe,kind,price,price2,created_at_utc,author) VALUES (?,?,?,?,?,?,?,?)').run(id,x.symbol,x.timeframe,x.kind,x.price,x.price2??null,at,x.author);
     return reply.code(201).send({id,...x,createdAtUtc:at});
   });
+  let parametersCache:{until:number;connectionId:string|null;items:Array<{exchange:string;tradingClass:string;multiplier:number;expirations:string[];strikes:number[]}>}|null=null;
+  const contractCache=new Map<string,{until:number;connectionId:string|null;contract:Record<string,unknown>}>();
   const optionParameters=async()=>{if(mode!=='PAPER'||!hub.status().connected)return [];
+    if(parametersCache&&parametersCache.until>Date.now()&&
+      parametersCache.connectionId===hub.status().connectionId)return parametersCache.items;
     const message=await hub.request('option.parameters',{symbol:'NVDA'});
     if(message.kind==='agent.error')throw new Error('IBKR: '+String(message.payload.message??'sin detalles'));
-    return z.array(z.object({exchange:z.string(),tradingClass:z.string(),multiplier:z.number(),expirations:z.array(z.string()),strikes:z.array(z.number())})).parse(message.payload.items)
+    const items=z.array(z.object({exchange:z.string(),tradingClass:z.string(),multiplier:z.number(),expirations:z.array(z.string()),strikes:z.array(z.number())})).parse(message.payload.items)
       .filter(p=>p.tradingClass==='NVDA'&&p.multiplier===100);
+    parametersCache={items,until:Date.now()+60000,connectionId:hub.status().connectionId};return items;
   };
   app.get('/api/v1/options/expirations',async()=>({items:mode==='DEMO'?['2026-10-23']:[...new Set((await optionParameters()).flatMap(p=>p.expirations))].sort(),source:mode==='DEMO'?'DEMO sintético':hub.status().connected?hub.status().simulation?'Agente simulado':'IBKR':'IBKR desconectado'}));
   app.get('/api/v1/options/strikes',async()=>({items:mode==='DEMO'?[210,215,220,225,230]:[...new Set((await optionParameters()).flatMap(p=>p.strikes))].sort((a,b)=>a-b).slice(0,100),source:mode==='DEMO'?'DEMO sintético':hub.status().connected?hub.status().simulation?'Agente simulado':'IBKR':'IBKR desconectado'}));
   app.get('/api/v1/options/contracts',async(req,reply)=>{
     if(mode==='DEMO')return {items:demoOptions(),source:'DEMO sintético'};
     if(mode!=='PAPER'||!hub.status().connected)return {items:[],source:'IBKR desconectado'};
-    const query=z.object({right:z.enum(['CALL','PUT']).default('CALL'),expiration:z.string().regex(/^\d{8}$/).optional(),limit:z.coerce.number().int().min(1).max(10).default(5)}).safeParse(req.query);
+    const query=z.object({right:z.enum(['CALL','PUT']).default('CALL'),expiration:z.string().regex(/^\d{8}$/).optional(),limit:z.coerce.number().int().min(1).max(10).default(5),consumerId:z.uuid()}).safeParse(req.query);
     if(!query.success)return bad(reply,'Consulta de opciones inválida');
     const params=await optionParameters();const expiration=query.data.expiration??params.flatMap(p=>p.expirations).sort()[0];
     if(!expiration)return {items:[],source:'IBKR sin vencimientos'};
@@ -124,11 +148,25 @@ export async function createApp(options:Options={}){
     const spot=Number(hub.latestQuote('NVDA')?.last);
     const pivot=Number.isFinite(spot)&&spot>0?spot:allStrikes[Math.floor(allStrikes.length/2)]??0;
     const strikes=allStrikes.sort((a,b)=>Math.abs(a-pivot)-Math.abs(b-pivot)||a-b).slice(0,query.data.limit).sort((a,b)=>a-b);
-    const items=[];for(const strike of strikes){const response=await hub.request('option.resolve',{expiration,right:query.data.right,strike});
-      if(response.kind==='agent.error')continue;
-      const contract=response.payload.contract as Record<string,unknown>|undefined;if(!contract||typeof contract.conId!=='number')continue;
-      await hub.request('market.subscribe',{conId:contract.conId,expiration,right:query.data.right,strike});
-      items.push({...contract,...(hub.latestQuote(String(contract.conId))??{}),dataStatus:hub.latestQuote(String(contract.conId))?'received':'pending',provider:hub.status().simulation?'Agente simulado':'IBKR'});
+    const items=[];for(const strike of strikes){
+      const cacheKey=`${expiration}:${query.data.right}:${strike}`;
+      const cached=contractCache.get(cacheKey);
+      let contract=cached&&cached.until>Date.now()&&cached.connectionId===hub.status().connectionId?
+        cached.contract:undefined;
+      if(!contract){
+        const response=await hub.request('option.resolve',{expiration,right:query.data.right,strike});
+        contract=response.payload.contract as Record<string,unknown>|undefined;
+        if(!contract||typeof contract.conId!=='number')continue;
+        contractCache.set(cacheKey,{contract,until:Date.now()+60000,
+          connectionId:hub.status().connectionId});
+      }
+      await hub.subscribe({conId:contract.conId,expiration,right:query.data.right,strike},query.data.consumerId);
+      const quote=hub.latestQuote(String(contract.conId)) as {receivedAtUtc?:string;bid?:number|null;ask?:number|null;feedType?:string}|null;
+      const stale=!!quote&&(!quote.receivedAtUtc||Date.now()-Date.parse(quote.receivedAtUtc)>30000);
+      items.push({...contract,...(quote??{}),spread:spread(quote?.bid??null,quote?.ask??null),
+        dataStatus:!quote?'pendiente':stale?'obsoleto':'recibido',stale,
+        permissions:quote?'No verificados':'Pendientes',
+        provider:hub.status().simulation?'PAPER SIMULADO':'IBKR'});
     }
     return {items,source:hub.status().simulation?'Agente simulado':'IBKR Paper',expiration};
   });
@@ -145,24 +183,52 @@ export async function createApp(options:Options={}){
       return {sourceSha256:imported.sourceSha256,alreadyPresent:imported.alreadyPresent,executionCount:imported.state.executionCount,positionCount:imported.state.positions.length};
     }catch(e){return bad(reply,String(e),422);}
   });
-  app.get('/api/v1/trades/:id',(req,reply)=>{const id=(req.params as {id:string}).id;const state=readBrokerStore(phase17Private);const item=state.positions.find(p=>p.positionId===id);return item?{item,closedTrades:state.closedTrades.filter(t=>t.positionId===id)}:bad(reply,'Operación no encontrada',404);});
+  app.get('/api/v1/trades/:id',(req,reply)=>{const id=(req.params as {id:string}).id;const state=readBrokerStore(phase17Private);const item=state.positions.find(p=>p.positionId===id);return item?{item,
+    fills:state.fills.filter(f=>item.buyExecutionIds.includes(f.executionId)||item.sellExecutionIds.includes(f.executionId)),
+    closedTrades:state.closedTrades.filter(t=>t.positionId===id)}:bad(reply,'Operación no encontrada',404);});
   app.get('/api/v1/signals',()=>mode==='DEMO'?{items:[],forward:[],source:'DEMO sintético; sin señales inventadas'}:{items:historicalSignals(200),forward:verifyLedger(phase16Ledger).filter(r=>r.kind==='signal'),source:'Fase 15 histórica y Fase 16 append-only'});
   app.get('/api/v1/signals/:id',(req,reply)=>{if(mode==='DEMO')return bad(reply,'DEMO sin señales históricas',404);const id=(req.params as {id:string}).id;const item=historicalSignals(100000).find(s=>s.signal_id===id);return item?{item}:bad(reply,'Señal no encontrada',404);});
-  const journalDir=resolve(privateDir,'phase19-journal');
-  app.get('/api/v1/journal',()=>({items:verifyLedger(journalDir),source:'registro privado append-only'}));
+  const journalDir=resolve(phase17Private,'ledger');
+  const oldJournalDir=resolve(privateDir,'phase19-journal');
+  app.get('/api/v1/journal',()=>({items:verifyLedger(journalDir).filter(r=>r.kind==='human_decision'),
+    legacyItems:verifyLedger(oldJournalDir),source:'Fase 17 original; registros F19 anteriores solo lectura'}));
   app.post('/api/v1/journal/decisions',async(req,reply)=>{
-    const parsed=HumanDecision.safeParse(req.body);if(!parsed.success)return bad(reply,'Decisión inválida');
-    const x=parsed.data;if(Date.parse(x.documentedAtUtc)<Date.parse(x.decisionAtUtc))return bad(reply,'Documentación anterior a decisión');
-    if(x.recordMode==='live'&&Date.parse(x.documentedAtUtc)>Date.now()+60000)return bad(reply,'Hora futura');
-    try{return reply.code(201).send(appendRecord(journalDir,x.id,'human_decision',{...x,dataMode:mode,prospectiveEligible:false},new Date().toISOString()));}catch(e){return bad(reply,String(e),409);}
+    const raw=z.object({csv:z.string().min(1).max(64*1024)}).safeParse(req.body);
+    const parsed=raw.success?null:HumanDecision.safeParse(req.body);
+    if(!raw.success&&!parsed?.success)return bad(reply,'Decisión F17 inválida');
+    const documentedAtUtc=new Date().toISOString();
+    let csv=raw.success?raw.data.csv:'';
+    if(parsed?.success){
+      const x=parsed.data;
+      if(x.symbol!=='NVDA')return bad(reply,'El diario F17 original admite NVDA');
+      if(x.captureId||x.recordMode==='post_outcome_annotation')
+        return bad(reply,'Capturas y revisiones requieren el CSV completo F17');
+      if(Date.parse(x.decisionAtUtc)>Date.parse(documentedAtUtc)+5000)
+        return bad(reply,'La decisión no puede estar fechada en el futuro');
+      // The short web form cannot prove what market context was observed.
+      const fields:Record<string,string>={symbol:x.symbol,
+        direction:x.direction==='CALL'?'bullish':x.direction==='PUT'?'bearish':'no_trade',
+        operationType:x.direction==='no_trade'?'no_trade':'other',timeframe:'15Min',
+        decisionAtUtc:x.decisionAtUtc,selectionReason:x.reason,observedMarket:'',
+        recordMode:x.recordMode,sma20:'',sma40:'',sma100:'',sma200:'',
+        trendInterpretation:[x.trend,x.smaNotes&&`Notas SMA: ${x.smaNotes}`].filter(Boolean).join('\n'),
+        manualLevelsDescription:x.levels??'',
+        awaitedConfirmation:x.expectedConfirmation??'',invalidationCondition:x.invalidation??'',
+        contractOccSymbol:x.contractOcc??'',profitObjective:x.target??''};
+      csv=PHASE17_TEMPLATE_COLUMNS.join(',')+'\n'+
+        PHASE17_TEMPLATE_COLUMNS.map(key=>csvCell(fields[key]??'')).join(',')+'\n';
+    }
+    try{return reply.code(201).send(appendPhase17Decision(journalDir,csv,documentedAtUtc,phase17Private));}
+    catch(e){return bad(reply,String(e),422);}
   });
   app.get('/api/v1/events',()=>mode==='DEMO'?{items:[],source:'DEMO sintético; sin eventos inventados'}:{items:historicalEvents(),source:'Fase 14: calendario derivado'});
   app.get('/api/v1/data-quality',()=>({mode,offlineAvailable:offlineAvailable(),source:mode==='DEMO'?'Datos sintéticos':mode==='OFFLINE'?'Alpaca SIP local':'IBKR Paper',warnings:mode==='PAPER'&&!hub.status().connected?['Agente desconectado']:[]}));
   app.get('/api/v1/stream',{websocket:true},(socket,req)=>{
     if(!validToken((req.query as {token?:string}).token,token)){socket.close(1008,'Token requerido');return;}
     socket.send(JSON.stringify({kind:'status',mode,broker:hub.status(),atUtc:new Date().toISOString()}));
+    const unsubscribe=hub.onEvent(event=>{if(socket.readyState===1)socket.send(JSON.stringify(event));});
     const timer=setInterval(()=>{if(socket.readyState===1)socket.send(JSON.stringify({kind:'status',mode,broker:hub.status(),atUtc:new Date().toISOString()}));},15000);
-    socket.on('close',()=>clearInterval(timer));
+    socket.on('close',()=>{clearInterval(timer);unsubscribe();});
   });
   app.addHook('onClose',async()=>db.sqlite.close());
   return {app,hub,token};

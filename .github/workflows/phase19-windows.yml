@@ -5,19 +5,26 @@ on:
       - 'apps/**'
       - 'packages/**'
       - 'scripts/windows/**'
+      - 'scripts/dev.mjs'
       - 'package.json'
       - 'package-lock.json'
       - '.github/workflows/phase19-windows.yml'
 jobs:
   windows:
     runs-on: windows-latest
+    strategy:
+      matrix:
+        node-version: ['22', '24']
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: ${{ matrix.node-version }}
           cache: npm
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - name: Probar npm run dev, puertos y cierre en Windows
+        shell: pwsh
+        run: ./scripts/windows/dev-smoke.ps1

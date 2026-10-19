@@ -55,4 +55,30 @@ describe('canal privado de agente',()=>{
     expect(hub.latestQuote('NVDA')).toBeNull();
     second.close();
   });
+  it('comparte suscripciones simultáneas y cancela solo al salir el último consumidor',async()=>{
+    const hub=new AgentHub('secret'),socket=new FakeSocket(),id=crypto.randomUUID();hub.attach(socket);
+    socket.emit('message',JSON.stringify(envelope('agent.hello',0,id,{environment:'PAPER',accountVerified:true})));
+    const a=hub.subscribe({symbol:'NVDA'},'a'),b=hub.subscribe({symbol:'NVDA'},'b');
+    expect(socket.sent).toHaveLength(1);
+    const subscribe=JSON.parse(socket.sent[0]!);
+    socket.emit('message',JSON.stringify(envelope('agent.status',1,id,{subscribed:'NVDA'},subscribe.requestId)));
+    await Promise.all([a,b]);
+    await hub.release('NVDA','a');expect(socket.sent).toHaveLength(1);
+    await hub.release('NVDA','intruso');expect(socket.sent).toHaveLength(1);
+    const release=hub.release('NVDA','b');expect(socket.sent).toHaveLength(2);
+    const unsubscribe=JSON.parse(socket.sent[1]!);
+    socket.emit('message',JSON.stringify(envelope('agent.status',2,id,{unsubscribed:'NVDA'},unsubscribe.requestId)));
+    await release;expect(hub.status().subscriptions).toEqual([]);
+  });
+  it('rechaza respuestas con tipo equivocado y relojes fuera de ventana',async()=>{
+    const hub=new AgentHub('secret'),socket=new FakeSocket(),id=crypto.randomUUID();hub.attach(socket);
+    socket.emit('message',JSON.stringify(envelope('agent.hello',0,id,{environment:'PAPER',accountVerified:true})));
+    const pending=hub.request('broker.positions.request',{});
+    const sent=JSON.parse(socket.sent[0]!);
+    socket.emit('message',JSON.stringify(envelope('option.parameters',1,id,{items:[]},sent.requestId)));
+    expect(socket.closedCode).toBe(1008);await expect(pending).rejects.toThrow(/desconectado/);
+    const next=new FakeSocket(),nextId=crypto.randomUUID();hub.attach(next);
+    next.emit('message',JSON.stringify({...envelope('agent.hello',0,nextId,{environment:'PAPER',accountVerified:true}),issuedAtUtc:'2020-01-01T00:00:00.000Z'}));
+    expect(next.closedCode).toBe(1008);
+  });
 });
