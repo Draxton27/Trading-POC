@@ -16,6 +16,7 @@ import {openDatabase} from './persistence/db.ts';
 import * as tables from './persistence/schema.ts';
 import {AgentHub,AgentRequestError} from './streams/agent-hub.ts';
 import {registerOptionRoutes} from './options/routes.ts';
+import {registerAcademyRoutes} from './academy/routes.ts';
 
 type Options={mode?:'DEMO'|'OFFLINE'|'PAPER';privateDir?:string;phase17Private?:string;phase16Ledger?:string;dbPath?:string;agentSecret?:string};
 const repoRoot=fileURLToPath(new URL('../../../',import.meta.url));
@@ -126,7 +127,8 @@ export async function createApp(options:Options={}){
     db.sqlite.prepare('INSERT INTO chart_drawings(id,symbol,timeframe,kind,price,price2,created_at_utc,author) VALUES (?,?,?,?,?,?,?,?)').run(id,x.symbol,x.timeframe,x.kind,x.price,x.price2??null,at,x.author);
     return reply.code(201).send({id,...x,createdAtUtc:at});
   });
-  registerOptionRoutes(app,hub,mode,demoOptions);
+  registerOptionRoutes(app,hub,mode,demoOptions,db.sqlite);
+  registerAcademyRoutes(app,db.sqlite);
   app.get('/api/v1/options/quotes',async()=>({items:mode==='DEMO'?demoOptions():[],source:mode==='DEMO'?'DEMO sintético':'Consulte /options/contracts para suscribirse a contratos visibles'}));
   app.get('/api/v1/positions',async()=>{if(mode!=='PAPER'||!hub.status().connected)return {items:[],source:'IBKR desconectado'};
     const m=await hub.request('broker.positions.request',{});return {items:m.kind==='broker.positions.snapshot'?m.payload.items:[],source:hub.status().simulation?'Agente simulado':'IBKR Paper'};});
@@ -188,7 +190,7 @@ export async function createApp(options:Options={}){
     socket.on('close',()=>{clearInterval(timer);unsubscribe();});
   });
   app.addHook('onClose',async()=>db.sqlite.close());
-  return {app,hub,token};
+  return {app,hub,token,database:db.sqlite};
 }
 export async function start(){
   const {app,hub}=await createApp();

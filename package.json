@@ -20,6 +20,7 @@
     "test": "vitest run && npm run test -w trading-poc-001-bollinger",
     "build": "npm run build -w @trading-poc/web",
     "test:e2e": "playwright test",
+    "academy:import": "tsx apps/api/src/academy/cli.ts",
     "db:generate": "drizzle-kit generate --config apps/api/drizzle.config.ts"
   },
   "devDependencies": {

@@ -40,3 +40,7 @@ La matriz siguiente refleja las preguntas y suposiciones **antes** de recibir el
 - `CALL`, `PUT`, un strike o una operación ganadora no prueban una ventaja estadística. Esta fase no mide rentabilidad del método ni usa los cinco años para optimizarlo.
 
 Las preguntas que impiden convertir una fila en regla están en [phase17-open-questions.md](../shared-artifacts/phase17-human-method/phase17-open-questions.md). Una futura confirmación del operador debe añadirse con fuente y fecha, sin cambiar retrospectivamente lo que significaban entradas anteriores.
+
+## Referencia documental posterior (Fase 20)
+
+La Fase 20 añade rangos de prima **ASK por acción** extraídos de documentos privados como evidencia `DOCUMENTED`, con fecha, hash y ubicación de tabla. Esta evidencia complementa `OPT01`–`OPT03`: no confirma una prioridad entre strike, vencimiento, lado CALL/PUT, spread o liquidez y no crea selección automática. Si el documento no declara vigencia, una versión anterior se expone como histórica y no se compara con una cotización actual. Consulte [la nota de Fase 20](phase20-academy-documents.md) para la procedencia, conflictos y límites.

@@ -1,0 +1,12 @@
+{
+  "phase": 20,
+  "scope": "fixtures only; private documents and broker credentials excluded",
+  "coverage": [
+    "XLSX, CSV quoted and worksheet HTML normalization",
+    "idempotency, version conflicts and historical-reference policy",
+    "malicious ZIP paths and malformed CSV rejection",
+    "ASK boundaries, stale/invalid quotes, permissions, currency and multiplier",
+    "API metadata and DEMO synthetic-data labeling"
+  ],
+  "brokerValidation": "not performed; no OPRA availability asserted"
+}

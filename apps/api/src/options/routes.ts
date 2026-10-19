@@ -3,6 +3,8 @@ import {z} from 'zod';
 import {spread} from '@trading-poc/market-domain';
 import {AgentHub,AgentRequestError} from '../streams/agent-hub.ts';
 import {availableStrikes,selectContractStrikes,quoteReference,type OptionParameter} from './selection.ts';
+import type Database from 'better-sqlite3';
+import {academyRanges,evaluateAcademyAskRange,selectAcademyReference} from '../academy/service.ts';
 
 type Issue={strike:number|null;code:string;message:string;stage:string;requestId:string|null;ibkrCode:number|null};
 const messages:Record<string,string>={
@@ -26,7 +28,7 @@ function issue(error:unknown,strike:number|null=null):Issue{
 const decimal=z.coerce.number().finite().nonnegative();
 const expiration=z.string().regex(/^\d{8}$/);
 
-export function registerOptionRoutes(app:FastifyInstance,hub:AgentHub,mode:'DEMO'|'OFFLINE'|'PAPER',demoOptions:()=>unknown[]){
+export function registerOptionRoutes(app:FastifyInstance,hub:AgentHub,mode:'DEMO'|'OFFLINE'|'PAPER',demoOptions:()=>unknown[],sqlite:Database.Database){
   let parametersCache:{until:number;connectionId:string|null;items:OptionParameter[]}|null=null;
   let parametersPending:Promise<OptionParameter[]>|null=null;
   const contractCache=new Map<string,{until:number;connectionId:string|null;contract:Record<string,unknown>}>();
@@ -71,7 +73,7 @@ export function registerOptionRoutes(app:FastifyInstance,hub:AgentHub,mode:'DEMO
     }catch(error){return unavailable(reply,error);}
   });
   app.get('/api/v1/options/contracts',async(req,reply)=>{
-    if(mode==='DEMO')return {items:demoOptions(),errors:[],source:'DEMO sintético'};
+    if(mode==='DEMO')return {items:(demoOptions() as Array<Record<string,unknown>>).map(item=>({...item,academyEvaluation:{status:'INSUFFICIENT_DATA',referenceStatus:'NONE',reference:null,askCents:null,distancePercent:null,quoteReceivedAtUtc:null,reason:'DEMO usa contratos sintéticos; no se comparan con referencias documentales'}})),errors:[],source:'DEMO sintético'};
     if(mode!=='PAPER'||!hub.status().connected)return {items:[],errors:[],source:'IBKR desconectado'};
     const parsed=z.object({right:z.enum(['CALL','PUT']).default('CALL'),expiration:expiration.optional(),
       limit:z.coerce.number().int().min(1).max(10).default(5),consumerId:z.uuid(),
@@ -94,6 +96,7 @@ export function registerOptionRoutes(app:FastifyInstance,hub:AgentHub,mode:'DEMO
     const referenceSource=query.centerStrike!==undefined?'MANUAL_STRIKE':marketReference!==null?
       `IBKR_${String(quote?.feedType??'UNKNOWN')}`:query.minPrice!==undefined||query.maxPrice!==undefined?'MANUAL_RANGE_ASCENDING':'NONE';
     const items:Array<Record<string,unknown>>=[],errors:Issue[]=[];
+    const academyReference=selectAcademyReference(academyRanges(sqlite,'NVDA'),new Date().toISOString(),query.right);
     const deadline=Date.now()+hub.optionPageTimeoutMs();
     for(const strike of strikes){
       const remaining=deadline-Date.now();
@@ -118,7 +121,8 @@ export function registerOptionRoutes(app:FastifyInstance,hub:AgentHub,mode:'DEMO
       const received=hub.latestQuote(String(contract.conId)) as {receivedAtUtc?:string;bid?:number|null;ask?:number|null;feedType?:string;marketDataStatus?:string;ibkrErrorCode?:number}|null;
       const stale=!!received&&(!received.receivedAtUtc||Date.now()-Date.parse(received.receivedAtUtc)>30000);
       const noBidAsk=!received||received.bid==null&&received.ask==null;
-      items.push({...contract,...(received??{}),spread:spread(received?.bid??null,received?.ask??null),
+      const academyEvaluation=evaluateAcademyAskRange(academyReference,received,Date.now(),String(contract.currency??'USD'),Number(contract.multiplier??100));
+      items.push({...contract,...(received??{}),academyEvaluation,spread:spread(received?.bid??null,received?.ask??null),
         dataStatus:subscribeError?subscribeError.code==='PERMISSION'?'permisos_insuficientes':'suscripcion_fallida':
           !received?'cotizacion_pendiente':stale?'obsoleto':received.marketDataStatus==='permission_denied'?'permisos_insuficientes':
           received.marketDataStatus==='partial'?'cotizacion_parcial':received.marketDataStatus==='unavailable'||noBidAsk?'cotizacion_no_disponible':'recibido',
