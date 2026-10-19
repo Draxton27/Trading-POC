@@ -1,0 +1,95 @@
+{
+  "phase": "19",
+  "recordedAtUtc": "2026-10-19T01:59:06.383245+00:00",
+  "baseCommit": "231ce63",
+  "architectureCommit": "d59c9759f18cc7a9ef01057da1e2228e8503535d",
+  "testedCodeCommit": "82c69d78e35c7de7317ecfa57b002db5879b8f1e",
+  "environment": {
+    "node": "24.19.0",
+    "os": "Linux cloud",
+    "target": "Windows 10/11, Node >=22.16.0"
+  },
+  "checks": [
+    {
+      "command": "npm ci",
+      "status": "passed"
+    },
+    {
+      "command": "npm run typecheck",
+      "status": "passed"
+    },
+    {
+      "command": "npm test",
+      "status": "passed",
+      "newVitest": 15,
+      "legacyNodeTests": 168
+    },
+    {
+      "command": "npm run build",
+      "status": "passed",
+      "warning": "client JS bundle approximately 646 KiB minified"
+    },
+    {
+      "command": "npm run test:e2e",
+      "status": "passed",
+      "chromiumTests": 4,
+      "screenshots": "actual running DEMO"
+    },
+    {
+      "command": "npm audit",
+      "status": "reviewed",
+      "critical": 0,
+      "high": 0,
+      "moderate": 4,
+      "moderateScope": "drizzle-kit dev chain"
+    },
+    {
+      "command": "npm audit --omit=dev",
+      "status": "passed",
+      "totalVulnerabilities": 0
+    },
+    {
+      "command": "OFFLINE API smoke",
+      "status": "passed",
+      "completeDailySessionsPerSymbol": 1255
+    },
+    {
+      "command": "MOCK agent plus API two-process handshake",
+      "status": "passed",
+      "environment": "PAPER SIMULADO",
+      "realTws": false
+    }
+  ],
+  "historicalValidators": {
+    "passed": [
+      "validate:nvda",
+      "validate:nvda-volume",
+      "validate:nvda-indicators",
+      "validate:nvda-sma-context",
+      "validate:nvda-pullback-breakout",
+      "validate:nvda-failed-breakouts",
+      "validate:nvda-volatility",
+      "validate:phase14-context",
+      "validate:phase15-confirmation"
+    ],
+    "unavailableMissingInput": [
+      "validate:strategy",
+      "validate:ema9",
+      "validate:volume"
+    ],
+    "missingInput": "archivos QQQ Alpaca SIP 5m de estudios antiguos",
+    "previousTrackedArtifactChanges": 0
+  },
+  "sourceHashes": {
+    "NVDA_15m_5y": "7b06d0a493515b18a581963d2d2d488e73a7cd0dc2c961b60a99315e7a9b0ecc",
+    "QQQ_15m_5y": "962696cb57499ecf0991b1915975f5fe5725e7df7185654bfa4a2f71775eb2fb",
+    "SMH_15m_5y": "d517e4652e9f4e44c715b5580dd4fa6d303b0a9f3246169027d142b2aac0cb55"
+  },
+  "notVerified": [
+    "Windows physical installation and native module",
+    "real TWS Paper login, permissions and feed",
+    "physical two-computer Tailscale connection",
+    "IBKR Flex parser with genuine sample",
+    "OPRA historical access"
+  ]
+}

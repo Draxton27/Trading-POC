@@ -1,0 +1,7 @@
+# Contratos y API
+
+Esquemas fuente: packages/contracts/src/index.ts. Protocolo agente v1, timestamps internos ISO UTC, horario de visualización America/New_York. MarketBar conserva proveedor, ajuste, recepción nullable y bandera de completitud. OptionQuote conserva bid/ask, tamaños, griegas nullable, timestamp de mercado nullable, timestamp de recepción, origen de griegas y feed LIVE/DELAYED/FROZEN/DELAYED_FROZEN/UNKNOWN. Nunca se rellenan campos ausentes con una prima inventada.
+
+GET /api/v1/health, /session, /broker/status; /market/symbols, /bars, /indicators, /context, /quotes, /drawings; /options/expirations, /strikes, /contracts, /quotes; /positions, /executions, /trades, /trades/:id, /signals, /signals/:id, /journal, /events, /data-quality. POST /market/drawings, /trades/import y /journal/decisions. Navegador: /api/v1/stream WebSocket, token local. Canal separado: /agent/v1/connect, secreto Bearer. Ninguna ruta de órdenes.
+
+market/bars e indicators exigen NVDA, QQQ o SMH y límite 1–500; nextBefore permite retroceder sin transmitir 32.510 velas de una vez. Datos demo y offline se identifican en cada respuesta. options/contracts limita resolución a diez por consulta y requiere clase NVDA con multiplicador 100. El agente acepta hello/heartbeat/status/error, cotizaciones, parámetros, snapshots de posiciones/ejecuciones, y solicitudes de lectura cerradas. Cada mensaje lleva versión, messageId, requestId, agentId, connectionId, secuencia y issuedAtUtc. Respuestas correlacionadas y duplicados rechazados.
