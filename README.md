@@ -12,12 +12,24 @@ Instale Node.js 22 o posterior y ejecute en PowerShell desde este repositorio:
 
 ```powershell
 npm ci
-.\scripts\windows\Start-TradingPoc.ps1 -Mode DEMO
+npm.cmd run dev:mock
 ```
 
-Abra `http://127.0.0.1:5173/` **en el mismo equipo**. DEMO usa datos deterministas y sintéticos. No requiere TWS, cuenta, secretos ni datos de mercado privados. `npm run dev`, `npm run dev:web`, `npm run dev:api`, `npm run dev:agent`, `npm run typecheck`, `npm test` y `npm run build` están disponibles desde la raíz. `npm run test:e2e` usa Chromium de Playwright.
+Abra `http://127.0.0.1:5173/` **en el mismo equipo**. `dev:mock` inicia API, frontend y agente simulado; `dev:offline` inicia API y frontend con los históricos locales; `dev:paper` inicia API, frontend y agente TWS de solo lectura. Los comandos existentes (`npm run dev`, `npm run dev:web`, `npm run dev:api` y `npm run dev:agent`) se conservan para diagnóstico y pruebas. `npm run test:e2e` usa Chromium de Playwright.
 
-Para OFFLINE, conserve los tres CSV SIP autorizados, sus metadatos y calendarios bajo `trading_poc_001_bollinger/data/`; inicie con `Start-TradingPoc.ps1 -Mode OFFLINE`. El CSV fuente nunca se sirve directamente. La API entrega páginas acotadas; las temporalidades horaria y diaria usan las funciones existentes de agregación y respetan velas completas.
+### Configuración local y arranque con Paper
+
+Copie `.env.example` como `.env.local` una sola vez y complete únicamente la cuenta **Paper** (`DU...`) y los datos locales de TWS. `.env.local` se carga desde la raíz del repositorio aunque npm se ejecute desde un workspace, está excluido de Git y no se imprime en los logs. Si falta `TRADING_POC_AGENT_SECRET`, el lanzador crea y guarda una clave aleatoria de 32 bytes; las ejecuciones posteriores reutilizan la misma clave.
+
+```powershell
+Copy-Item .env.example .env.local
+# Edite .env.local: IBKR_EXPECTED_PAPER_ACCOUNT=DU... y los puertos de TWS si difieren.
+npm.cmd run dev:paper
+```
+
+El lanzador valida puertos locales antes de iniciar, espera la API y su WebSocket privado antes de conectar el agente, y detiene su propio árbol de procesos con `Ctrl+C`. No mata procesos ajenos: si un puerto está ocupado, muestra el puerto y termina. Paper exige una cuenta `DU...`, limita API y agente a loopback y no guarda contraseñas de IBKR. El resumen inicial redacta el identificador de cuenta y nunca muestra secretos. TWS real no se probó desde este entorno.
+
+Para OFFLINE, conserve los tres CSV SIP autorizados, sus metadatos y calendarios bajo `trading_poc_001_bollinger/data/`; inicie con `npm.cmd run dev:offline`. El CSV fuente nunca se sirve directamente. La API entrega páginas acotadas; las temporalidades horaria y diaria usan las funciones existentes de agregación y respetan velas completas.
 
 Para Paper con dos computadoras, lea [la guía Windows](shared-artifacts/phase19-ibkr-ui/phase19-windows-setup.md) y [el modelo de red](shared-artifacts/phase19-ibkr-ui/phase19-network-security.md). La API HTTP escucha solo en `127.0.0.1`. El agente se ejecuta junto a TWS en A y sale hacia un puerto privado de B. Necesita un secreto de aplicación propio y una cuenta Paper esperada para comprobar la sesión. La conexión auténtica con TWS y la prueba física entre equipos **no se han verificado en Codex**.
 

@@ -1,7 +1,7 @@
-import 'dotenv/config';
 import {randomBytes,randomUUID} from 'node:crypto';
 import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {config as loadDotenv} from 'dotenv';
 import Fastify from 'fastify';
 import websocket from '@fastify/websocket';
 import {z} from 'zod';
@@ -21,6 +21,10 @@ import {registerAssistantRoutes} from './assistant/routes.ts';
 
 type Options={mode?:'DEMO'|'OFFLINE'|'PAPER';privateDir?:string;phase17Private?:string;phase16Ledger?:string;dbPath?:string;agentSecret?:string;assistantFetch?:typeof fetch;assistantTimeoutMs?:number};
 const repoRoot=fileURLToPath(new URL('../../../',import.meta.url));
+// Commands can be launched from a workspace directory, so never resolve local
+// configuration relative to process.cwd(). Existing process variables win.
+loadDotenv({path:resolve(repoRoot,'.env.local'),override:false,quiet:true});
+loadDotenv({path:resolve(repoRoot,'.env'),override:false,quiet:true});
 const frame=z.enum(['15m','1h','1d']);
 const browserOrigin=(origin:string|undefined)=>!origin||/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(origin);
 const validToken=(supplied:string|undefined,expected:string)=>supplied===expected;
@@ -39,7 +43,8 @@ export async function createApp(options:Options={}){
   const phase17Private=options.phase17Private??(process.env.TRADING_POC_PHASE17_PRIVATE_DIR?resolve(process.env.TRADING_POC_PHASE17_PRIVATE_DIR):resolve(repoRoot,'trading_poc_001_bollinger/output/phase17-private'));
   const phase16Ledger=options.phase16Ledger??(process.env.TRADING_POC_PHASE16_LEDGER?resolve(process.env.TRADING_POC_PHASE16_LEDGER):resolve(repoRoot,'shared-artifacts/phase16-forward-observation/live/ledger'));
   const db=openDatabase(options.dbPath??process.env.TRADING_POC_DB_PATH??resolve(privateDir,'trading-poc.sqlite'));
-  const hub=new AgentHub(options.agentSecret??process.env.TRADING_POC_AGENT_SECRET??'',message=>{
+  const configuredAgentSecret=process.env.TRADING_POC_DISABLE_AGENT==='1'?'':process.env.TRADING_POC_AGENT_SECRET??'';
+  const hub=new AgentHub(options.agentSecret??configuredAgentSecret,message=>{
     if(message.kind==='agent.hello')db.db.insert(tables.agentSessions).values({id:message.messageId,agentId:message.agentId,connectionId:message.connectionId,environment:'PAPER',openedAtUtc:message.issuedAtUtc}).run();
     if(message.kind==='market.quote'){
       db.db.insert(tables.marketQuotes).values({id:message.messageId,symbol:String(message.payload.symbol),receivedAtUtc:String(message.payload.receivedAtUtc),payload:JSON.stringify(message.payload)}).run();
@@ -201,7 +206,7 @@ export async function start(){
   const apiHost=process.env.TRADING_POC_API_HOST??'127.0.0.1',apiPort=Number(process.env.TRADING_POC_API_PORT??4300);
   if(!['127.0.0.1','localhost'].includes(apiHost))throw new Error('API HTTP debe limitarse a localhost');
   await app.listen({host:apiHost,port:apiPort});
-  const secret=process.env.TRADING_POC_AGENT_SECRET??'';
+  const secret=process.env.TRADING_POC_DISABLE_AGENT==='1'?'':process.env.TRADING_POC_AGENT_SECRET??'';
   if(secret){
     if(secret.length<32)throw new Error('TRADING_POC_AGENT_SECRET requiere al menos 32 caracteres');
     const agent=Fastify({logger:false,bodyLimit:65536});await agent.register(websocket);

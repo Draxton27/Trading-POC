@@ -1,8 +1,17 @@
-import 'dotenv/config';
+import {resolve} from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {config as loadDotenv} from 'dotenv';
 import {MockReadOnlyAdapter} from './connection/mock.ts';
 import {TwsReadOnlyAdapter} from './connection/tws.ts';
 import {AgentTransport} from './transport/client.ts';
 import type {ReadOnlyBrokerAdapter} from './connection/adapter.ts';
+
+const repoRoot=fileURLToPath(new URL('../../../',import.meta.url));
+// Load the root configuration explicitly so `npm run dev:agent` behaves the
+// same from every workspace directory. Environment variables remain higher
+// priority for test isolation and one-off diagnostics.
+loadDotenv({path:resolve(repoRoot,'.env.local'),override:false,quiet:true});
+loadDotenv({path:resolve(repoRoot,'.env'),override:false,quiet:true});
 
 async function main(){
   const mode=process.env.TRADING_POC_AGENT_MODE??'MOCK';
