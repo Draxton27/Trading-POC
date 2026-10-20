@@ -65,7 +65,7 @@ export async function fetchAlpacaCalendar(options: {
     try { response = await get(url, {'APCA-API-KEY-ID': options.apiKey, 'APCA-API-SECRET-KEY': options.secretKey}); }
     catch (error) { if (attempt === 3) throw new AlpacaCalendarError('NETWORK_ERROR', `Calendario Alpaca: error de red: ${String(error)}`); await pause(1000 * 2 ** attempt); continue; }
     if (response.status === 401 || response.status === 403) throw new AlpacaCalendarError('PERMISSION_DENIED', `Calendario Alpaca HTTP ${response.status}: acceso no autorizado.`);
-    if (response.status === 429) { if (attempt === 3) throw new AlpacaCalendarError('RATE_LIMIT', 'Calendario Alpaca limitó la solicitud tras reintentos.'); await pause(1000 * 2 ** attempt); continue; }
+    if (response.status === 429) { if (attempt === 3) throw new AlpacaCalendarError('RATE_LIMIT', 'Calendario Alpaca limitó la solicitud tras reintentos.'); const retry = Number(response.headers.get('retry-after')); await pause(Number.isFinite(retry) && retry >= 0 ? retry * 1000 : 1000 * 2 ** attempt); continue; }
     if (response.status >= 500) { if (attempt === 3) throw new AlpacaCalendarError('HTTP_ERROR', `Calendario Alpaca HTTP ${response.status} tras reintentos.`); await pause(1000 * 2 ** attempt); continue; }
     if (!response.ok) throw new AlpacaCalendarError('HTTP_ERROR', `Calendario Alpaca HTTP ${response.status}.`);
     break;
