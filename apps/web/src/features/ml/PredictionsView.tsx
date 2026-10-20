@@ -1,0 +1,37 @@
+import {useState} from 'react';
+import {useQuery} from '@tanstack/react-query';
+import type {MlMetrics,MlMetricsResponse,MlPredictionsPage,MlStatus,MlSummary} from '@trading-poc/contracts';
+import {api,dateTime,fmt} from '../../lib/api.ts';
+import {Badge,Button,Card,SectionTitle} from '../../components/ui.tsx';
+
+const notice='Modelo experimental. Evaluación retrospectiva no independiente. Probabilidades no calibradas para uso operativo. No constituye recomendación CALL o PUT.';
+const classes=['ALCISTA','BAJISTA','LATERAL'] as const;
+const pct=(value:number)=>`${fmt(value*100,1)} %`;
+function MetricsTable({title,items}:{title:string;items:{name:string;value:MlMetrics}[]}){
+  return <Card><h3>{title}</h3><div className="table-wrap"><table aria-label={title}><thead><tr><th>Modelo / período</th><th>Accuracy</th><th>Balanced accuracy</th><th>Macro F1</th><th>Log loss</th></tr></thead><tbody>{items.map(({name,value})=><tr key={name}><td>{name}</td><td>{pct(value.accuracy)}</td><td>{pct(value.balancedAccuracy)}</td><td>{fmt(value.macroF1,3)}</td><td>{fmt(value.logLoss,3)}</td></tr>)}</tbody></table></div></Card>;
+}
+export default function PredictionsView(){
+  const [offset,setOffset]=useState(0),limit=25;
+  const status=useQuery<MlStatus>({queryKey:['ml-status'],queryFn:()=>api('/ml/status')});
+  const ready=status.data?.status==='READY';
+  const summary=useQuery<MlSummary>({queryKey:['ml-summary'],queryFn:()=>api('/ml/summary'),enabled:ready});
+  const metrics=useQuery<MlMetricsResponse>({queryKey:['ml-metrics'],queryFn:()=>api('/ml/metrics'),enabled:ready});
+  const predictions=useQuery<MlPredictionsPage>({queryKey:['ml-predictions',offset],queryFn:()=>api(`/ml/predictions?symbol=NVDA&timeframe=15m&offset=${offset}&limit=${limit}`),enabled:ready});
+  const loading=status.isPending||(ready&&(summary.isPending||metrics.isPending||predictions.isPending));
+  const error=status.error??summary.error??metrics.error??predictions.error;
+  const model=summary.data,report=metrics.data,page=predictions.data;
+  return <div className="content-page ml-page"><SectionTitle eyebrow="INVESTIGACIÓN HISTÓRICA" title="Predicciones" aside={<Badge tone="warning">EXPERIMENTAL</Badge>}/>
+    <Card className="ml-warning" role="note"><strong>{notice}</strong></Card>
+    {loading&&<Card role="status">Cargando artefactos del experimento local…</Card>}
+    {error&&<Card role="alert">No se pudo consultar el experimento: {error.message}</Card>}
+    {!loading&&!error&&status.data?.status!=='READY'&&<Card role="status"><h3>{status.data?.status==='NO_MODEL'?'Modelo no configurado':status.data?.status==='INVALID_ARTIFACT'?'Artefactos inválidos':'Experimento no disponible'}</h3><p>{status.data?.reason}</p></Card>}
+    {model&&report&&page&&<>
+      <Card><h3>Modelo seleccionado</h3><div className="ml-facts"><div><small>Activo y temporalidad</small><strong>NVDA · 15 minutos</strong></div><div><small>Variante</small><strong>{model.selectedVariant}</strong></div><div><small>Árboles</small><strong>{model.trees}</strong></div><div><small>Creación del artefacto</small><strong>{dateTime(model.createdAtUtc)}</strong></div><div><small>Experimento reproducible</small><strong>{model.experimentId}</strong></div><div><small>Versión</small><strong>{model.modelVersion}</strong></div></div><p className="subtle">{model.predictionCount.toLocaleString('es')} observaciones de evaluación retrospectiva. No hay inferencia actual.</p></Card>
+      <MetricsTable title="Evaluación exploratoria y baseline" items={[{name:'XGBoost seleccionado',value:report.model},{name:'Baseline por frecuencia',value:report.frequencyBaseline}]}/>
+      <Card><h3>Métricas por clase del modelo seleccionado</h3><div className="table-wrap"><table aria-label="Métricas por clase"><thead><tr><th>Clase</th><th>Precision</th><th>Recall</th><th>F1</th><th>Muestra</th></tr></thead><tbody>{classes.map(name=><tr key={name}><td>{name}</td><td>{pct(report.model.perClass[name].precision)}</td><td>{pct(report.model.perClass[name].recall)}</td><td>{fmt(report.model.perClass[name].f1,3)}</td><td>{report.model.perClass[name].support}</td></tr>)}</tbody></table></div></Card>
+      <MetricsTable title="Resultados walk-forward por fold de desarrollo" items={report.walkForward.flatMap(fold=>[{name:`Fold ${fold.fold} · estándar · ${fold.externalSessions} sesiones`,value:fold.standard},{name:`Fold ${fold.fold} · ponderado`,value:fold.classWeighted},{name:`Fold ${fold.fold} · regularizado`,value:fold.regularized},{name:`Fold ${fold.fold} · frecuencia`,value:fold.frequencyBaseline}])}/>
+      <MetricsTable title="Evaluación retrospectiva por año" items={(['2025','2026'] as const).filter(year=>report.exploratoryByYear[year]).map(year=>({name:year,value:report.exploratoryByYear[year]!}))}/>
+      <Card><h3>Predicciones históricas paginadas</h3><p className="subtle">Son probabilidades de clase calculadas retrospectivamente. La clase dominante describe el valor máximo del modelo; no es una señal vigente.</p><div className="table-wrap"><table aria-label="Predicciones históricas"><thead><tr><th>Vela UTC</th><th>Sesión NY</th><th>ALCISTA</th><th>BAJISTA</th><th>LATERAL</th><th>Clase dominante</th><th>Origen</th></tr></thead><tbody>{page.items.map(item=><tr key={item.timestampUtc}><td>{item.timestampUtc}</td><td>{item.sessionDateNy}</td><td>{pct(item.probabilities.ALCISTA)}</td><td>{pct(item.probabilities.BAJISTA)}</td><td>{pct(item.probabilities.LATERAL)}</td><td>{item.dominantClass}</td><td>Histórico exploratorio</td></tr>)}</tbody></table></div><div className="ml-pagination"><span>{page.total?`${page.offset+1}–${Math.min(page.offset+page.items.length,page.total)} de ${page.total}`:'Sin observaciones'}</span><Button variant="secondary" disabled={offset===0} onClick={()=>setOffset(Math.max(0,offset-limit))}>Anterior</Button><Button variant="secondary" disabled={page.nextOffset===null} onClick={()=>setOffset(page.nextOffset!)}>Siguiente</Button></div></Card>
+    </>}
+  </div>;
+}

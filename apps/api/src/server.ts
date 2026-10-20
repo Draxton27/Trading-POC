@@ -18,8 +18,9 @@ import {AgentHub,AgentRequestError} from './streams/agent-hub.ts';
 import {registerOptionRoutes} from './options/routes.ts';
 import {registerAcademyRoutes} from './academy/routes.ts';
 import {registerAssistantRoutes} from './assistant/routes.ts';
+import {registerMlRoutes} from './ml/routes.ts';
 
-type Options={mode?:'DEMO'|'OFFLINE'|'PAPER';privateDir?:string;phase17Private?:string;phase16Ledger?:string;dbPath?:string;agentSecret?:string;assistantFetch?:typeof fetch;assistantTimeoutMs?:number};
+type Options={mode?:'DEMO'|'OFFLINE'|'PAPER';privateDir?:string;phase17Private?:string;phase16Ledger?:string;dbPath?:string;agentSecret?:string;assistantFetch?:typeof fetch;assistantTimeoutMs?:number;mlRunDir?:string|null};
 const repoRoot=fileURLToPath(new URL('../../../',import.meta.url));
 // Commands can be launched from a workspace directory, so never resolve local
 // configuration relative to process.cwd(). Existing process variables win.
@@ -138,6 +139,7 @@ export async function createApp(options:Options={}){
   registerOptionRoutes(app,hub,mode,demoOptions,db.sqlite);
   registerAcademyRoutes(app,db.sqlite);
   registerAssistantRoutes(app,{mode,hub,sqlite:db.sqlite,barsFor,offlineAvailable,offlineMetadata,calendarFor:s=>mode==='DEMO'?null:offlineCalendar(s),transport:options.assistantFetch,timeoutMs:options.assistantTimeoutMs});
+  registerMlRoutes(app,options.mlRunDir===undefined?process.env.TRADING_POC_ML_RUN_DIR:options.mlRunDir??undefined);
   app.get('/api/v1/options/quotes',async()=>({items:mode==='DEMO'?demoOptions():[],source:mode==='DEMO'?'DEMO sintético':'Consulte /options/contracts para suscribirse a contratos visibles'}));
   app.get('/api/v1/positions',async()=>{if(mode!=='PAPER'||!hub.status().connected)return {items:[],source:'IBKR desconectado'};
     const m=await hub.request('broker.positions.request',{});return {items:m.kind==='broker.positions.snapshot'?m.payload.items:[],source:hub.status().simulation?'Agente simulado':'IBKR Paper'};});
