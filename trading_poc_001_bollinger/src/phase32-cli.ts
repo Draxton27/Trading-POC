@@ -1,7 +1,7 @@
 import {config as loadEnv} from 'dotenv';
 import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {AlpacaCalendarError, fetchAlpacaCalendar} from './alpaca-calendar.ts';
+import {AlpacaCalendarError, fetchAlpacaCalendar, saveMarketCalendar} from './alpaca-calendar.ts';
 import {AlpacaCaptureError, delayedCaptureWindow, fetchAlpacaCaptureBars} from './alpaca.ts';
 import {appendIngestionStatus, appendSuccessfulCapture, validateCapture} from './phase32-ingestion.ts';
 
@@ -22,6 +22,9 @@ if (repeatSeconds !== undefined && (!Number.isInteger(repeatSeconds) || repeatSe
 const delayMinutes = requestedDelay === undefined ? 20 : Number(requestedDelay);
 if (!Number.isInteger(delayMinutes) || delayMinutes < 20) throw new Error('--delay-minutes debe ser un entero de al menos 20.');
 const ledgerPath = value('--log') ?? process.env.TRADING_POC_ALPACA_INGESTION_LOG ?? resolve(repoRoot, 'private', 'alpaca-ingestion', 'ledger.jsonl');
+// The calendar is provenance metadata for the private ledger, not an alternate
+// price source. The forward observer refuses to operate if it is unavailable.
+const calendarPath = process.env.TRADING_POC_ALPACA_INGESTION_CALENDAR ?? `${ledgerPath}.calendar.json`;
 const key = process.env.APCA_API_KEY_ID ?? '', secret = process.env.APCA_API_SECRET_KEY ?? '';
 
 async function once(): Promise<void> {
@@ -29,6 +32,7 @@ async function once(): Promise<void> {
   const startUtc = window.start, endUtc = window.end;
   try {
     const calendar = await fetchAlpacaCalendar({apiKey: key, secretKey: secret, start: startUtc, end: endUtc});
+    saveMarketCalendar(calendarPath, calendar);
     const result = await fetchAlpacaCaptureBars({apiKey: key, secretKey: secret, start: startUtc, end: endUtc, calendar, minimumBarAgeMs: window.delayMs});
     validateCapture(result.candles, calendar, result.receivedAtUtc, Date.now, window.delayMs, result.queryAtUtc);
     const appended = appendSuccessfulCapture(ledgerPath, result);
