@@ -17,8 +17,10 @@ export function npmCli(env=process.env,execPath=process.execPath){
 }
 
 export async function assertPortsFree(env=process.env){
-  for(const [label,value] of [['API',env.TRADING_POC_API_PORT??'4300'],
-    ['Vite',env.TRADING_POC_WEB_PORT??'5173']]){
+  const services=[['API',env.TRADING_POC_API_PORT??'4300'],
+    ['Vite',env.TRADING_POC_WEB_PORT??'5173']];
+  if(env.TRADING_POC_AGENT_PORT!==undefined)services.push(['agente',env.TRADING_POC_AGENT_PORT]);
+  for(const [label,value] of services){
     const port=Number(value);
     if(!Number.isInteger(port)||port<1||port>65535)throw new Error(`Puerto ${label} inválido: ${value}`);
     await new Promise((ok,fail)=>{

@@ -35,6 +35,16 @@ describe('iniciador Windows',()=>{
         .rejects.toThrow(/Puerto API/);
     }finally{server.close();}
   });
+  it('comprueba tambiÃ©n el puerto del agente cuando el lanzador lo solicita',async()=>{
+    const server=createServer();await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
+    try{
+      const address=server.address();if(!address||typeof address==='string')throw new Error('Sin puerto');
+      const freePort=async()=>{const probe=createServer();await new Promise<void>(resolve=>probe.listen(0,'127.0.0.1',resolve));
+        const value=probe.address();probe.close();if(!value||typeof value==='string')throw new Error('Sin puerto libre');return String(value.port);};
+      await expect(assertPortsFree({TRADING_POC_API_PORT:await freePort(),TRADING_POC_WEB_PORT:await freePort(),TRADING_POC_AGENT_PORT:String(address.port)}))
+        .rejects.toThrow(/Puerto agente/);
+    }finally{server.close();}
+  });
   it('si un hijo falla, detiene el otro y propaga el código',()=>{
     const dir=mkdtempSync(join(tmpdir(),'Trading POC child '));
     const priorExit=process.exitCode;
