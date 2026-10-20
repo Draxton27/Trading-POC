@@ -50,8 +50,13 @@ export function preparePhase31Inference(candles:readonly Candle[],calendar:Marke
   const featureHash=hash(canonical({spec:DATASET_SPEC,names:PHASE31_FEATURES,values}));
   return {barStartUtc:last.timestamp,barEndUtc:new Date(end).toISOString(),sessionDateNy:local.day,features:values,featureHash,source:{provider:metadata.provider,feed:'sip',adjustment:'split',receivedAtUtc,availability:'VERIFIED'}};
 }
-export function preparePhase31FromFiles(csvPath:string,receivedAtUtc:string,nowUtc?:string){
+export function preparePhase31FromFiles(csvPath:string,receivedAtUtc:string,nowUtc?:string,barStartUtc?:string){
   const {candles,metadata}=loadDataset(csvPath);const calendar=loadMarketCalendar(`${csvPath}.calendar.json`);
+  if(barStartUtc!==undefined){
+    exactIso(barStartUtc,'bar-start-utc');const index=candles.findIndex(candle=>candle.timestamp===barStartUtc);
+    if(index<0)throw new Error('La vela solicitada no existe en el CSV.');
+    return preparePhase31Inference(candles.slice(0,index+1),calendar,metadata,receivedAtUtc,nowUtc);
+  }
   return preparePhase31Inference(candles,calendar,metadata,receivedAtUtc,nowUtc);
 }
 /** Optional local audit against a Fase 23 row. It never creates or changes a dataset. */

@@ -11,6 +11,14 @@ $env:TRADING_POC_ML_INFERENCE_LOG = (Join-Path $env:LOCALAPPDATA 'Trading-POC\ml
 npm.cmd run ml:infer -- --csv .\trading_poc_001_bollinger\data\NVDA_ALPACA_SIP_15min_20211017_20261017.csv --model-dir $env:TRADING_POC_ML_RUN_DIR --log $env:TRADING_POC_ML_INFERENCE_LOG --mode REPLAY
 ```
 
+Para seleccionar una vela histórica concreta, use un timestamp UTC exacto que exista en el CSV. Este ejemplo usa una vela elegible de la sesión del 16 de octubre de 2026 y corta el cálculo en esa observación:
+
+```powershell
+npm.cmd run ml:infer -- --csv .\trading_poc_001_bollinger\data\NVDA_ALPACA_SIP_15min_20211017_20261017.csv --model-dir $env:TRADING_POC_ML_RUN_DIR --log $env:TRADING_POC_ML_INFERENCE_LOG --mode REPLAY --bar-start-utc 2026-10-16T18:30:00.000Z
+```
+
+La API debe mostrar `HISTORICAL_DATA` al consultar `/api/v1/ml/prospective?symbol=NVDA&timeframe=15m`. Un timestamp inexistente, fuera del calendario, posterior a la última observación o cuyo horizonte t+4 exceda el cierre de sesión se rechaza.
+
 Cuando el dataset privado de Fase 23 esté disponible, agregue `--phase23-dataset <carpeta-del-dataset>` para exigir equivalencia numérica de las diez variables en la fila del mismo `bar_start_utc` antes de cargar el modelo.
 
 La entrada exige CSV y metadatos de NVDA, 15 minutos, Alpaca SIP, `adjustment=split`, sesión regular y calendario Alpaca. Rechaza velas sintéticas, incompletas, desordenadas, fuera de calendario, con gaps que impidan indicadores y velas aún abiertas. Los históricos disponibles terminan en octubre de 2026, por lo que solo pueden generar `REPLAY`; la interfaz los marca como históricos y no como predicción actual.

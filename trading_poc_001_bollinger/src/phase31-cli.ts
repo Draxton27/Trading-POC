@@ -6,10 +6,10 @@ import {parseCsvRows} from './phase17-csv.ts';
 
 function value(flag:string){const at=process.argv.indexOf(flag);return at>=0?process.argv[at+1]:undefined;}
 const csv=value('--csv'),modelDirectory=value('--model-dir')??process.env.TRADING_POC_ML_RUN_DIR,mode=(value('--mode')??'REPLAY') as CaptureMode;
-const receivedAtUtc=value('--received-at')??new Date().toISOString(),log=value('--log')??process.env.TRADING_POC_ML_INFERENCE_LOG;
-if(!csv||!modelDirectory||!log||!['REPLAY','PROSPECTIVE_CAPTURE'].includes(mode))throw new Error('Uso: --csv <NVDA.csv> --model-dir <run> --log <registro.jsonl> [--mode REPLAY|PROSPECTIVE_CAPTURE] [--received-at UTC].');
+const receivedAtUtc=value('--received-at')??new Date().toISOString(),log=value('--log')??process.env.TRADING_POC_ML_INFERENCE_LOG,barStartUtc=value('--bar-start-utc');
+if(!csv||!modelDirectory||!log||!['REPLAY','PROSPECTIVE_CAPTURE'].includes(mode))throw new Error('Uso: --csv <NVDA.csv> --model-dir <run> --log <registro.jsonl> [--mode REPLAY|PROSPECTIVE_CAPTURE] [--received-at UTC] [--bar-start-utc UTC].');
 if(mode==='PROSPECTIVE_CAPTURE')throw new Error('PROSPECTIVE_CAPTURE está bloqueado hasta disponer de una ingesta con recepción automática y procedencia verificable.');
-const prepared=preparePhase31FromFiles(resolve(csv),receivedAtUtc),model=frozenModel(resolve(modelDirectory));
+const prepared=preparePhase31FromFiles(resolve(csv),receivedAtUtc,undefined,barStartUtc),model=frozenModel(resolve(modelDirectory));
 const phase23=value('--phase23-dataset');
 if(phase23){const rows=parseCsvRows(readFileSync(resolve(phase23,'dataset.csv'),'utf8'));const header=rows.shift()??[];const index=header.indexOf('bar_start_utc');const match=rows.find(row=>row[index]===prepared.barStartUtc);if(!match)throw new Error('La fila Fase 23 correspondiente no existe.');assertPhase31FeatureEquivalence(prepared.features,Object.fromEntries(header.map((name,i)=>[name,match[i]??''])));}
 const python=process.env.PYTHON??(process.platform==='win32'?'py':'python3');

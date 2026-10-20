@@ -1,8 +1,9 @@
 import {afterEach,describe,expect,it} from 'vitest';
-import {mkdtempSync,rmSync} from 'node:fs';
+import {mkdtempSync,rmSync,writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {appendPhase31Record,assertPhase31FeatureEquivalence,assertPhase31HorizonEligible,preparePhase31Inference} from '../../trading_poc_001_bollinger/src/phase31-inference.ts';
+import {appendPhase31Record,assertPhase31FeatureEquivalence,assertPhase31HorizonEligible,preparePhase31FromFiles,preparePhase31Inference} from '../../trading_poc_001_bollinger/src/phase31-inference.ts';
+import {serializeCandles} from '../../trading_poc_001_bollinger/src/csv.ts';
 import {readProspectiveInference} from '../../apps/api/src/ml/inference.ts';
 import type {Candle} from '../../trading_poc_001_bollinger/src/domain.ts';
 
@@ -31,6 +32,15 @@ describe('Fase 31: inferencia causal y registro',()=>{
     const early=new Map([['2026-07-03',{open:570,close:780}]]);
     expect(()=>assertPhase31HorizonEligible('2026-07-03T15:45:00.000Z',early)).not.toThrow();
     expect(()=>assertPhase31HorizonEligible('2026-07-03T16:00:00.000Z',early)).toThrow(/horizonte/);
+  });
+  it('selecciona una vela histórica elegible aunque la última del CSV no lo sea',()=>{
+    const rows=[...candles(),{timestamp:'2026-01-02T20:00:00.000Z',open:103,high:103.2,low:102.8,close:103.05,volume:2000}];
+    const now='2026-01-02T20:15:00.000Z';
+    expect(()=>preparePhase31Inference(rows,calendar,metadata,'2026-01-02T20:15:00.000Z',now)).toThrow(/horizonte/);
+    const selected=preparePhase31Inference(rows.slice(0,22),calendar,metadata,'2026-01-02T20:00:00.000Z','2026-01-02T20:00:00.000Z');expect(selected.barStartUtc).toBe('2026-01-02T19:45:00.000Z');
+    const root=mkdtempSync(join(tmpdir(),'phase31-csv-'));clean.push(root);const csv=join(root,'NVDA.csv');writeFileSync(csv,serializeCandles(rows));writeFileSync(`${csv}.meta.json`,JSON.stringify(metadata));writeFileSync(`${csv}.calendar.json`,JSON.stringify({provider:'Alpaca Market Calendar',sessions:[{date:'2026-01-02',open:570,close:960}]}));
+    expect(preparePhase31FromFiles(csv,'2026-01-02T20:00:00.000Z','2026-01-02T20:00:00.000Z','2026-01-02T19:45:00.000Z').barStartUtc).toBe('2026-01-02T19:45:00.000Z');
+    expect(()=>preparePhase31FromFiles(csv,'2026-01-02T20:00:00.000Z','2026-01-02T20:00:00.000Z','2026-01-02T19:35:00.000Z')).toThrow(/no existe/);
   });
   it('registra replay append-only e idempotente, bloquea promoción prospectiva y otro modelo',()=>{
     const prepared=input(),root=mkdtempSync(join(tmpdir(),'phase31-'));clean.push(root);const path=join(root,'records.jsonl');
