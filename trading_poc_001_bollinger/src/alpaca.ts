@@ -35,7 +35,7 @@ export type ImportOptions = {
   allowExactDuplicates?: boolean;
   duplicateAudit?: {exact: number};
 };
-export type AlpacaCaptureResult={candles:Candle[];receivedAtUtc:string;responseSha256:string;availability:'CURRENT'|'DELAYED';effectiveDelayMs:number;};
+export type AlpacaCaptureResult={candles:Candle[];queryAtUtc:string;receivedAtUtc:string;responseSha256:string;availability:'CURRENT'|'DELAYED';barAgeMs:number;effectiveDelayMs:number;};
 export class AlpacaCaptureError extends Error {
   readonly status: 'PERMISSION_DENIED'|'RATE_LIMIT'|'HTTP_ERROR'|'NETWORK_ERROR';
   constructor(status: 'PERMISSION_DENIED'|'RATE_LIMIT'|'HTTP_ERROR'|'NETWORK_ERROR', message: string) { super(message); this.status = status; }
@@ -222,27 +222,30 @@ export async function fetchAlpacaBars(options: ImportOptions): Promise<Candle[]>
  * 20-minute safety window: each returned bar is instead stamped with the local
  * reception time and its observed delay. It never falls back to IEX.
  */
-export async function fetchAlpacaCaptureBars(options:Omit<ImportOptions,'metadata'|'allowIntradayGaps'|'allowExactDuplicates'|'duplicateAudit'>):Promise<AlpacaCaptureResult>{
+export async function fetchAlpacaCaptureBars(options:Omit<ImportOptions,'metadata'|'allowIntradayGaps'|'allowExactDuplicates'|'duplicateAudit'> & {clock?:()=>number}):Promise<AlpacaCaptureResult>{
   const {apiKey,secretKey,httpGet=defaultGet,pause=defaultPause,calendar}=options;
+  const clock=options.clock??(()=>options.now??Date.now());
   if(!calendar)throw new AlpacaCaptureError('HTTP_ERROR','La captura requiere el calendario oficial de Alpaca.');
   if(!apiKey.trim()||!secretKey.trim())throw new AlpacaCaptureError('PERMISSION_DENIED','Faltan credenciales Alpaca.');
-  const start=parseBarStart(options.start),end=parseBarStart(options.end),now=options.now??Date.now();
-  if(start>end||end>now+60_000)throw new AlpacaCaptureError('HTTP_ERROR','Ventana de captura inválida.');
+  const start=parseBarStart(options.start),end=parseBarStart(options.end),queryAt=clock();
+  if(start>end||end>queryAt+60_000)throw new AlpacaCaptureError('HTTP_ERROR','Ventana de captura inválida.');
   const url=new URL(ENDPOINT);url.searchParams.set('symbols','NVDA');url.searchParams.set('timeframe','15Min');url.searchParams.set('feed','sip');url.searchParams.set('adjustment','split');url.searchParams.set('start',new Date(start).toISOString());url.searchParams.set('end',new Date(end).toISOString());url.searchParams.set('limit','10000');url.searchParams.set('sort','asc');
   let response:Response|undefined;
   for(let attempt=0;attempt<4;attempt++){
     try{response=await httpGet(url,{'APCA-API-KEY-ID':apiKey,'APCA-API-SECRET-KEY':secretKey});}
-    catch(error){if(attempt===3)throw new AlpacaCaptureError('NETWORK_ERROR',`Error de red Alpaca: ${String(error)}`);await pause(1000*2**attempt);continue;}
-    if(response.status===401||response.status===403)throw new AlpacaCaptureError('PERMISSION_DENIED',`Alpaca respondió ${response.status}: SIP no autorizado o credenciales inválidas.`);
-    if(response.status===429){if(attempt===3)throw new AlpacaCaptureError('RATE_LIMIT','Alpaca limitó la captura tras reintentos.');await pause(retryWait(response,attempt));continue;}
-    if(response.status>=500){if(attempt===3)throw new AlpacaCaptureError('HTTP_ERROR',`Alpaca respondió ${response.status} tras reintentos.`);await pause(retryWait(response,attempt));continue;}
-    if(!response.ok)throw new AlpacaCaptureError('HTTP_ERROR',`Alpaca respondió HTTP ${response.status}.`);break;
+    catch(error){if(attempt===3)throw new AlpacaCaptureError('NETWORK_ERROR',`Error de red Alpaca Market Data: ${String(error)}`);await pause(1000*2**attempt);continue;}
+    if(response.status===401||response.status===403)throw new AlpacaCaptureError('PERMISSION_DENIED',`Market Data HTTP ${response.status}: SIP no autorizado o credenciales inválidas.`);
+    if(response.status===429){if(attempt===3)throw new AlpacaCaptureError('RATE_LIMIT','Market Data limitó la captura tras reintentos.');await pause(retryWait(response,attempt));continue;}
+    if(response.status>=500){if(attempt===3)throw new AlpacaCaptureError('HTTP_ERROR',`Market Data HTTP ${response.status} tras reintentos.`);await pause(retryWait(response,attempt));continue;}
+    if(!response.ok)throw new AlpacaCaptureError('HTTP_ERROR',`Market Data HTTP ${response.status}.`);break;
   }
-  if(!response?.ok)throw new AlpacaCaptureError('HTTP_ERROR','No se obtuvo una respuesta Alpaca válida.');
-  let body:unknown;try{body=await response.json();}catch{throw new AlpacaCaptureError('HTTP_ERROR','Alpaca devolvió JSON inválido.');}
-  const bars=(body as {bars?:Record<string,unknown>}).bars?.NVDA;if(!Array.isArray(bars))throw new AlpacaCaptureError('HTTP_ERROR','Alpaca no devolvió bars.NVDA.');
-  const candles=bars.map(alpacaCandle).filter(candle=>{const time=Date.parse(candle.timestamp);return time>=start&&time<=end&&isCalendarBar(time,calendar)&&time+15*60_000<=now;});
-  for(let i=1;i<candles.length;i++)if(Date.parse(candles[i]!.timestamp)<=Date.parse(candles[i-1]!.timestamp))throw new AlpacaCaptureError('HTTP_ERROR','Alpaca devolvió barras duplicadas o desordenadas.');
-  const receivedAtUtc=new Date(now).toISOString(),last=candles.at(-1),effectiveDelayMs=last?Math.max(0,now-(Date.parse(last.timestamp)+15*60_000)):Infinity;
-  return {candles,receivedAtUtc,responseSha256:createHash('sha256').update(JSON.stringify(body)).digest('hex'),availability:effectiveDelayMs<=CAPTURE_CURRENT_MS?'CURRENT':'DELAYED',effectiveDelayMs};
+  if(!response?.ok)throw new AlpacaCaptureError('HTTP_ERROR','No se obtuvo una respuesta Market Data válida.');
+  let body:unknown;try{body=await response.json();}catch{throw new AlpacaCaptureError('HTTP_ERROR','Market Data devolvió JSON inválido.');}
+  // Capture this only after the HTTP body was completely read, never from queryAt.
+  const receivedAt=clock();
+  const bars=(body as {bars?:Record<string,unknown>}).bars?.NVDA;if(!Array.isArray(bars))throw new AlpacaCaptureError('HTTP_ERROR','Market Data no devolvió bars.NVDA.');
+  const candles=bars.map(alpacaCandle).filter(candle=>{const time=Date.parse(candle.timestamp);return time>=start&&time<=end&&isCalendarBar(time,calendar)&&time+15*60_000<=receivedAt;});
+  for(let i=1;i<candles.length;i++)if(Date.parse(candles[i]!.timestamp)<=Date.parse(candles[i-1]!.timestamp))throw new AlpacaCaptureError('HTTP_ERROR','Market Data devolvió barras duplicadas o desordenadas.');
+  const receivedAtUtc=new Date(receivedAt).toISOString(),last=candles.at(-1),barAgeMs=last?Math.max(0,receivedAt-(Date.parse(last.timestamp)+15*60_000)):Infinity;
+  return {candles,queryAtUtc:new Date(queryAt).toISOString(),receivedAtUtc,responseSha256:createHash('sha256').update(JSON.stringify(body)).digest('hex'),availability:barAgeMs<=CAPTURE_CURRENT_MS?'CURRENT':'DELAYED',barAgeMs,effectiveDelayMs:barAgeMs};
 }

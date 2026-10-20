@@ -1,9 +1,9 @@
-﻿import {config as loadEnv} from 'dotenv';
+import {config as loadEnv} from 'dotenv';
 import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {fetchAlpacaCalendar} from './alpaca-calendar.ts';
+import {AlpacaCalendarError, fetchAlpacaCalendar} from './alpaca-calendar.ts';
 import {AlpacaCaptureError, fetchAlpacaCaptureBars} from './alpaca.ts';
-import {appendIngestion, appendIngestionStatus, readIngestion, recordsForCapture, validateCapture} from './phase32-ingestion.ts';
+import {appendIngestionStatus, appendSuccessfulCapture, validateCapture} from './phase32-ingestion.ts';
 
 const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
 loadEnv({path: resolve(repoRoot, '.env.local'), override: false, quiet: true});
@@ -24,18 +24,14 @@ async function once(): Promise<void> {
   const startUtc = new Date(start).toISOString(), endUtc = new Date(end).toISOString();
   try {
     const calendar = await fetchAlpacaCalendar({apiKey: key, secretKey: secret, start: startUtc, end: endUtc});
-    const result = await fetchAlpacaCaptureBars({apiKey: key, secretKey: secret, start: startUtc, end: endUtc, now, calendar});
+    const result = await fetchAlpacaCaptureBars({apiKey: key, secretKey: secret, start: startUtc, end: endUtc, calendar});
     validateCapture(result.candles, calendar, result.receivedAtUtc);
-    if (!result.candles.length) {
-      appendIngestionStatus(ledgerPath, 'NO_DATA', 'Alpaca SIP no devolvió velas cerradas de sesión regular para la ventana solicitada.', result.receivedAtUtc);
-      process.stdout.write(`Alpaca SIP: sin velas cerradas; registro ${ledgerPath}\n`); return;
-    }
-    const entries = recordsForCapture(result.candles, result.receivedAtUtc, result.responseSha256, result.availability, result.effectiveDelayMs, readIngestion(ledgerPath));
-    const appended = appendIngestion(ledgerPath, entries);
-    process.stdout.write(`Alpaca SIP NVDA 15Min split: ${result.candles.length} velas, ${appended.records.length} nuevas/revisadas, disponibilidad ${result.availability}.\n`);
+    const appended = appendSuccessfulCapture(ledgerPath, result);
+    process.stdout.write(`Alpaca SIP NVDA 15Min: consulta exitosa; ${result.candles.length} velas observadas, ${appended.barsAdded} nuevas/revisadas, disponibilidad ${result.availability}.\n`);
   } catch (error) {
-    const state = error instanceof AlpacaCaptureError ? error.status : 'INVALID_DATA';
-    appendIngestionStatus(ledgerPath, state, error instanceof Error ? error.message : 'Error de ingesta Alpaca.');
+    const state = error instanceof AlpacaCaptureError || error instanceof AlpacaCalendarError ? error.status : 'INVALID_DATA';
+    const stage = error instanceof AlpacaCalendarError ? 'Calendario' : error instanceof AlpacaCaptureError ? 'Market Data' : 'Validación local';
+    appendIngestionStatus(ledgerPath, state, `${stage}: ${error instanceof Error ? error.message : 'Error de ingesta Alpaca.'}`);
     throw error;
   }
 }

@@ -16,7 +16,9 @@ export const MlIngestionStatus=z.object({
   status:MlIngestionState,provider:z.literal('Alpaca Market Data API'),feed:z.literal('sip'),adjustment:z.literal('split'),
   availability:z.enum(['CURRENT','DELAYED','UNAVAILABLE']),lastBarStartUtc:z.iso.datetime({offset:true}).nullable(),
   lastBarEndUtc:z.iso.datetime({offset:true}).nullable(),receivedAtUtc:z.iso.datetime({offset:true}).nullable(),
-  effectiveDelayMs:z.number().finite().nonnegative().nullable(),revision:z.number().int().positive().nullable(),reason:z.string().min(1),
+  effectiveDelayMs:z.number().finite().nonnegative().nullable(),revision:z.number().int().positive().nullable(),
+  lastAttemptAtUtc:z.iso.datetime({offset:true}).nullable(),lastSuccessfulQueryAtUtc:z.iso.datetime({offset:true}).nullable(),
+  lastBarReceivedAtUtc:z.iso.datetime({offset:true}).nullable(),lastBarAvailability:z.enum(['CURRENT','DELAYED','UNAVAILABLE']),reason:z.string().min(1),
 }).strict();
 export type MlIngestionStatus=z.infer<typeof MlIngestionStatus>;
 export const MlProspectiveRecord=z.object({status:MlProspectiveStatus,mode:z.enum(['REPLAY','PROSPECTIVE_CAPTURE']).nullable(),modelId:z.string().nullable(),modelSha256:z.string().regex(/^[a-f0-9]{64}$/).nullable(),source:z.string().nullable(),lastObservationUtc:z.iso.datetime({offset:true}).nullable(),receivedAtUtc:z.iso.datetime({offset:true}).nullable(),registeredAtUtc:z.iso.datetime({offset:true}).nullable(),probabilities:z.object({ALCISTA:z.number().min(0).max(1),BAJISTA:z.number().min(0).max(1),LATERAL:z.number().min(0).max(1)}).nullable(),dominantClass:z.enum(['ALCISTA','BAJISTA','LATERAL']).nullable(),entryAtUtc:z.iso.datetime({offset:true}).nullable(),recordedBeforeNextEntry:z.boolean().nullable(),reason:z.string().min(1)});
