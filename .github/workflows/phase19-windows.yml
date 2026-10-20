@@ -11,6 +11,7 @@ on:
       - 'ml/**'
       - 'trading_poc_001_bollinger/src/phase31-*.ts'
       - 'trading_poc_001_bollinger/src/phase32-*.ts'
+      - 'trading_poc_001_bollinger/src/alpaca*.ts'
       - 'package.json'
       - 'package-lock.json'
       - '.github/workflows/phase19-windows.yml'
