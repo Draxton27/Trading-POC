@@ -1,0 +1,20 @@
+import {test,expect} from '@playwright/test';
+
+const metrics={accuracy:.5,balancedAccuracy:.5,macroF1:.5,logLoss:1.1,perClass:{ALCISTA:{precision:.5,recall:.5,f1:.5,support:1},BAJISTA:{precision:.5,recall:.5,f1:.5,support:1},LATERAL:{precision:.5,recall:.5,f1:.5,support:1}}};
+test('Predicciones muestra modelo ausente y el aviso estadístico en DEMO',async({page})=>{
+  await page.goto('/');await page.getByRole('button',{name:'Predicciones'}).click();
+  await expect(page.getByText('Modelo no configurado')).toBeVisible();
+  await expect(page.getByText('Modelo experimental. Evaluación retrospectiva no independiente. Probabilidades no calibradas para uso operativo. No constituye recomendación CALL o PUT.')).toBeVisible();
+  await expect(page.getByRole('table',{name:'Predicciones históricas'})).toHaveCount(0);
+});
+test('Predicciones muestra experimento histórico paginado sin señal vigente',async({page})=>{
+  await page.route('**/api/v1/ml/status',route=>route.fulfill({json:{status:'READY',reason:null,experimentId:'synthetic-test'}}));
+  await page.route('**/api/v1/ml/summary',route=>route.fulfill({json:{status:'READY',symbol:'NVDA',timeframe:'15m',origin:'HISTORICAL_EXPLORATORY',experimentId:'synthetic-test',createdAtUtc:'2026-10-20T13:49:17.000Z',modelVersion:'XGBoost 2.1.4 · nvda-15m-v1',selectedVariant:'standard',trees:12,datasetSha256:'a'.repeat(64),predictionCount:2}}));
+  await page.route('**/api/v1/ml/metrics',route=>route.fulfill({json:{status:'READY',model:metrics,frequencyBaseline:metrics,walkForward:[{fold:1,externalSessions:3,standard:metrics,classWeighted:metrics,regularized:metrics,frequencyBaseline:metrics}],exploratoryByYear:{'2025':metrics,'2026':metrics},warning:'Investigación exploratoria'}}));
+  await page.route('**/api/v1/ml/predictions?*',route=>{const offset=Number(new URL(route.request().url()).searchParams.get('offset')??0);return route.fulfill({json:{status:'READY',items:offset?[]:[{symbol:'NVDA',timeframe:'15m',timestampUtc:'2025-01-02T14:30:00.000Z',sessionDateNy:'2025-01-02',probabilities:{ALCISTA:.7,BAJISTA:.2,LATERAL:.1},dominantClass:'ALCISTA',origin:'HISTORICAL_EXPLORATORY',modelVersion:'XGBoost 2.1.4 · nvda-15m-v1'}],total:2,offset,limit:25,nextOffset:null}});});
+  await page.goto('/');await page.getByRole('button',{name:'Predicciones'}).click();
+  await expect(page.getByText('synthetic-test')).toBeVisible();
+  await expect(page.getByRole('table',{name:'Predicciones históricas'}).locator('tbody tr')).toHaveCount(1);
+  await expect(page.getByText('No hay inferencia actual.')).toBeVisible();
+  await expect(page.getByRole('table',{name:'Evaluación retrospectiva por año'}).locator('tbody tr')).toHaveCount(2);
+});
