@@ -55,6 +55,19 @@ describe('ingesta Alpaca SIP Fase 32', () => {
       expect(status).toMatchObject({status: 'DELAYED', lastAttemptAtUtc: `${day}T14:46:00.000Z`, lastSuccessfulQueryAtUtc: `${day}T14:46:00.000Z`, lastBarAvailability: 'DELAYED'});
     } finally { rmSync(root, {recursive: true, force: true}); }
   });
+  it('conserva la vela mÃ¡s nueva aunque una revisiÃ³n de una vela anterior llegue despuÃ©s', () => {
+    const root = mkdtempSync(join(tmpdir(), 'phase32-order-')), ledger = join(root, 'ledger.jsonl');
+    try {
+      const earlier = {timestamp: `${day}T13:00:00.000Z`, open: 188, high: 189, low: 187, close: 188.5, volume: 1000};
+      const newer = {timestamp: `${day}T14:45:00.000Z`, open: 190, high: 191, low: 189, close: 190.5, volume: 1200};
+      appendSuccessfulCapture(ledger, capture([earlier], `${day}T13:16:00.000Z`, 'a', `${day}T13:15:00.000Z`));
+      appendSuccessfulCapture(ledger, capture([newer], `${day}T15:01:00.000Z`, 'b', `${day}T15:00:00.000Z`));
+      appendSuccessfulCapture(ledger, capture([{...earlier, close: 188.75}], `${day}T15:02:00.000Z`, 'c', `${day}T15:01:00.000Z`));
+      const status = readAlpacaIngestionStatus(ledger, () => Date.parse(`${day}T15:05:00.000Z`));
+      expect(status).toMatchObject({lastBarStartUtc: `${day}T14:45:00.000Z`, lastBarEndUtc: `${day}T15:00:00.000Z`, revision: 1});
+      expect(readIngestion(ledger).filter(row => row.kind === 'bar')).toHaveLength(3);
+    } finally { rmSync(root, {recursive: true, force: true}); }
+  });
   it('expone estado de solo lectura sin rutas privadas', async () => {
     const root = mkdtempSync(join(tmpdir(), 'phase32-api-')), ledger = join(root, 'ledger.jsonl');
     try {

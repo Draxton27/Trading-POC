@@ -9,7 +9,19 @@ export function readAlpacaIngestionStatus(logPath: string | undefined, clock: ()
   try {
     const records = readIngestion(logPath), attempt = records.at(-1);
     if (!attempt) return absent('NO_DATA', 'El libro local de ingesta está vacío.');
-    const bar = records.filter(record => record.kind === 'bar' && record.bar !== null).at(-1);
+    // El libro es append-only: una revisión histórica puede llegar después de
+    // una vela más nueva. La última vela del panel se determina por su fin de
+    // intervalo y, para revisiones de la misma vela, por la revisión más nueva.
+    const bar = records
+      .filter(record => record.kind === 'bar' && record.bar !== null)
+      .sort((a, b) => {
+        const end = Date.parse(b.bar!.endUtc) - Date.parse(a.bar!.endUtc);
+        if (end !== 0) return end;
+        const revision = b.bar!.revision - a.bar!.revision;
+        if (revision !== 0) return revision;
+        return Date.parse(b.receivedAtUtc) - Date.parse(a.receivedAtUtc);
+      })
+      .at(0);
     // Old Phase 32 records have no query row; their latest bar remains a compatible successful query proxy.
     const successful = records.filter(record => record.kind === 'query').at(-1) ?? bar;
     const lastBarAvailability = bar?.bar ? availabilityForBarEnd(bar.bar.endUtc, clock()) : 'UNAVAILABLE';
