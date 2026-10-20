@@ -128,8 +128,11 @@ def main():
     rows,metadata=load_dataset(Path(args.dataset)); development=[r for r in rows if r['partition']=='desarrollo']; evaluation=[r for r in rows if r['partition']=='evaluacion_exploratoria']
     if not development or not evaluation: raise ValueError('Se requieren desarrollo y evaluacion exploratoria.')
     folds=session_folds(rows); train,valid=folds[-1]; _,ye=arrays(evaluation); report={'experimental':True,'warning':'Evaluacion 2025-2026 es retrospectiva exploratoria; no es evidencia independiente ni una estrategia u orden.','features':list(FEATURES),'class_index':CLASS_INDEX,'dataset_sha256':sha(Path(args.dataset)/'dataset.csv'),'rows':len(rows),'sessions':len({r['session_date_ny'] for r in rows}),'class_distribution':dict(Counter(r['label'] for r in rows)),'walk_forward_folds':[{'train_rows':len(a),'validation_rows':len(b),'train_sessions':len({r['session_date_ny'] for r in a}),'validation_sessions':len({r['session_date_ny'] for r in b})} for a,b in folds],'purge':'Se purgan filas de entrenamiento cuya etiqueta no estaba disponible antes del inicio del fold. No se requiere embargo extra: Fase 23 no permite horizontes que crucen sesiones.','baselines':{}}
+    # XGBoost is refit with the same development rows (train + validation).
+    # Baseline frequencies must use exactly that information as well.
+    final_development=train+valid
     for name,fn in [('mayoritaria',probabilities_majority),('frecuencia',probabilities_frequency)]:
-        _,yt=arrays(train); p=fn(yt,len(evaluation)); report['baselines'][name]=metrics(ye,p);report['baselines'][name]['uncertainty']=bootstrap_by_session(evaluation,ye,p)
+        _,yt=arrays(final_development); p=fn(yt,len(evaluation)); report['baselines'][name]=metrics(ye,p);report['baselines'][name]['uncertainty']=bootstrap_by_session(evaluation,ye,p)
     model,probabilities,model_info=train_xgb(train,valid,evaluation); report['xgboost']=metrics(ye,probabilities);report['xgboost']['uncertainty']=bootstrap_by_session(evaluation,ye,probabilities);report['model']=model_info
     root=Path(args.output) if args.output else Path('trading_poc_001_bollinger/output/real/phase28-xgboost')/(datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')+'-'+report['dataset_sha256'][:12]);root.mkdir(parents=True,exist_ok=False)
     model.save_model(root/'model.json');(root/'report.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf8')
