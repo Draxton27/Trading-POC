@@ -55,6 +55,14 @@ El selector no infiere símbolos, no admite más de dos activos y no convierte f
 
 Cuando una herramienta devuelta por Ollama no es válida, el servidor emite un diagnóstico estructurado de nivel `warn` con el modelo, el nombre de herramienta, el tipo y las claves de los argumentos y códigos/rutas de Zod. No incluye valores de argumentos, historial, pregunta, rangos académicos, velas, cotizaciones, credenciales ni secretos. `TRADING_POC_LOG_LEVEL` permite ajustar el nivel de salida; su valor predeterminado es `warn`. Las validaciones estrictas, el límite de una llamada a Ollama, `keep_alive` y el timeout se mantienen.
 
+### Referencias documentales de la academia
+
+Las solicitudes inequívocas que mencionan «rango óptimo», «rango de la academia», «referencia documental» o «límites recomendados por la academia» se resuelven localmente con el símbolo explícito y permitido. El backend reutiliza get_academy_reference, academyArgs y academyEvidence(); el servicio de academia determina si el resultado es ACTIVE, REFERENCE_DATE, HISTORICAL_ONLY, CONFLICT o NONE. No se usa la explicación educativa como sustituto. Si una consulta documental no puede resolverse inequívocamente —por ejemplo, falta el activo, hay varios activos, la fecha es ambigua o aparece una instrucción adversarial— se devuelve un error controlado.
+
+Se aceptan fechas ISO, fechas españolas con el mes escrito («17 de febrero de 2026») y fechas numéricas DD/MM/YYYY o MM/DD/YYYY solo cuando uno de los dos primeros componentes supera 12 y determina el orden. Se rechazan días imposibles, fechas numéricas ambiguas como 03/04/2026, meses sin día y varias fechas distintas. Los límites y rangos se muestran con su fecha y estado documental. Una referencia histórica sin vigencia declarada se conserva como HISTORICAL_ONLY; no se presenta como una recomendación vigente, precio de NVDA ni precio actual de opción. La unidad ASK por acción sigue identificada como interpretación del operador.
+
+Prueba manual en DEMO con una base local que contenga referencias: preguntar «¿Qué rango óptimo tiene NVDA según la academia para el 17 de febrero de 2026?». La respuesta debe incluir la sección «Referencia documental», la fecha seleccionada, los valores disponibles y el estado que determine el registro local. Una base sin referencia debe indicar NONE; un conflicto debe indicarse como tal y no mostrar un rango evaluable. Las pruebas automatizadas usan fixtures sintéticos y no requieren Ollama.
+
 ### Prueba manual con Llama 3.2 3B en Windows
 
 Esta ejecución no usó Ollama real. Para comprobarlo localmente, con Ollama instalado y el modelo descargado, iniciar el servicio y luego la aplicación DEMO:

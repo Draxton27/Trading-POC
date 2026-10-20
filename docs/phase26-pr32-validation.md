@@ -67,9 +67,17 @@ La reutilización es optativa y únicamente debe usarse para estos servicios DEM
 
 En este entorno Windows la variante en que Playwright inicia `npm run dev` por sí mismo agotó el tiempo de arranque del servidor web; no se contabiliza como ejecución E2E aprobada. La validación final usa las tres consolas anteriores, donde los dos servicios se iniciaron y cerraron por separado y el proceso de Playwright finalizó con código 0. Queda pendiente verificar ese arranque autogestionado en otro entorno o CI; el fallo no se oculta reutilizando PAPER.
 
+## Corrección del selector de referencias documentales
+
+La consulta «¿Qué rango óptimo tiene NVDA según la academia para el 17 de febrero de 2026?» ahora se reconoce antes de consultar Ollama y ejecuta solo la referencia académica local. La respuesta incluye la sección «Referencia documental», fecha y rango disponibles, además del estado calculado por el servicio existente. No convierte la fecha de referencia en vigencia ni interpreta ASK como precio de la acción. Si no hay referencia, se informa NONE; si hay registros contradictorios, se informa CONFLICT y no se muestra un rango evaluable.
+
+El parser valida el calendario y admite fecha española con mes escrito, ISO y DD/MM/YYYY o MM/DD/YYYY cuando el orden puede determinarse. Rechaza fechas inexistentes, formatos numéricos ambiguos, mes/año sin día y más de una fecha distinta. Ante una consulta documental que el selector no pueda resolver, se devuelve HTTP 422 controlado; una herramienta educativa de Ollama no puede sustituirla. Las pruebas también confirman que las dos consultas técnicas de NVDA y NVDA/QQQ siguen resolviéndose localmente y que una explicación educativa legítima conserva su respuesta.
+
+La prueba específica de asistente pasó 18/18. La suite E2E completa se ejecutó contra API y web en puertos 14300/15173, con base privada y ambos endpoints de salud verificados como DEMO: 8/8 aprobadas. Ollama real no se usó; este cambio no depende de su instalación.
+
 ## Resultados finales
 
-- `npm test`: 110 pruebas de Vitest y 177 históricas, todas aprobadas. Las cinco pruebas adicionales cubren el selector local, argumentos de Ollama malformados, símbolos no permitidos, campos extra, entradas ambiguas e instrucciones adversariales.
+- `npm test`: 114 pruebas de Vitest y 177 históricas, todas aprobadas. Esta corrección añade cuatro pruebas que cubren selección documental, fechas válidas e inválidas, ausencia y conflicto de referencias, y prevención de sustitución educativa, además de comprobar que las rutas técnica, comparativa y educativa siguen funcionando.
 - `npm run typecheck`: aprobado para el monorepositorio y el POC histórico.
 - `npm run build`: aprobado; Vite advierte que el paquete JavaScript principal supera 500 kB, aviso preexistente y ajeno a esta corrección.
 - `npm run test:e2e` con API y web DEMO aislados: 8/8 aprobadas, incluidas las tres que habían fallado. El modo se verificó tanto directamente en la API como a través del proxy web.
