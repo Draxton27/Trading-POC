@@ -9,7 +9,7 @@ import {MlPredictionsPage,MlSummary} from '../../packages/contracts/src/ml.ts';
 const dispose:Array<()=>Promise<void>>=[];
 afterEach(async()=>{for(const clean of dispose.splice(0))await clean();});
 const sha=(value:string)=>createHash('sha256').update(value).digest('hex');
-const metric={accuracy:.5,balanced_accuracy:.5,macro_f1:.5,log_loss:1.1,per_class:Object.fromEntries(['ALCISTA','BAJISTA','LATERAL'].map(name=>[name,{precision:.5,recall:.5,f1:.5,support:1}]))};
+const metric={accuracy:1,balanced_accuracy:1,macro_f1:1,log_loss:-(Math.log(.7)+Math.log(.7)+Math.log(.6))/3,per_class:Object.fromEntries(['ALCISTA','BAJISTA','LATERAL'].map(name=>[name,{precision:1,recall:1,f1:1,support:1}]))};
 function artifacts(){
   const root=mkdtempSync(join(tmpdir(),'ml-artifacts-'));
   const datasetSha='a'.repeat(64),run=join(root,`20261020T134917Z-${datasetSha.slice(0,12)}`);mkdirSync(run);
@@ -26,7 +26,7 @@ describe('API experimental XGBoost de solo lectura',()=>{
     const {root,run}=artifacts();dispose.push(async()=>rmSync(root,{recursive:true,force:true}));const app=await appFor(run);
     expect((await app.inject('/api/v1/ml/status')).json().status).toBe('READY');
     const response=await app.inject('/api/v1/ml/summary');const summary=MlSummary.parse(response.json());expect(summary.trees).toBe(2);expect(summary.symbol).toBe('NVDA');
-    const metrics=(await app.inject('/api/v1/ml/metrics')).json();expect(metrics.model.macroF1).toBe(.5);expect(metrics.walkForward).toHaveLength(1);
+    const metrics=(await app.inject('/api/v1/ml/metrics')).json();expect(metrics.model.macroF1).toBe(1);expect(metrics.walkForward).toHaveLength(1);
     const page=MlPredictionsPage.parse((await app.inject('/api/v1/ml/predictions?offset=1&limit=1')).json());expect(page.items).toHaveLength(1);expect(page.items[0]?.dominantClass).toBe('BAJISTA');expect(page.nextOffset).toBe(2);
     expect((await app.inject('/api/v1/ml/predictions?offset=2&limit=1')).json().nextOffset).toBeNull();
     for(const body of [response.body,JSON.stringify(metrics),JSON.stringify(page)]){expect(body).not.toContain('C:/private');expect(body).not.toContain('dataset_dir');expect(body).not.toContain('report.json');}
@@ -43,6 +43,15 @@ describe('API experimental XGBoost de solo lectura',()=>{
       (run:string)=>{const p=join(run,'exploratory_predictions.csv');writeFileSync(p,readFileSync(p,'utf8').replace('0.7,0.2,0.1','0.9,0.9,0.9'));},
       (run:string)=>{const p=join(run,'report.json'),x=JSON.parse(readFileSync(p,'utf8'));x.walk_forward_folds[0].out_of_sample_predictions=[{bar_start_utc:'2024-01-02T14:30:00.000Z',session_date_ny:'2024-01-02',label:'ALCISTA',prob_standard:[.9,.9,.9],prob_class_weighted:[1,0,0],prob_regularized:[1,0,0],prob_majority:[1,0,0],prob_frequency:[1,0,0]}];writeFileSync(p,JSON.stringify(x));},
     ]){const {root,run}=artifacts();dispose.push(async()=>rmSync(root,{recursive:true,force:true}));mutate(run);const app=await appFor(run);const body=(await app.inject('/api/v1/ml/predictions')).body;expect(JSON.parse(body).status).toBe('INVALID_ARTIFACT');expect(body).not.toContain(root);}
+  });
+  it('recalcula las métricas y rechaza una métrica o probabilidad alterada',async()=>{
+    for(const mutate of [
+      (run:string)=>{const p=join(run,'report.json'),x=JSON.parse(readFileSync(p,'utf8'));x.xgboost.macro_f1=.99;writeFileSync(p,JSON.stringify(x));},
+      (run:string)=>{const p=join(run,'exploratory_predictions.csv');writeFileSync(p,readFileSync(p,'utf8').replace('0.7,0.2,0.1','0.2,0.7,0.1'));},
+    ]){
+      const {root,run}=artifacts();dispose.push(async()=>rmSync(root,{recursive:true,force:true}));mutate(run);const app=await appFor(run);
+      expect((await app.inject('/api/v1/ml/status')).json()).toMatchObject({status:'INVALID_ARTIFACT'});
+    }
   });
   it('limita activo, temporalidad, cantidad y rutas solicitadas',async()=>{
     const {root,run}=artifacts();dispose.push(async()=>rmSync(root,{recursive:true,force:true}));const app=await appFor(run);

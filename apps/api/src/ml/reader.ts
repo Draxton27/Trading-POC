@@ -24,13 +24,42 @@ const rawReport=z.object({experimental:z.literal(true),dataset_sha256:hash,class
 const rawReproduction=z.object({dataset_metadata:z.object({schemaVersion:z.literal('nvda-15m-v1'),outputCsvSha256:hash,source:z.object({metadata:z.object({asset:z.literal('NVDA'),bar_minutes:z.literal(15),data_class:z.literal('real')})})}),class_index:z.object({ALCISTA:z.literal(0),BAJISTA:z.literal(1),LATERAL:z.literal(2)})});
 const utcStamp=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 const csvHeader=['bar_start_utc','session_date_ny','label','prob_ALCISTA','prob_BAJISTA','prob_LATERAL'];
+const classes=['ALCISTA','BAJISTA','LATERAL'] as const;
+// CSV serializes model probabilities as decimal text.  This tolerance covers that
+// round-trip and ordinary floating-point evaluation without accepting material drift.
+const metricTolerance=1e-6;
 type Ready={status:'READY';summary:MlSummary;metrics:MlMetricsResponse;predictions:Prediction[]};
+type Label=(typeof classes)[number];
+type ParsedPrediction={prediction:Prediction;label:Label};
 type LoadResult=Ready|{status:'NO_MODEL'|'INVALID_ARTIFACT'|'UNAVAILABLE';reason:string;experimentId:null};
 const sha=(content:Buffer)=>createHash('sha256').update(content).digest('hex');
 const unavailable=(status:'NO_MODEL'|'INVALID_ARTIFACT'|'UNAVAILABLE',reason:string):Exclude<LoadResult,Ready>=>({status,reason,experimentId:null});
 function metric(input:z.infer<typeof rawMetrics>):Metrics{
   const perClass=Object.fromEntries((['ALCISTA','BAJISTA','LATERAL'] as const).map(k=>[k,input.per_class[k]]));
   return MlMetrics.parse({accuracy:input.accuracy,balancedAccuracy:input.balanced_accuracy,macroF1:input.macro_f1,logLoss:input.log_loss,perClass});
+}
+function recalculatedMetrics(predictions:ParsedPrediction[]):z.infer<typeof rawMetrics>{
+  if(!predictions.length)throw new Error('No hay predicciones históricas para validar métricas');
+  const index=Object.fromEntries(classes.map((name,position)=>[name,position])) as Record<Label,number>;
+  const matrix=Array.from({length:3},()=>Array<number>(3).fill(0));
+  let correct=0,loss=0;
+  for(const {prediction,label} of predictions){
+    const actual=index[label],predicted=index[prediction.dominantClass];
+    matrix[actual]![predicted]=matrix[actual]![predicted]!+1;if(actual===predicted)correct++;
+    loss-=Math.log(Math.max(prediction.probabilities[label],1e-15));
+  }
+  const per_class=Object.fromEntries(classes.map((name,row)=>{
+    const tp=matrix[row]![row]!,fp=matrix.reduce((sum,values)=>sum+values[row]!,0)-tp,fn=matrix[row]!.reduce((sum,value)=>sum+value,0)-tp;
+    const precision=tp+fp?tp/(tp+fp):0,recall=tp+fn?tp/(tp+fn):0,f1=precision+recall?2*precision*recall/(precision+recall):0;
+    return [name,{precision,recall,f1,support:matrix[row]!.reduce((sum,value)=>sum+value,0)}];
+  })) as z.infer<typeof rawMetrics>['per_class'];
+  return {accuracy:correct/predictions.length,balanced_accuracy:classes.reduce((sum,name)=>sum+per_class[name].recall,0)/classes.length,
+    macro_f1:classes.reduce((sum,name)=>sum+per_class[name].f1,0)/classes.length,log_loss:loss/predictions.length,per_class};
+}
+function assertMetricMatch(expected:z.infer<typeof rawMetrics>,actual:z.infer<typeof rawMetrics>,scope:string){
+  const compare=(name:string,left:number,right:number)=>{if(Math.abs(left-right)>metricTolerance)throw new Error(`Métrica inconsistente en ${scope}: ${name}`);};
+  compare('accuracy',expected.accuracy,actual.accuracy);compare('balanced_accuracy',expected.balanced_accuracy,actual.balanced_accuracy);compare('macro_f1',expected.macro_f1,actual.macro_f1);compare('log_loss',expected.log_loss,actual.log_loss);
+  for(const name of classes){const a=expected.per_class[name],b=actual.per_class[name];if(a.support!==b.support)throw new Error(`Métrica inconsistente en ${scope}: ${name}.support`);compare(`${name}.precision`,a.precision,b.precision);compare(`${name}.recall`,a.recall,b.recall);compare(`${name}.f1`,a.f1,b.f1);}
 }
 function readArtifacts(directory:string){
   const parts={} as Record<(typeof names)[number],Buffer>;
@@ -43,7 +72,7 @@ function readArtifacts(directory:string){
   }
   return parts;
 }
-function parsePredictions(content:Buffer,version:string):Prediction[]{
+function parsePredictions(content:Buffer,version:string):ParsedPrediction[]{
   const rows=parseCsvRows(content.toString('utf8'));
   if(rows.length<2||rows.length>100001||JSON.stringify(rows[0])!==JSON.stringify(csvHeader))throw new Error('CSV histórico inválido');
   let prior=-Infinity;
@@ -52,11 +81,11 @@ function parsePredictions(content:Buffer,version:string):Prediction[]{
     const instant=Date.parse(cells[0]!);
     if(!Number.isFinite(instant)||new Date(instant).toISOString()!==cells[0]||instant<=prior||instant>Date.now())throw new Error('Orden o instante histórico inválido');
     prior=instant;
-    if(!/^202[56]-\d{2}-\d{2}$/.test(cells[1]??'')||!['ALCISTA','BAJISTA','LATERAL'].includes(cells[2]??''))throw new Error('Sesión o etiqueta inválida');
+    if(!/^202[56]-\d{2}-\d{2}$/.test(cells[1]??'')||!classes.includes(cells[2] as Label))throw new Error('Sesión o etiqueta inválida');
     const values=cells.slice(3).map(value=>value?.trim()===''?NaN:Number(value));
     if(values.length!==3||values.some(value=>!Number.isFinite(value)||value<0||value>1)||Math.abs(values.reduce((a,b)=>a+b,0)-1)>1e-5)throw new Error('Probabilidades inválidas');
     const dominant=(['ALCISTA','BAJISTA','LATERAL'] as const)[values.indexOf(Math.max(...values))]!;
-    return MlPrediction.parse({symbol:'NVDA',timeframe:'15m',timestampUtc:cells[0],sessionDateNy:cells[1],probabilities:{ALCISTA:values[0],BAJISTA:values[1],LATERAL:values[2]},dominantClass:dominant,origin:'HISTORICAL_EXPLORATORY',modelVersion:version});
+    return {label:cells[2] as Label,prediction:MlPrediction.parse({symbol:'NVDA',timeframe:'15m',timestampUtc:cells[0],sessionDateNy:cells[1],probabilities:{ALCISTA:values[0],BAJISTA:values[1],LATERAL:values[2]},dominantClass:dominant,origin:'HISTORICAL_EXPLORATORY',modelVersion:version})};
   });
 }
 export function loadMlRun(directory:string|undefined):LoadResult{
@@ -82,7 +111,20 @@ export function loadMlRun(directory:string|undefined):LoadResult{
     const createdAtUtc=`${stamp[1]!.slice(0,4)}-${stamp[1]!.slice(4,6)}-${stamp[1]!.slice(6,8)}T${stamp[2]!.slice(0,2)}:${stamp[2]!.slice(2,4)}:${stamp[2]!.slice(4,6)}.000Z`;
     if(!Number.isFinite(Date.parse(createdAtUtc))||new Date(createdAtUtc).toISOString()!==createdAtUtc)throw new Error('Fecha de artefacto inválida');
     const modelVersion=`XGBoost ${modelShape.version.join('.')} · nvda-15m-v1`;
-    const predictions=parsePredictions(files['exploratory_predictions.csv'],modelVersion);
+    const parsedPredictions=parsePredictions(files['exploratory_predictions.csv'],modelVersion);
+    const recalculated=recalculatedMetrics(parsedPredictions);
+    assertMetricMatch(report.xgboost,recalculated,'evaluación exploratoria completa');
+    for(const year of ['2025','2026'] as const){
+      const observations=parsedPredictions.filter(({prediction})=>prediction.sessionDateNy.startsWith(year));
+      const reported=report.exploratory_by_year[year];
+      if(!observations.length){
+        if(reported)throw new Error(`Métrica anual sin observaciones: ${year}`);
+        continue;
+      }
+      if(!reported)throw new Error(`Falta métrica anual para ${year}`);
+      assertMetricMatch(reported,recalculatedMetrics(observations),`evaluación exploratoria ${year}`);
+    }
+    const predictions=parsedPredictions.map(({prediction})=>prediction);
     const support=(m:z.infer<typeof rawMetrics>)=>Object.values(m.per_class).reduce((sum,item)=>sum+item.support,0);
     if(support(report.xgboost)!==predictions.length||support(report.baselines.frecuencia)!==predictions.length)throw new Error('Cobertura inconsistente');
     const experimentId=createHash('sha256').update(files['report.json']).update(files['model.json']).update(files['exploratory_predictions.csv']).update(files['reproduction.json']).digest('hex').slice(0,24);
