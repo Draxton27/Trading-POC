@@ -47,5 +47,6 @@ Se admiten hojas XLSX ordinarias, CSV y HTML de una hoja exportada. La base loca
 - `packages/contracts`: esquemas Zod compartidos y versionados.
 - `packages/research-adapter`: carga de datos y resultados anteriores sin copiar detectores.
 - `docs/phase19-architecture-decision.md`: decisión registrada antes del código.
+- `docs/phase26-assistant-analysis.md`: fórmulas, interpretación conversacional, sincronización temporal y revisión de proyectos externos.
 
 La documentación detalla los límites pendientes. Ningún resultado de investigación histórico se convierte aquí en recomendación de trading.
