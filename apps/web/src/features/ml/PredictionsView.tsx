@@ -1,6 +1,6 @@
 import {useState} from 'react';
 import {useQuery} from '@tanstack/react-query';
-import type {MlMetrics,MlMetricsResponse,MlPredictionsPage,MlProspectiveRecord,MlStatus,MlSummary} from '@trading-poc/contracts';
+import type {MlIngestionStatus,MlMetrics,MlMetricsResponse,MlPredictionsPage,MlProspectiveRecord,MlStatus,MlSummary} from '@trading-poc/contracts';
 import {api,dateTime,fmt} from '../../lib/api.ts';
 import {Badge,Button,Card,SectionTitle} from '../../components/ui.tsx';
 
@@ -18,6 +18,7 @@ export default function PredictionsView(){
   const metrics=useQuery<MlMetricsResponse>({queryKey:['ml-metrics'],queryFn:()=>api('/ml/metrics'),enabled:ready});
   const predictions=useQuery<MlPredictionsPage>({queryKey:['ml-predictions',offset],queryFn:()=>api(`/ml/predictions?symbol=NVDA&timeframe=15m&offset=${offset}&limit=${limit}`),enabled:ready});
   const prospective=useQuery<MlProspectiveRecord>({queryKey:['ml-prospective'],queryFn:()=>api('/ml/prospective?symbol=NVDA&timeframe=15m'),enabled:ready});
+  const ingestion=useQuery<MlIngestionStatus>({queryKey:['ml-ingestion'],queryFn:()=>api('/ml/ingestion?symbol=NVDA&timeframe=15m')});
   const loading=status.isPending||(ready&&(summary.isPending||metrics.isPending||predictions.isPending||prospective.isPending));
   const error=status.error??summary.error??metrics.error??predictions.error??prospective.error;
   const model=summary.data,report=metrics.data,page=predictions.data,tracking=prospective.data;
@@ -26,7 +27,7 @@ export default function PredictionsView(){
     {loading&&<Card role="status">Cargando artefactos del experimento local…</Card>}
     {error&&<Card role="alert">No se pudo consultar el experimento: {error.message}</Card>}
     {!loading&&!error&&status.data?.status!=='READY'&&<Card role="status"><h3>{status.data?.status==='NO_MODEL'?'Modelo no configurado':status.data?.status==='INVALID_ARTIFACT'?'Artefactos inválidos':'Experimento no disponible'}</h3><p>{status.data?.reason}</p></Card>}
-    {model&&report&&page&&<>
+    <Card><h3>Ingesta Alpaca SIP</h3><p className="subtle">Estado de recepción local de velas NVDA de 15 minutos. Esta fase no habilita capturas prospectivas ni inferencia actual.</p>{ingestion.isPending?<p>Cargando estado de ingesta…</p>:ingestion.error?<p role="alert">No se pudo leer la ingesta local: {ingestion.error.message}</p>:<div className="ml-facts"><div><small>Estado</small><strong>{ingestion.data?.status??'N/D'}</strong></div><div><small>Proveedor / feed</small><strong>{ingestion.data?`${ingestion.data.provider} · ${ingestion.data.feed.toUpperCase()} · ${ingestion.data.adjustment}`:'N/D'}</strong></div><div><small>Última vela</small><strong>{ingestion.data?.lastBarStartUtc?dateTime(ingestion.data.lastBarStartUtc):'N/D'}</strong></div><div><small>Recepción</small><strong>{ingestion.data?.receivedAtUtc?dateTime(ingestion.data.receivedAtUtc):'N/D'}</strong></div><div><small>Retraso efectivo</small><strong>{ingestion.data?.effectiveDelayMs===null||ingestion.data?.effectiveDelayMs===undefined?'N/D':`${Math.round(ingestion.data.effectiveDelayMs/60000)} min`}</strong></div><div><small>Revisión</small><strong>{ingestion.data?.revision??'N/D'}</strong></div></div>}<p className="subtle">{ingestion.data?.reason}</p></Card>    {model&&report&&page&&<>
       <Card><h3>Modelo seleccionado</h3><div className="ml-facts"><div><small>Activo y temporalidad</small><strong>NVDA · 15 minutos</strong></div><div><small>Variante</small><strong>{model.selectedVariant}</strong></div><div><small>Árboles</small><strong>{model.trees}</strong></div><div><small>Creación del artefacto</small><strong>{dateTime(model.createdAtUtc)}</strong></div><div><small>Experimento reproducible</small><strong>{model.experimentId}</strong></div><div><small>Versión</small><strong>{model.modelVersion}</strong></div></div><p className="subtle">{model.predictionCount.toLocaleString('es')} observaciones de evaluación retrospectiva. No hay inferencia actual.</p></Card>
       <MetricsTable title="Evaluación exploratoria y baseline" items={[{name:'XGBoost seleccionado',value:report.model},{name:'Baseline por frecuencia',value:report.frequencyBaseline}]}/>
       <Card><h3>Métricas por clase del modelo seleccionado</h3><div className="table-wrap"><table aria-label="Métricas por clase"><thead><tr><th>Clase</th><th>Precision</th><th>Recall</th><th>F1</th><th>Muestra</th></tr></thead><tbody>{classes.map(name=><tr key={name}><td>{name}</td><td>{pct(report.model.perClass[name].precision)}</td><td>{pct(report.model.perClass[name].recall)}</td><td>{fmt(report.model.perClass[name].f1,3)}</td><td>{report.model.perClass[name].support}</td></tr>)}</tbody></table></div></Card>

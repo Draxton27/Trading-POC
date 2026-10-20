@@ -28,6 +28,7 @@
     "db:generate": "drizzle-kit generate --config apps/api/drizzle.config.ts",
     "ml:train": "node scripts/ml-train.mjs",
     "ml:infer": "node scripts/ml-infer.mjs",
+    "alpaca:ingest": "tsx trading_poc_001_bollinger/src/phase32-cli.ts",
     "test:ml": "python -m unittest ml.phase28.test_train",
     "test:ml-inference": "python -m unittest ml.phase31.test_infer"
   },
