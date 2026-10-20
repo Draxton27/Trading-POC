@@ -64,4 +64,10 @@ describe('API experimental XGBoost de solo lectura',()=>{
     const app=await appFor(run);expect((await app.inject('/api/v1/ml/status')).json().status).toBe('INVALID_ARTIFACT');
     const demo=await appFor(null);expect((await demo.inject('/api/v1/ml/predictions')).json()).toMatchObject({status:'NO_MODEL'});
   });
+  it('expone seguimiento solo como lectura y no inventa captura prospectiva',async()=>{
+    const {root,run}=artifacts();dispose.push(async()=>rmSync(root,{recursive:true,force:true}));const app=await appFor(run);
+    expect((await app.inject('/api/v1/ml/prospective?symbol=NVDA&timeframe=15m')).json()).toMatchObject({status:'SOURCE_ABSENT'});
+    expect((await app.inject('/api/v1/ml/prospective?symbol=QQQ')).statusCode).toBe(400);
+    expect(app.printRoutes()).not.toMatch(/\/api\/v1\/ml\/(capture|infer|order)/);
+  });
 });
