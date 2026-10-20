@@ -36,7 +36,22 @@ describe('asistente local de solo lectura',()=>{
     expect(result.evidence.filter((e:any)=>e.availability==='UNAVAILABLE')).toHaveLength(2);
     expect(result.answer).toContain('cierre sintético');expect(result.answer).not.toContain('Compre');
     expect(mock.received[0]).toMatchObject({model:'llama3.2:3b',stream:false});
+    expect(mock.received[0].keep_alive).toBe('5m');
     expect(mock.received[0].messages).toHaveLength(2);
+  });
+  it('configura keep_alive y timeout dentro de los límites documentados',async()=>{
+    const priorKeep=process.env.TRADING_POC_OLLAMA_KEEP_ALIVE,priorTimeout=process.env.TRADING_POC_OLLAMA_TIMEOUT_MS;
+    try{
+      const mock=await mockOllama(()=>message([]));process.env.TRADING_POC_OLLAMA_KEEP_ALIVE='0';process.env.TRADING_POC_OLLAMA_TIMEOUT_MS='1000';
+      const {app,token}=await fixture(mock.transport);expect((await invoke(app,token,{message:'estado'})).statusCode).toBe(200);
+      expect(mock.received[0].keep_alive).toBe(0);
+      process.env.TRADING_POC_OLLAMA_KEEP_ALIVE='25h';expect((await invoke(app,token,{message:'estado'})).statusCode).toBe(503);
+      process.env.TRADING_POC_OLLAMA_KEEP_ALIVE='5m';process.env.TRADING_POC_OLLAMA_TIMEOUT_MS='120001';expect((await invoke(app,token,{message:'estado'})).statusCode).toBe(503);
+      process.env.TRADING_POC_OLLAMA_TIMEOUT_MS='20s';expect((await invoke(app,token,{message:'estado'})).statusCode).toBe(503);
+    }finally{
+      if(priorKeep===undefined)delete process.env.TRADING_POC_OLLAMA_KEEP_ALIVE;else process.env.TRADING_POC_OLLAMA_KEEP_ALIVE=priorKeep;
+      if(priorTimeout===undefined)delete process.env.TRADING_POC_OLLAMA_TIMEOUT_MS;else process.env.TRADING_POC_OLLAMA_TIMEOUT_MS=priorTimeout;
+    }
   });
   it('rechaza herramientas no permitidas, argumentos extra y más de dos activos',async()=>{
     let calls=[call('execute_sql',{sql:'DROP TABLE academy_ask_ranges'})];const mock=await mockOllama(()=>message(calls));const {app,token}=await fixture(mock.transport);

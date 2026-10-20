@@ -32,7 +32,20 @@ Solo se consulta `http://127.0.0.1:11434/api/chat` con un socket local directo, 
 
    La variable es opcional; ese modelo es el predeterminado. Puede configurarse otro modelo **local** compatible con tool calling. La configuración usa letras, dígitos, puntos, guiones, `_` y `:`, sin `/` ni `cloud`. Abrir `http://127.0.0.1:5173/` y seleccionar **Asistente**.
 
-Si Ollama está apagado o el modelo falta, se muestra un error y no se fabrica una respuesta. El límite de espera es 20 segundos; una máquina lenta al cargar el modelo puede necesitar volver a intentar. No se usa streaming.
+Si Ollama está apagado o el modelo falta, se muestra un error y no se fabrica una respuesta. No se usa streaming.
+
+## Permanencia del modelo y timeout
+
+Por defecto, el servidor solicita a Ollama conservar el modelo cargado durante `5m`. Esto reduce la latencia de las consultas siguientes, a costa de mantener el modelo ocupando RAM durante ese período. Para descargarlo después de cada solicitud, configurar `TRADING_POC_OLLAMA_KEEP_ALIVE='0'`, lo que libera memoria y puede aumentar la latencia de la siguiente carga. Se aceptan `0` o duraciones enteras positivas como `30s`, `5m` o `2h`, hasta 24 horas; otros formatos se rechazan.
+
+El timeout por defecto es 20 segundos. Puede configurarse con `TRADING_POC_OLLAMA_TIMEOUT_MS` entre 1000 y 120000 milisegundos (por ejemplo, 60000 para una carga inicial lenta). Sigue activo `AbortController`; valores fuera del rango o no enteros se rechazan.
+
+Ejemplo opcional en PowerShell antes de `npm run dev`:
+
+```powershell
+$env:TRADING_POC_OLLAMA_KEEP_ALIVE = '5m'
+$env:TRADING_POC_OLLAMA_TIMEOUT_MS = '60000'
+```
 
 ## Herramientas y evidencia
 
