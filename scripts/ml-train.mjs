@@ -16,10 +16,12 @@ if(!dataset){
   process.exitCode=1;
 }else{
   const python=process.env.PYTHON??(process.platform==='win32'?'py':'python3');
-  const args=process.platform==='win32'?['-3','ml/phase28/train.py','--dataset',dataset,...supplied]:['ml/phase28/train.py','--dataset',dataset,...supplied];
+  // `py` is the Windows launcher; a venv executable must not receive `-3`.
+  const isWindowsLauncher=process.platform==='win32'&&/^(py|py\.exe)$/i.test(python.replace(/^.*[\\/]/,''));
+  const args=[...(isWindowsLauncher?['-3.12']:[]),'ml/phase28/train.py','--dataset',dataset,...supplied];
   const result=spawnSync(python,args,{cwd:root,stdio:'inherit'});
   if(result.error?.code==='ENOENT'){
-    console.error('Python 3 no esta disponible. En Windows instale Python 3.12 y ejecute: py -3 -m venv .venv\\phase28; .venv\\phase28\\Scripts\\python -m pip install -r ml\\phase28\\requirements.txt');
+    console.error('Python 3.12 de 64 bits no esta disponible. En Windows use: py -3.12 -m venv .venv\\phase28; .venv\\phase28\\Scripts\\python -m pip install --only-binary=:all: -r ml\\phase28\\requirements.txt');
     process.exitCode=1;
   }else process.exitCode=result.status??1;
 }

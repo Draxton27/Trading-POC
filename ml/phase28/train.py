@@ -28,6 +28,10 @@ def load_dataset(directory:Path):
     metadata=json.loads(meta_path.read_text(encoding='utf8'))
     if metadata.get('schemaVersion')!='nvda-15m-v1': raise ValueError('Especificacion Fase 23 no compatible.')
     if metadata.get('outputCsvSha256')!=sha(csv_path): raise ValueError('Hash dataset.csv no coincide con metadata.json.')
+    sums=directory/'SHA256SUMS'
+    if sums.exists():
+        declared={line.split(maxsplit=1)[1].strip():line.split(maxsplit=1)[0] for line in sums.read_text(encoding='utf8').splitlines() if len(line.split(maxsplit=1))==2}
+        if declared.get('dataset.csv')!=sha(csv_path) or declared.get('metadata.json')!=sha(meta_path): raise ValueError('SHA256SUMS no coincide con los artefactos Fase 23.')
     with csv_path.open(encoding='utf8',newline='') as source: rows=list(csv.DictReader(source))
     if not rows: raise ValueError('Dataset vacio.')
     columns=set(rows[0]); missing=REQUIRED-columns
@@ -87,7 +91,14 @@ def metrics(y,probabilities):
         precision=tp/(tp+fp) if tp+fp else 0.; recall=tp/(tp+fn) if tp+fn else 0.; f1=2*precision*recall/(precision+recall) if precision+recall else 0.
         recalls.append(recall);per[label]={'precision':precision,'recall':recall,'f1':f1,'support':int(matrix[index,:].sum())}
     clipped=np.clip(probabilities,1e-15,1); log_loss=float(-np.log(clipped[np.arange(len(y)),y]).mean()); one=np.eye(3)[y]
-    return {'accuracy':accuracy,'balanced_accuracy':float(np.mean(recalls)),'macro_f1':float(np.mean([v['f1'] for v in per.values()])), 'per_class':per,'confusion_matrix':matrix.tolist(),'log_loss':log_loss,'brier_multiclass':float(np.mean(np.sum((clipped-one)**2,axis=1))),'probability_mean':clipped.mean(axis=0).tolist()}
+    calibration={}
+    for index,label in enumerate(CLASSES):
+        bins=[]
+        for low in np.linspace(0,0.8,5):
+            mask=(clipped[:,index]>=low)&(clipped[:,index]<(low+.2 if low<.8 else 1.000001))
+            if mask.any(): bins.append({'range':[float(low),float(min(low+.2,1))],'rows':int(mask.sum()),'predicted_mean':float(clipped[mask,index].mean()),'observed_frequency':float((y[mask]==index).mean())})
+        calibration[label]=bins
+    return {'accuracy':accuracy,'balanced_accuracy':float(np.mean(recalls)),'macro_f1':float(np.mean([v['f1'] for v in per.values()])), 'per_class':per,'confusion_matrix':matrix.tolist(),'log_loss':log_loss,'brier_multiclass':float(np.mean(np.sum((clipped-one)**2,axis=1))),'probability_mean':clipped.mean(axis=0).tolist(),'calibration':calibration,'calibration_warning':'Descriptiva; no usar probabilidades para decisiones operativas sin validacion independiente.'}
 
 def bootstrap_by_session(rows,y,probabilities,iterations=200,seed=7):
     rng=np.random.default_rng(seed); groups={}
