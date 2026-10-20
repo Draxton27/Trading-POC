@@ -11,6 +11,16 @@ export const MlPrediction=z.object({
 export type MlPrediction=z.infer<typeof MlPrediction>;
 
 export const MlProspectiveStatus=z.enum(['READY','NO_MODEL','SOURCE_ABSENT','HISTORICAL_DATA','STALE_DATA','INDICATORS_INSUFFICIENT','MODEL_INCOMPATIBLE','UNAVAILABLE']);
+export const MlIngestionState=z.enum(['READY','NO_DATA','DELAYED','PERMISSION_DENIED','RATE_LIMIT','HTTP_ERROR','NETWORK_ERROR','INVALID_DATA','NOT_CONFIGURED']);
+export const MlIngestionStatus=z.object({
+  status:MlIngestionState,provider:z.literal('Alpaca Market Data API'),feed:z.literal('sip'),adjustment:z.literal('split'),
+  availability:z.enum(['CURRENT','DELAYED','UNAVAILABLE']),lastBarStartUtc:z.iso.datetime({offset:true}).nullable(),
+  lastBarEndUtc:z.iso.datetime({offset:true}).nullable(),receivedAtUtc:z.iso.datetime({offset:true}).nullable(),
+  effectiveDelayMs:z.number().finite().nonnegative().nullable(),revision:z.number().int().positive().nullable(),
+  lastAttemptAtUtc:z.iso.datetime({offset:true}).nullable(),lastSuccessfulQueryAtUtc:z.iso.datetime({offset:true}).nullable(),
+  lastBarReceivedAtUtc:z.iso.datetime({offset:true}).nullable(),lastBarAvailability:z.enum(['CURRENT','DELAYED','UNAVAILABLE']),reason:z.string().min(1),
+}).strict();
+export type MlIngestionStatus=z.infer<typeof MlIngestionStatus>;
 export const MlProspectiveRecord=z.object({status:MlProspectiveStatus,mode:z.enum(['REPLAY','PROSPECTIVE_CAPTURE']).nullable(),modelId:z.string().nullable(),modelSha256:z.string().regex(/^[a-f0-9]{64}$/).nullable(),source:z.string().nullable(),lastObservationUtc:z.iso.datetime({offset:true}).nullable(),receivedAtUtc:z.iso.datetime({offset:true}).nullable(),registeredAtUtc:z.iso.datetime({offset:true}).nullable(),probabilities:z.object({ALCISTA:z.number().min(0).max(1),BAJISTA:z.number().min(0).max(1),LATERAL:z.number().min(0).max(1)}).nullable(),dominantClass:z.enum(['ALCISTA','BAJISTA','LATERAL']).nullable(),entryAtUtc:z.iso.datetime({offset:true}).nullable(),recordedBeforeNextEntry:z.boolean().nullable(),reason:z.string().min(1)});
 export type MlProspectiveRecord=z.infer<typeof MlProspectiveRecord>;
 export const MlStatus=z.object({status:MlState,reason:z.string().nullable(),experimentId:z.string().nullable()}).strict();

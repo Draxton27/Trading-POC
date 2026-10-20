@@ -2,6 +2,10 @@ import {readFileSync, writeFileSync} from 'node:fs';
 import type {HttpGet} from './alpaca.ts';
 
 export type MarketCalendar = Map<string, {open: number; close: number}>;
+export class AlpacaCalendarError extends Error {
+  readonly status: 'PERMISSION_DENIED'|'RATE_LIMIT'|'HTTP_ERROR'|'NETWORK_ERROR';
+  constructor(status: 'PERMISSION_DENIED'|'RATE_LIMIT'|'HTTP_ERROR'|'NETWORK_ERROR', message: string) { super(message); this.status = status; }
+}
 export function saveMarketCalendar(path: string, calendar: MarketCalendar): void {
   const sessions = [...calendar].sort(([a], [b]) => a.localeCompare(b))
     .map(([date, hours]) => ({date, ...hours}));
@@ -53,38 +57,28 @@ export async function fetchAlpacaCalendar(options: {
   pause?: (milliseconds: number) => Promise<void>;
 }): Promise<MarketCalendar> {
   const url = new URL('https://paper-api.alpaca.markets/v2/calendar');
-  url.searchParams.set('start', options.start.slice(0, 10));
-  url.searchParams.set('end', options.end.slice(0, 10));
+  url.searchParams.set('start', options.start.slice(0, 10)); url.searchParams.set('end', options.end.slice(0, 10));
   const get = options.httpGet ?? ((u: URL, headers: Record<string, string>) => fetch(u, {headers}));
   const pause = options.pause ?? ((ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms)));
   let response: Response | undefined;
   for (let attempt = 0; attempt < 4; attempt++) {
-    try {
-      response = await get(url, {'APCA-API-KEY-ID': options.apiKey, 'APCA-API-SECRET-KEY': options.secretKey});
-    } catch (error) {
-      if (attempt === 3) throw new Error(`Error de red del calendario Alpaca: ${String(error)}`);
-      await pause(1000 * 2 ** attempt);
-      continue;
-    }
-    if (response.status !== 429 && response.status < 500) break;
-    if (attempt === 3) throw new Error(`Alpaca calendario respondió ${response.status} tras 4 intentos.`);
-    const retryAfter = Number(response.headers.get('retry-after'));
-    await pause(Number.isFinite(retryAfter) && retryAfter >= 0 ? retryAfter * 1000 : 1000 * 2 ** attempt);
+    try { response = await get(url, {'APCA-API-KEY-ID': options.apiKey, 'APCA-API-SECRET-KEY': options.secretKey}); }
+    catch (error) { if (attempt === 3) throw new AlpacaCalendarError('NETWORK_ERROR', `Calendario Alpaca: error de red: ${String(error)}`); await pause(1000 * 2 ** attempt); continue; }
+    if (response.status === 401 || response.status === 403) throw new AlpacaCalendarError('PERMISSION_DENIED', `Calendario Alpaca HTTP ${response.status}: acceso no autorizado.`);
+    if (response.status === 429) { if (attempt === 3) throw new AlpacaCalendarError('RATE_LIMIT', 'Calendario Alpaca limitó la solicitud tras reintentos.'); const retry = Number(response.headers.get('retry-after')); await pause(Number.isFinite(retry) && retry >= 0 ? retry * 1000 : 1000 * 2 ** attempt); continue; }
+    if (response.status >= 500) { if (attempt === 3) throw new AlpacaCalendarError('HTTP_ERROR', `Calendario Alpaca HTTP ${response.status} tras reintentos.`); await pause(1000 * 2 ** attempt); continue; }
+    if (!response.ok) throw new AlpacaCalendarError('HTTP_ERROR', `Calendario Alpaca HTTP ${response.status}.`);
+    break;
   }
-  if (!response) throw new Error('No se obtuvo el calendario Alpaca.');
-  if (response.status === 401 || response.status === 403) throw new Error(`Alpaca calendario respondió ${response.status}: revise acceso.`);
-  if (!response.ok) throw new Error(`Alpaca calendario respondió HTTP ${response.status}.`);
-  const body: unknown = await response.json();
-  if (!Array.isArray(body) || !body.length) throw new Error('Calendario Alpaca vacío o inválido.');
+  if (!response?.ok) throw new AlpacaCalendarError('HTTP_ERROR', 'No se obtuvo una respuesta válida del calendario Alpaca.');
+  let body: unknown; try { body = await response.json(); } catch { throw new AlpacaCalendarError('HTTP_ERROR', 'Calendario Alpaca devolvió JSON inválido.'); }
+  if (!Array.isArray(body) || !body.length) throw new AlpacaCalendarError('HTTP_ERROR', 'Calendario Alpaca vacío o inválido.');
   const calendar: MarketCalendar = new Map();
   for (const row of body) {
-    if (typeof row !== 'object' || row === null || Array.isArray(row)) throw new Error('Sesión inválida en calendario Alpaca.');
+    if (typeof row !== 'object' || row === null || Array.isArray(row)) throw new AlpacaCalendarError('HTTP_ERROR', 'Sesión inválida en calendario Alpaca.');
     const record = row as Record<string, unknown>;
-    if (typeof record.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(record.date) || calendar.has(record.date)) {
-      throw new Error('Fecha inválida o duplicada en calendario Alpaca.');
-    }
-    const open = minutes(record.open), close = minutes(record.close);
-    if (open >= close) throw new Error('Cierre anterior a apertura en calendario Alpaca.');
+    if (typeof record.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(record.date) || calendar.has(record.date)) throw new AlpacaCalendarError('HTTP_ERROR', 'Fecha inválida o duplicada en calendario Alpaca.');
+    const open = minutes(record.open), close = minutes(record.close); if (open >= close) throw new AlpacaCalendarError('HTTP_ERROR', 'Cierre anterior a apertura en calendario Alpaca.');
     calendar.set(record.date, {open, close});
   }
   return calendar;
