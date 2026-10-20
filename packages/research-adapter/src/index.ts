@@ -14,6 +14,7 @@ const cache=new Map<string,MarketBar[]>();
 const source=(symbol:Symbol)=>resolve(root,'data',`${symbol}_ALPACA_SIP_15min_20211017_20261017.csv`);
 export function offlineMetadata(symbol:Symbol){return loadMetadata(source(symbol));}
 export function offlineAvailable(){return (['NVDA','QQQ','SMH'] as Symbol[]).every(s=>existsSync(source(s))&&existsSync(`${source(s)}.meta.json`)&&existsSync(`${source(s)}.calendar.json`));}
+export function offlineCalendar(symbol:Symbol){const path=`${source(symbol)}.calendar.json`;return existsSync(path)?loadMarketCalendar(path):null;}
 const dateNy=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'});
 export function priorCalendarSession(symbol:Symbol,asOfUtc:string):string|null{
   const path=`${source(symbol)}.calendar.json`;if(!existsSync(path))return null;

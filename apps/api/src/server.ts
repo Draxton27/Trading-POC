@@ -7,7 +7,7 @@ import websocket from '@fastify/websocket';
 import {z} from 'zod';
 import {Mode,HumanDecision,symbol} from '@trading-poc/contracts';
 import {calculateIndicators,spread,previousSessionLevels} from '@trading-poc/market-domain';
-import {demoBars,offlineAvailable,offlineBars,offlineMetadata,pageBars,historicalSignals,historicalEvents,priorCalendarSession,type Timeframe,type Symbol} from '@trading-poc/research-adapter';
+import {demoBars,offlineAvailable,offlineBars,offlineMetadata,offlineCalendar,pageBars,historicalSignals,historicalEvents,priorCalendarSession,type Timeframe,type Symbol} from '@trading-poc/research-adapter';
 import {verifyLedger} from '../../../trading_poc_001_bollinger/src/phase16-ledger.ts';
 import {appendPhase17Decision,PHASE17_TEMPLATE_COLUMNS} from '../../../trading_poc_001_bollinger/src/phase17-journal.ts';
 import {csvCell} from '../../../trading_poc_001_bollinger/src/phase17-csv.ts';
@@ -68,7 +68,9 @@ export async function createApp(options:Options={}){
     }
   });
   const token=randomBytes(32).toString('hex');
-  const app=Fastify({logger:false,bodyLimit:2*1024*1024});await app.register(websocket);
+  // Fastify does not include request bodies in its standard logs. Route-level diagnostics
+  // contain only allowlisted metadata and are emitted at warn level.
+  const app=Fastify({logger:{level:process.env.TRADING_POC_LOG_LEVEL??'warn'},bodyLimit:2*1024*1024});await app.register(websocket);
   app.addHook('onRequest',async(request,reply)=>{
     if(!browserOrigin(request.headers.origin))return bad(reply,'Origen no autorizado',403);
     if(request.url.startsWith('/api/v1/session')&&!request.headers.origin&&
@@ -130,7 +132,7 @@ export async function createApp(options:Options={}){
   });
   registerOptionRoutes(app,hub,mode,demoOptions,db.sqlite);
   registerAcademyRoutes(app,db.sqlite);
-  registerAssistantRoutes(app,{mode,hub,sqlite:db.sqlite,barsFor,offlineAvailable,offlineMetadata,transport:options.assistantFetch,timeoutMs:options.assistantTimeoutMs});
+  registerAssistantRoutes(app,{mode,hub,sqlite:db.sqlite,barsFor,offlineAvailable,offlineMetadata,calendarFor:s=>mode==='DEMO'?null:offlineCalendar(s),transport:options.assistantFetch,timeoutMs:options.assistantTimeoutMs});
   app.get('/api/v1/options/quotes',async()=>({items:mode==='DEMO'?demoOptions():[],source:mode==='DEMO'?'DEMO sintético':'Consulte /options/contracts para suscribirse a contratos visibles'}));
   app.get('/api/v1/positions',async()=>{if(mode!=='PAPER'||!hub.status().connected)return {items:[],source:'IBKR desconectado'};
     const m=await hub.request('broker.positions.request',{});return {items:m.kind==='broker.positions.snapshot'?m.payload.items:[],source:hub.status().simulation?'Agente simulado':'IBKR Paper'};});
