@@ -25,7 +25,9 @@
     "build": "npm run build -w @trading-poc/web",
     "test:e2e": "playwright test",
     "academy:import": "tsx apps/api/src/academy/cli.ts",
-    "db:generate": "drizzle-kit generate --config apps/api/drizzle.config.ts"
+    "db:generate": "drizzle-kit generate --config apps/api/drizzle.config.ts",
+    "ml:train": "node scripts/ml-train.mjs",
+    "test:ml": "python -m unittest ml.phase28.test_train"
   },
   "devDependencies": {
     "@playwright/test": "1.64.1",
