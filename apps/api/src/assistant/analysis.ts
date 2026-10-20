@@ -3,10 +3,23 @@ import {calculateIndicators} from '@trading-poc/market-domain';
 import {calculateVolumeReferences} from '../../../../trading_poc_001_bollinger/src/volume-filter.ts';
 import {newYorkBarParts} from '../../../../trading_poc_001_bollinger/src/strategy-validation.ts';
 import type {Candle} from '../../../../trading_poc_001_bollinger/src/domain.ts';
+import type {MarketCalendar} from '../../../../trading_poc_001_bollinger/src/alpaca-calendar.ts';
 
 const BAR_MS=15*60_000;
 const pct=(value:number,base:number)=>!Number.isFinite(value)||!Number.isFinite(base)||base<=0?null:(value/base-1)*100;
 const fixed=(value:number|null,digits=2)=>value===null||!Number.isFinite(value)?'N/D':`${value.toFixed(digits)}%`;
+const exchangeClock=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
+
+function localDay(timestamp:string):string{return newYorkBarParts(timestamp).day;}
+function localSessionStartUtc(day:string,minute:number):number{
+  const [year,month,date]=day.split('-').map(Number),hour=Math.floor(minute/60),mins=minute%60;
+  const wanted=Date.UTC(year!,month!-1,date!,hour,mins),parts=Object.fromEntries(exchangeClock.formatToParts(new Date(wanted)).map(p=>[p.type,p.value]));
+  const represented=Date.UTC(Number(parts.year),Number(parts.month)-1,Number(parts.day),Number(parts.hour),Number(parts.minute));
+  return wanted+(wanted-represented);
+}
+function expectedSessionStarts(day:string,open:number,close:number,through:number):number[]{
+  const starts:number[]=[];for(let minute=open;minute<close&&minute<=through;minute+=15)starts.push(localSessionStartUtc(day,minute));return starts;
+}
 
 export type AnalysisMetrics={close:number;sma20:number|null;sma40:number|null;sma100:number|null;sma200:number|null;
   distanceSma20Percent:number|null;distanceSma40Percent:number|null;distanceSma100Percent:number|null;distanceSma200Percent:number|null;
@@ -17,14 +30,15 @@ export type AnalysisMetrics={close:number;sma20:number|null;sma40:number|null;sm
 export type MetricObservation={key:keyof AnalysisMetrics;value:number|null;unit:'USD'|'percent'|'ratio'|'shares'|'sessions';period:string;timestampUtc:string|null;
   availability:'AVAILABLE'|'INSUFFICIENT_HISTORY'|'INCOMPLETE_WINDOW'|'INVALID_DENOMINATOR';};
 export type MarketAnalysis={asset:string;source:string;dataType:'SYNTHETIC'|'HISTORICAL';availability:'AVAILABLE'|'HISTORICAL_ONLY'|'UNAVAILABLE';dateUtc:string|null;timeframe:'15m';
-  metrics:AnalysisMetrics|null;observations:MetricObservation[];sections:Array<{title:string;items:string[]}>;limitations:string[];};
+  metrics:AnalysisMetrics|null;observations:MetricObservation[];sections:Array<{title:string;items:string[]}>;limitations:string[];
+  continuity:{calendarAvailable:boolean;consecutiveBars:number;policy:'EXCHANGE_CALENDAR'|'CURRENT_SESSION_ONLY'};};
 
 function validateBars(bars:readonly MarketBar[]):void{
   let prior=-Infinity;
   for(const bar of bars){
     const start=Date.parse(bar.startUtc),end=Date.parse(bar.endUtc);
     if(!Number.isFinite(start)||!Number.isFinite(end)||start<=prior||end-start!==BAR_MS||
-      bar.timeframe!=='15m'||!bar.isComplete||![bar.open,bar.high,bar.low,bar.close].every(v=>Number.isFinite(v)&&v>0)||
+      bar.timeframe!=='15m'||![bar.open,bar.high,bar.low,bar.close].every(v=>Number.isFinite(v)&&v>0)||
       bar.high<Math.max(bar.open,bar.close,bar.low)||bar.low>Math.min(bar.open,bar.close)||
       (bar.volume!==null&&(!Number.isFinite(bar.volume)||bar.volume<0)))throw new Error('Velas incompletas, inválidas o fuera de orden.');
     prior=start;
@@ -37,21 +51,61 @@ function continuousWindow(window:readonly MarketBar[]):boolean{
     (i===0||Date.parse(bar.startUtc)-Date.parse(window[i-1]!.startUtc)===BAR_MS));
 }
 
+/**
+ * Indicators use only a verified continuous suffix. A supplied exchange calendar
+ * identifies holidays and early closes; without one, history is conservatively
+ * limited to the current NY session. Missing or incomplete expected bars break
+ * the suffix, so no SMA/Bollinger window is stitched across a data gap.
+ */
+function continuousSuffix(input:readonly MarketBar[],calendar?:MarketCalendar|null):{bars:MarketBar[];gapDetected:boolean}{
+  const completeByStart=new Map(input.filter(bar=>bar.isComplete).map(bar=>[Date.parse(bar.startUtc),bar]));
+  const latest=input.at(-1);if(!latest)return {bars:[],gapDetected:false};
+  const latestDay=localDay(latest.startUtc);
+  const starts:number[]=[],lowerBound=Date.parse(input[0]!.startUtc);
+  if(calendar){
+    const firstDay=localDay(input[0]!.startUtc);
+    for(const [day,hours] of [...calendar].sort(([a],[b])=>a.localeCompare(b))){
+      if(day<firstDay||day>latestDay)continue;
+      const localThrough=day===latestDay?newYorkBarParts(latest.startUtc).slot.split(':').map(Number).reduce((h,m)=>h*60+m,0):hours.close-15;
+      starts.push(...expectedSessionStarts(day,hours.open,hours.close,localThrough).filter(start=>start>=lowerBound));
+    }
+  }else{
+    const sessionBars=input.filter(bar=>localDay(bar.startUtc)===latestDay);
+    if(!sessionBars.length)return {bars:[],gapDetected:false};
+    const latestMinute=newYorkBarParts(latest.startUtc).slot.split(':').map(Number).reduce((h,m)=>h*60+m,0);
+    starts.push(...expectedSessionStarts(latestDay,9*60+30,16*60,latestMinute).filter(start=>start>=Math.max(lowerBound,localSessionStartUtc(latestDay,9*60+30))));
+  }
+  let suffix:MarketBar[]=[],gapDetected=false;
+  for(const start of starts){
+    const bar=completeByStart.get(start);
+    if(!bar){suffix=[];gapDetected=true;continue;}
+    suffix.push(bar);
+  }
+  return {bars:suffix,gapDetected};
+}
+
 /** Pure, deterministic descriptions from complete 15-minute bars known at their close. */
-export function analyzeMarketBars(asset:string,source:string,dataType:'SYNTHETIC'|'HISTORICAL',inputBars:readonly MarketBar[],asOfUtc?:string):MarketAnalysis{
+export function analyzeMarketBars(asset:string,source:string,dataType:'SYNTHETIC'|'HISTORICAL',inputBars:readonly MarketBar[],asOfUtc?:string,calendar?:MarketCalendar|null):MarketAnalysis{
   const asOf=asOfUtc===undefined?Infinity:Date.parse(asOfUtc);if(!Number.isFinite(asOf)&&asOf!==Infinity)throw new Error('Instante de análisis inválido.');
-  const available=inputBars.filter(bar=>bar.isComplete&&Number.isFinite(Date.parse(bar.endUtc))&&Date.parse(bar.endUtc)<=asOf);
+  const available=inputBars.filter(bar=>Number.isFinite(Date.parse(bar.endUtc))&&Date.parse(bar.endUtc)<=asOf);
   validateBars(available);
-  if(!available.length)return {asset,source,dataType,availability:'UNAVAILABLE',dateUtc:null,timeframe:'15m',metrics:null,observations:[],
-    sections:[{title:'Datos observados',items:[`${asset}: no hay velas completas disponibles.`]}],limitations:['No se pueden interpretar indicadores sin velas completas.']};
-  const bars=available;
-  const points=calculateIndicators(bars.slice(-200)),last=bars.at(-1)!,point=points.at(-1)!;
-  const close=last.close,width=point.bbUpper!==null&&point.bbLower!==null?point.bbUpper-point.bbLower:null;
-  const prior=bars.length>=2?bars.slice(-2):[],oneContiguous=prior.length===2&&continuousWindow(prior);
+  const latest=available.filter(bar=>bar.isComplete).at(-1);
+  if(!latest)return {asset,source,dataType,availability:'UNAVAILABLE',dateUtc:null,timeframe:'15m',metrics:null,observations:[],
+    sections:[{title:'Datos observados',items:[`${asset}: no hay velas completas disponibles.`]}],limitations:['No se pueden interpretar indicadores sin velas completas.'],
+    continuity:{calendarAvailable:Boolean(calendar),consecutiveBars:0,policy:calendar?'EXCHANGE_CALENDAR':'CURRENT_SESSION_ONLY'}};
+  const eligible=available.filter(bar=>Date.parse(bar.endUtc)<=Date.parse(latest.endUtc));
+  const continuityCheck=continuousSuffix(eligible,calendar),bars=continuityCheck.bars;
+  const last=latest;
+  const tail=bars.at(-1);
+  const suffixMatchesLatest=tail?.startUtc===latest.startUtc;
+  const indicatorBars=suffixMatchesLatest?bars:[];
+  const points=calculateIndicators(indicatorBars.slice(-200)),point=points.at(-1);
+  const close=last.close,width=point?.bbUpper!=null&&point.bbLower!=null?point.bbUpper-point.bbLower:null;
+  const prior=eligible.length>=2?eligible.slice(-2):[],oneContiguous=prior.length===2&&prior.every(bar=>bar.isComplete)&&continuousWindow(prior);
   const oneReturn=oneContiguous?pct(close,prior[0]!.close):null;
-  const four=bars.length>=5?bars.slice(-5):[],fourReturn=four.length===5&&continuousWindow(four)?pct(close,four[0]!.close):null;
+  const four=eligible.length>=5?eligible.slice(-5):[],fourReturn=four.length===5&&four.every(bar=>bar.isComplete)&&continuousWindow(four)?pct(close,four[0]!.close):null;
   let volumeReference:number|null=null,relativeVolume20:number|null=null,volumeReferenceSessions=0,volumeMatchingSessions=0;
-  const sessionBars=bars.map(bar=>({bar,day:newYorkBarParts(bar.startUtc).day}));
+  const sessionBars=eligible.filter(bar=>bar.isComplete).map(bar=>({bar,day:newYorkBarParts(bar.startUtc).day}));
   const lastDays=[...new Set(sessionBars.map(item=>item.day))].slice(-21),volumeBars=sessionBars.filter(item=>lastDays.includes(item.day)).map(item=>item.bar);
   if(volumeBars.every(bar=>bar.volume!==null&&Number.isFinite(bar.volume)&&bar.volume>=0)){
     const candles:Candle[]=volumeBars.map(bar=>({timestamp:bar.startUtc,open:bar.open,high:bar.high,low:bar.low,close:bar.close,volume:bar.volume!}));
@@ -60,14 +114,14 @@ export function analyzeMarketBars(asset:string,source:string,dataType:'SYNTHETIC
       if(reference.average!==null&&reference.average>0&&last.volume!==null)relativeVolume20=last.volume/reference.average;
     }catch{/* Missing or invalid volume history remains unavailable. */}
   }
-  const metrics:AnalysisMetrics={close,sma20:point.sma20,sma40:point.sma40,sma100:point.sma100,sma200:point.sma200,
-    distanceSma20Percent:point.sma20===null?null:pct(close,point.sma20),distanceSma40Percent:point.sma40===null?null:pct(close,point.sma40),
-    distanceSma100Percent:point.sma100===null?null:pct(close,point.sma100),distanceSma200Percent:point.sma200===null?null:pct(close,point.sma200),
-    bollingerUpper:point.bbUpper,bollingerMiddle:point.bbMiddle,bollingerLower:point.bbLower,
-    bollingerPositionPercent:width!==null&&width>0&&point.bbLower!==null?100*(close-point.bbLower)/width:null,
-    bollingerWidthPercent:width!==null&&point.bbMiddle!==null&&point.bbMiddle>0?100*width/point.bbMiddle:null,
-    distanceUpperBandWidthPercent:width!==null&&width>0&&point.bbUpper!==null?100*(point.bbUpper-close)/width:null,
-    distanceLowerBandWidthPercent:width!==null&&width>0&&point.bbLower!==null?100*(close-point.bbLower)/width:null,
+  const metrics:AnalysisMetrics={close,sma20:point?.sma20??null,sma40:point?.sma40??null,sma100:point?.sma100??null,sma200:point?.sma200??null,
+    distanceSma20Percent:point?.sma20==null?null:pct(close,point.sma20),distanceSma40Percent:point?.sma40==null?null:pct(close,point.sma40),
+    distanceSma100Percent:point?.sma100==null?null:pct(close,point.sma100),distanceSma200Percent:point?.sma200==null?null:pct(close,point.sma200),
+    bollingerUpper:point?.bbUpper??null,bollingerMiddle:point?.bbMiddle??null,bollingerLower:point?.bbLower??null,
+    bollingerPositionPercent:width!==null&&width>0&&point?.bbLower!=null?100*(close-point.bbLower)/width:null,
+    bollingerWidthPercent:width!==null&&point?.bbMiddle!=null&&point.bbMiddle>0?100*width/point.bbMiddle:null,
+    distanceUpperBandWidthPercent:width!==null&&width>0&&point?.bbUpper!=null?100*(point.bbUpper-close)/width:null,
+    distanceLowerBandWidthPercent:width!==null&&width>0&&point?.bbLower!=null?100*(close-point.bbLower)/width:null,
     returnOneBarPercent:oneReturn,returnFourBarsPercent:fourReturn,relativeVolume20,volumeReference,
     volumeReferenceSessions,volumeMatchingSessions};
   const timestampUtc=last.endUtc;
@@ -83,16 +137,21 @@ export function analyzeMarketBars(asset:string,source:string,dataType:'SYNTHETIC
   const observations:MetricObservation[]=definitions.map(([key,period,unit])=>{
     const value=metrics[key] as number|null;
     let availability:MetricObservation['availability']=value===null?'INSUFFICIENT_HISTORY':'AVAILABLE';
+    const requiredWindow:Partial<Record<keyof AnalysisMetrics,number>>={sma20:20,sma40:40,sma100:100,sma200:200,
+      distanceSma20Percent:20,distanceSma40Percent:40,distanceSma100Percent:100,distanceSma200Percent:200,
+      bollingerUpper:20,bollingerMiddle:20,bollingerLower:20,bollingerPositionPercent:20,bollingerWidthPercent:20,
+      distanceUpperBandWidthPercent:20,distanceLowerBandWidthPercent:20};
+    if(value===null&&continuityCheck.gapDetected&&requiredWindow[key]!==undefined)availability='INCOMPLETE_WINDOW';
     if(value===null&&(['returnOneBarPercent','returnFourBarsPercent'] as (keyof AnalysisMetrics)[]).includes(key))availability='INCOMPLETE_WINDOW';
     if(value===null&&(['bollingerPositionPercent','bollingerWidthPercent','distanceUpperBandWidthPercent','distanceLowerBandWidthPercent'] as (keyof AnalysisMetrics)[]).includes(key)&&width!==null)availability='INVALID_DENOMINATOR';
     return {key,value,unit,period,timestampUtc,availability};
   });
   const facts:string[]=[`Cierre de la última vela completa de 15 min: ${close.toFixed(2)}. Observado al cierre ${timestampUtc}; no es cotización actual.`];
-  for(const [period,value,distance] of [[20,point.sma20,metrics.distanceSma20Percent],[40,point.sma40,metrics.distanceSma40Percent],
-    [100,point.sma100,metrics.distanceSma100Percent],[200,point.sma200,metrics.distanceSma200Percent]] as const){
-    facts.push(value===null?`SMA ${period}: N/D (historial insuficiente).`:`SMA ${period}: cierre ${distance!>=0?'por encima':'por debajo'} en ${fixed(distance!)} del valor de la media.`);
+  for(const [period,value,distance] of [[20,point?.sma20??null,metrics.distanceSma20Percent],[40,point?.sma40??null,metrics.distanceSma40Percent],
+    [100,point?.sma100??null,metrics.distanceSma100Percent],[200,point?.sma200??null,metrics.distanceSma200Percent]] as const){
+    facts.push(value===null?`SMA ${period}: N/D (ventana continua incompleta o historial insuficiente).`:`SMA ${period}: cierre ${distance!>=0?'por encima':'por debajo'} en ${fixed(distance!)} del valor de la media.`);
   }
-  if(point.bbLower===null||point.bbUpper===null||width===null||width<=0)facts.push('Bandas de Bollinger 20/2: N/D (historial insuficiente o ancho cero).');
+  if(point?.bbLower==null||point.bbUpper==null||width===null||width<=0)facts.push('Bandas de Bollinger 20/2: N/D (historial continuo insuficiente o ancho cero).');
   else {const position=metrics.bollingerPositionPercent!;
     const location=position<0?'debajo de la banda inferior':position>100?'encima de la banda superior':'dentro de las bandas';
     facts.push(`Bollinger 20/2: ${location}; posición ${position.toFixed(1)}% del ancho (0% inferior, 100% superior); ancho relativo ${metrics.bollingerWidthPercent!.toFixed(2)}% de la media.`);
@@ -111,24 +170,29 @@ export function analyzeMarketBars(asset:string,source:string,dataType:'SYNTHETIC
   }else interpretations.push('La lectura conjunta de SMA 20 y retorno de 60 min es incompleta por falta de observaciones.');
   if(metrics.bollingerPositionPercent!==null){const p=metrics.bollingerPositionPercent;interpretations.push(`Posición Bollinger: ${p<0?'fuera por debajo':p>100?'fuera por encima':'dentro'}; la posición por sí sola no establece sobrecompra, sobreventa ni reversión.`);}
   const limitations:string[]=[];
-  if(point.sma200===null)limitations.push('SMA 200 no disponible por historial corto.');
+  limitations.push(calendar?'Las medias y Bollinger usan solo el tramo continuo confirmado por el calendario bursátil; cada vela esperada ausente o incompleta reinicia la ventana.':
+    'No se proporcionó calendario bursátil: para evitar cruzar sesiones potencialmente ausentes, las medias y Bollinger se limitan a la sesión NY actual.');
+  if(continuityCheck.gapDetected)limitations.push('Se detectaron velas esperadas ausentes o incompletas antes del cierre analizado; las ventanas que no vuelven a completarse se marcan INCOMPLETE_WINDOW.');
+  if(indicatorBars.length<200)limitations.push(`Ventana continua disponible: ${indicatorBars.length} velas; SMA/Bollinger solo se informan cuando su período completo cabe en ese tramo.`);
+  if(point?.sma200==null)limitations.push('SMA 200 no disponible por historial continuo insuficiente.');
   if(relativeVolume20===null)limitations.push('RVOL requiere volumen en el mismo horario de 20 sesiones observadas anteriores.');
   if(oneReturn===null||fourReturn===null)limitations.push('Los retornos solo se calculan con intervalos completos y consecutivos dentro de la misma sesión local.');
   limitations.push(dataType==='SYNTHETIC'?'Los datos son sintéticos de demostración.':'Los indicadores describen cierres históricos locales, no precios en vivo.');
   return {asset,source,dataType,availability:dataType==='HISTORICAL'?'HISTORICAL_ONLY':'AVAILABLE',dateUtc:timestampUtc,timeframe:'15m',metrics,observations,
-    sections:[{title:'Datos observados',items:facts},{title:'Interpretación técnica',items:interpretations}],limitations};
+    sections:[{title:'Datos observados',items:facts},{title:'Interpretación técnica',items:interpretations}],limitations,
+    continuity:{calendarAvailable:Boolean(calendar),consecutiveBars:indicatorBars.length,policy:calendar?'EXCHANGE_CALENDAR':'CURRENT_SESSION_ONLY'}};
 }
 
-export type ComparableSeries={asset:string;source:string;dataType:'SYNTHETIC'|'HISTORICAL';bars:readonly MarketBar[]};
+export type ComparableSeries={asset:string;source:string;dataType:'SYNTHETIC'|'HISTORICAL';bars:readonly MarketBar[];calendar?:MarketCalendar|null};
 export function analyzeAtCommonTimestamp(a:ComparableSeries,b:ComparableSeries,asOfUtc?:string):{analyses:[MarketAnalysis,MarketAnalysis];commonTimestamp:string|null}{
-  const first=analyzeMarketBars(a.asset,a.source,a.dataType,a.bars,asOfUtc),second=analyzeMarketBars(b.asset,b.source,b.dataType,b.bars,asOfUtc);
+  const first=analyzeMarketBars(a.asset,a.source,a.dataType,a.bars,asOfUtc,a.calendar),second=analyzeMarketBars(b.asset,b.source,b.dataType,b.bars,asOfUtc,b.calendar);
   if(a.source!==b.source||a.dataType!==b.dataType)return {analyses:[first,second],commonTimestamp:null};
   const timestamps=new Set(a.bars.filter(bar=>bar.isComplete&&(!asOfUtc||Date.parse(bar.endUtc)<=Date.parse(asOfUtc))).map(bar=>bar.endUtc));
   const common=[...b.bars].reverse().find(bar=>timestamps.has(bar.endUtc)&&bar.isComplete&&(!asOfUtc||Date.parse(bar.endUtc)<=Date.parse(asOfUtc)));
   if(!common)return {analyses:[first,second],commonTimestamp:null};
   return {analyses:[
-    analyzeMarketBars(a.asset,a.source,a.dataType,a.bars.filter(bar=>bar.endUtc<=common.endUtc),common.endUtc),
-    analyzeMarketBars(b.asset,b.source,b.dataType,b.bars.filter(bar=>bar.endUtc<=common.endUtc),common.endUtc)
+    analyzeMarketBars(a.asset,a.source,a.dataType,a.bars.filter(bar=>bar.endUtc<=common.endUtc),common.endUtc,a.calendar),
+    analyzeMarketBars(b.asset,b.source,b.dataType,b.bars.filter(bar=>bar.endUtc<=common.endUtc),common.endUtc,b.calendar)
   ],commonTimestamp:common.endUtc};
 }
 

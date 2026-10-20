@@ -4,7 +4,11 @@
 
 Ollama sigue eligiendo entre las herramientas cerradas de Fase 24. Fastify valida los argumentos y consulta las fuentes locales. Los cálculos y el texto sobre mercado salen de funciones puras del backend; la respuesta libre del modelo no se usa como afirmación financiera. No se envían al modelo velas, cotizaciones, resultados calculados ni documentos de la academia.
 
-El motor usa velas completas de 15 minutos disponibles al momento de consulta. Rechaza velas duplicadas, desordenadas, incompletas, con duración distinta de 15 minutos u OHLC inconsistente. Los retornos requieren velas consecutivas dentro de la misma fecha de Nueva York. Si falta un dato, un denominador es cero o el historial no alcanza, el valor queda `null`/`N/D` con su estado de disponibilidad.
+El motor usa velas completas de 15 minutos disponibles al momento de consulta. Rechaza velas duplicadas, desordenadas, con duración distinta de 15 minutos u OHLC inconsistente. Las velas marcadas como incompletas se conservan para detectar discontinuidades, pero no se usan en indicadores. Los retornos requieren velas consecutivas dentro de la misma fecha de Nueva York. Si falta un dato, un denominador es cero o el historial no alcanza, el valor queda `null`/`N/D` con su estado de disponibilidad.
+
+Las SMA y Bollinger conservan sus fórmulas originales y usan solo el tramo continuo de velas cerradas hasta el cierre observado. Una vela esperada ausente o incompleta reinicia ese tramo. Con el calendario bursátil local se distinguen sesiones cerradas y cierres anticipados, incluidos los cambios de horario de Nueva York. Sin calendario, la ventana se limita conservadoramente a la sesión actual; no se supone que sesiones intermedias tuvieron datos completos. La respuesta incluye la política, cantidad de velas consecutivas y la causa de los valores `INCOMPLETE_WINDOW`. La inspección no usa velas posteriores al instante solicitado.
+
+La investigación E2E y sus comandos reproducibles están en [Validación del PR #32](phase26-pr32-validation.md).
 
 Cada observación estructurada informa clave, valor, unidad, período, timestamp UTC del cierre y disponibilidad (`AVAILABLE`, `INSUFFICIENT_HISTORY`, `INCOMPLETE_WINDOW` o `INVALID_DENOMINATOR`). La evidencia también conserva fuente, activo, clase y disponibilidad histórica/sintética.
 

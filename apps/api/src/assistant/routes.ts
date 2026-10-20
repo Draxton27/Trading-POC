@@ -6,12 +6,13 @@ import {z} from 'zod';
 import {MarketQuote,symbol,type MarketBar} from '@trading-poc/contracts';
 import type {Symbol,Timeframe} from '@trading-poc/research-adapter';
 import type {DataMetadata} from '../../../../trading_poc_001_bollinger/src/data-contract.ts';
+import type {MarketCalendar} from '../../../../trading_poc_001_bollinger/src/alpaca-calendar.ts';
 import {academyRanges,selectAcademyReference} from '../academy/service.ts';
 import type {AgentHub} from '../streams/agent-hub.ts';
 import {analyzeAtCommonTimestamp,analyzeMarketBars,compareMarketAnalyses,explainIndicators,type IndicatorName,type MarketAnalysis} from './analysis.ts';
 
 type Mode='DEMO'|'OFFLINE'|'PAPER';
-type Dependencies={mode:Mode;hub:AgentHub;sqlite:Database.Database;barsFor:(symbol:Symbol,frame:Timeframe)=>MarketBar[];offlineAvailable:()=>boolean;offlineMetadata:(symbol:Symbol)=>DataMetadata;transport?:typeof fetch;timeoutMs?:number};
+type Dependencies={mode:Mode;hub:AgentHub;sqlite:Database.Database;barsFor:(symbol:Symbol,frame:Timeframe)=>MarketBar[];offlineAvailable:()=>boolean;offlineMetadata:(symbol:Symbol)=>DataMetadata;calendarFor?:(symbol:Symbol)=>MarketCalendar|null;transport?:typeof fetch;timeoutMs?:number};
 type Evidence={source:string;asset:Symbol|null;dateUtc:string|null;documentDate?:string|null;dataType:'SYNTHETIC'|'HISTORICAL'|'LIVE'|'DELAYED'|'FROZEN'|'DELAYED_FROZEN'|'UNKNOWN'|'DOCUMENT'|'SYSTEM';availability:'AVAILABLE'|'STALE'|'UNAVAILABLE'|'HISTORICAL_ONLY'|'CONFLICT';summary:string;values:Record<string,unknown>};
 type Section={title:string;items:string[]};
 const ENDPOINT='http://127.0.0.1:11434/api/chat';
@@ -78,30 +79,31 @@ function quoteEvidence(deps:Dependencies,s:Symbol,now:number):Evidence{
     summary:`${s}: cotización ${label}, estado ${statusLabel}; último ${display(q.last)}, BID ${display(q.bid)}, ASK ${display(q.ask)}.`,
     values:{last:q.last,bid:q.bid,ask:q.ask,feedType:q.feedType,receivedAtUtc:q.receivedAtUtc,marketTimestampUtc:q.marketTimestampUtc,marketDataStatus:q.marketDataStatus??null}};
 }
-type MarketSnapshot={symbol:Symbol;source:string;dataType:'SYNTHETIC'|'HISTORICAL';bars:MarketBar[];analysis:MarketAnalysis};
+type MarketSnapshot={symbol:Symbol;source:string;dataType:'SYNTHETIC'|'HISTORICAL';bars:MarketBar[];calendar:MarketCalendar|null;analysis:MarketAnalysis};
 function marketEvidence(deps:Dependencies,s:Symbol,now:number):MarketSnapshot{
   let synthetic=deps.mode==='DEMO';let source=synthetic?'DEMO sintético':'Alpaca SIP local';
-  let bars:MarketBar[]=[];
+  let bars:MarketBar[]=[],calendar:MarketCalendar|null=null;
   try{if(synthetic)bars=deps.barsFor(s,'15m');else if(deps.offlineAvailable()){
     const meta=deps.offlineMetadata(s);
     if(meta.asset===s&&meta.bar_minutes===15&&meta.session==='regular'){
       synthetic=meta.data_class==='synthetic';source=synthetic?'Archivo local sintético':'Alpaca SIP local';
       if(synthetic||(meta.provider==='Alpaca Market Data API'&&meta.feed==='sip'&&meta.adjustment==='split'))bars=deps.barsFor(s,'15m');
     }
-  }bars=bars.filter(b=>b.isComplete&&Number.isFinite(Date.parse(b.endUtc))&&Date.parse(b.endUtc)<=now).slice(-600);}catch{bars=[];}
+  }calendar=deps.calendarFor?.(s)??null;bars=bars.filter(b=>Number.isFinite(Date.parse(b.endUtc))&&Date.parse(b.endUtc)<=now).slice(-600);}catch{bars=[];calendar=null;}
   const dataType=synthetic?'SYNTHETIC':'HISTORICAL';
   let analysis:MarketAnalysis;
-  try{analysis=analyzeMarketBars(s,source,dataType,bars,new Date(now).toISOString());}
+  try{analysis=analyzeMarketBars(s,source,dataType,bars,new Date(now).toISOString(),calendar);}
   catch{analysis={asset:s,source,dataType,availability:'UNAVAILABLE',dateUtc:null,timeframe:'15m',metrics:null,observations:[],
     sections:[{title:'Datos observados',items:[`${s}: las velas no superaron las validaciones de integridad.`]}],
-    limitations:['Se omitieron los cálculos porque el histórico contiene una vela incompleta o inválida.']};}
-  return {symbol:s,source,dataType,bars,analysis};
+    limitations:['Se omitieron los cálculos porque el histórico contiene una vela inválida o fuera de orden.'],continuity:{calendarAvailable:Boolean(calendar),consecutiveBars:0,policy:calendar?'EXCHANGE_CALENDAR':'CURRENT_SESSION_ONLY'}};}
+  return {symbol:s,source,dataType,bars,calendar,analysis};
 }
 function historicalEvidence(snapshot:MarketSnapshot,now:number):Evidence{
   const {analysis}=snapshot;
   return {source:snapshot.source,asset:snapshot.symbol,dateUtc:analysis.dateUtc,dataType:analysis.dataType,availability:analysis.availability,
     summary:[...analysis.sections.flatMap(section=>section.items),...analysis.limitations].join(' '),
-    values:{timeframe:analysis.timeframe,metrics:analysis.metrics,observations:analysis.observations,limitations:analysis.limitations,requestedAtUtc:new Date(now).toISOString()}};
+    values:{timeframe:analysis.timeframe,metrics:analysis.metrics,observations:analysis.observations,continuity:analysis.continuity,
+      limitations:analysis.limitations,requestedAtUtc:new Date(now).toISOString()}};
 }
 function academyEvidence(deps:Dependencies,args:z.infer<typeof academyArgs>,now:number):Evidence{
   const asOf=args.asOf??new Date(now).toISOString().slice(0,10);
@@ -159,8 +161,8 @@ export function registerAssistantRoutes(app:FastifyInstance,deps:Dependencies){
       let aligned=snapshots;
       if(snapshots.length===2){
         const [a,b]=snapshots as [MarketSnapshot,MarketSnapshot];
-        const common=analyzeAtCommonTimestamp({asset:a.symbol,source:a.source,dataType:a.dataType,bars:a.bars},
-          {asset:b.symbol,source:b.source,dataType:b.dataType,bars:b.bars},new Date(now).toISOString());
+        const common=analyzeAtCommonTimestamp({asset:a.symbol,source:a.source,dataType:a.dataType,bars:a.bars,calendar:a.calendar},
+          {asset:b.symbol,source:b.source,dataType:b.dataType,bars:b.bars,calendar:b.calendar},new Date(now).toISOString());
         if(common.commonTimestamp)aligned=snapshots.map((snapshot,index)=>({...snapshot,
           bars:snapshot.bars.filter(bar=>bar.endUtc<=common.commonTimestamp!),analysis:common.analyses[index]!}));
       }

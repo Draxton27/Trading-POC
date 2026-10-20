@@ -74,6 +74,67 @@ describe('asistente: interpretación determinista de mercado',()=>{
     expect(()=>analyzeMarketBars('NVDA','fixture','HISTORICAL',[bars[1]!,bars[0]!])).toThrow();
     expect(()=>analyzeMarketBars('NVDA','fixture','HISTORICAL',[{...bars[0]!,high:1}])).toThrow();
   });
+  it('no calcula SMA ni Bollinger cruzando un hueco intradía',()=>{
+    const bars=Array.from({length:26},(_,i)=>bar(i,100+i*.1)).filter((_,i)=>i!==10);
+    const result=analyzeMarketBars('NVDA','fixture','HISTORICAL',bars);
+    expect(result.metrics?.sma20).toBeNull();expect(result.metrics?.bollingerUpper).toBeNull();
+    expect(result.continuity).toMatchObject({policy:'CURRENT_SESSION_ONLY',calendarAvailable:false,consecutiveBars:15});
+    expect(result.observations.find(x=>x.key==='sma20')?.availability).toBe('INCOMPLETE_WINDOW');
+    expect(result.limitations.join(' ')).toContain('velas esperadas ausentes o incompletas');
+  });
+  it('una vela incompleta rompe la ventana en vez de eliminarse y unir los segmentos',()=>{
+    const bars=Array.from({length:26},(_,i)=>({...bar(i,100+i*.1),isComplete:i!==10}));
+    const result=analyzeMarketBars('NVDA','fixture','HISTORICAL',bars);
+    expect(result.metrics?.close).toBe(bars.at(-1)!.close);
+    expect(result.metrics?.sma20).toBeNull();expect(result.metrics?.bollingerLower).toBeNull();
+    expect(result.continuity.consecutiveBars).toBe(15);
+    expect(result.observations.find(x=>x.key==='bollingerLower')?.availability).toBe('INCOMPLETE_WINDOW');
+  });
+  it('ignora una vela futura inválida al analizar un corte anterior',()=>{
+    const bars=trendBars('NVDA',1),asOf=bars.at(-1)!.endUtc;
+    const future={...bar(24,1000),high:1};
+    const result=analyzeMarketBars('NVDA','fixture','HISTORICAL',[...bars,future],asOf);
+    expect(result.metrics?.close).toBe(102);
+    expect(result.metrics?.sma20).toBeCloseTo(100.15,10);
+  });
+  it('un calendario identifica una sesión bursátil completamente ausente',()=>{
+    const days=['2026-10-19','2026-10-20','2026-10-21'];
+    const calendar=new Map(days.map(day=>[day,{open:570,close:960}]));
+    const bars=[...Array.from({length:26},(_,i)=>bar(i,100+i*.1,{day:days[0]})),
+      ...Array.from({length:8},(_,i)=>bar(i,102+i*.1,{day:days[2]}))];
+    const result=analyzeMarketBars('NVDA','fixture','HISTORICAL',bars,undefined,calendar);
+    expect(result.metrics?.sma20).toBeNull();expect(result.metrics?.bollingerUpper).toBeNull();
+    expect(result.continuity).toMatchObject({policy:'EXCHANGE_CALENDAR',calendarAvailable:true,consecutiveBars:8});
+    expect(result.observations.find(x=>x.key==='sma20')?.availability).toBe('INCOMPLETE_WINDOW');
+  });
+  it('respeta el cierre anticipado y el cambio de horario de verano del calendario',()=>{
+    const winter=(day:string,index:number)=>{
+      const original=bar(index,100+index*.1,{day});
+      return {...original,startUtc:new Date(Date.parse(original.startUtc)+60*60_000).toISOString(),
+        endUtc:new Date(Date.parse(original.endUtc)+60*60_000).toISOString()};
+    };
+    const early=new Map([['2026-11-27',{open:570,close:780}],['2026-11-30',{open:570,close:960}]]);
+    const earlyBars=[...Array.from({length:14},(_,i)=>winter('2026-11-27',i)),
+      ...Array.from({length:8},(_,i)=>winter('2026-11-30',i))];
+    const earlyResult=analyzeMarketBars('NVDA','fixture','HISTORICAL',earlyBars,undefined,early);
+    expect(earlyResult.continuity.consecutiveBars).toBe(22);
+    expect(earlyResult.metrics?.sma20).not.toBeNull();
+    const dst=new Map([['2026-10-30',{open:570,close:960}],['2026-11-02',{open:570,close:960}]]);
+    const dstBars=[...Array.from({length:26},(_,i)=>bar(i,100+i*.1,{day:'2026-10-30'})),
+      ...Array.from({length:4},(_,i)=>winter('2026-11-02',i))];
+    const dstResult=analyzeMarketBars('NVDA','fixture','HISTORICAL',dstBars,undefined,dst);
+    expect(dstResult.continuity.consecutiveBars).toBe(30);
+    expect(dstResult.metrics?.bollingerUpper).not.toBeNull();
+  });
+  it('alinea dos activos con distinta historia sin completar la ventana del que tiene un hueco',()=>{
+    const first=trendBars('NVDA',1),second=trendBars('QQQ',.5).filter((_,i)=>i!==4);
+    const aligned=analyzeAtCommonTimestamp({asset:'NVDA',source:'local',dataType:'HISTORICAL',bars:first},
+      {asset:'QQQ',source:'local',dataType:'HISTORICAL',bars:second});
+    expect(aligned.commonTimestamp).toBe(first.at(-1)!.endUtc);
+    expect(aligned.analyses[0].dateUtc).toBe(aligned.analyses[1].dateUtc);
+    expect(aligned.analyses[1].metrics?.sma20).toBeNull();
+    expect(aligned.analyses[1].observations.find(x=>x.key==='sma20')?.availability).toBe('INCOMPLETE_WINDOW');
+  });
   it('explica indicadores con texto educativo acotado',()=>{
     expect(explainIndicators(['SMA20','BOLLINGER'])).toHaveLength(2);
     expect(explainIndicators(['SMA20'])[0]).toContain('no confirma por sí sola');
