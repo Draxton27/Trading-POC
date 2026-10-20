@@ -45,5 +45,9 @@ class Phase28Tests(unittest.TestCase):
         path=Path(tempfile.mkdtemp())/'model.json';model.save_model(path)
         import xgboost as xgb
         reloaded=xgb.XGBClassifier();reloaded.load_model(path);self.assertEqual(reloaded.predict_proba(train.arrays(evaluation)[0]).shape[1],3)
+    def test_walk_forward_evaluates_each_external_fold_causally(self):
+        rows,_=train.load_dataset(self.make_dataset());folds=train.walk_forward(rows,1)
+        self.assertEqual(len(folds),1);self.assertEqual(set(folds[0]['models']),{'standard','class_weighted','regularized','majority','frequency'})
+        self.assertIsNotNone(folds[0]['models']['class_weighted']['training']['weights'])
 
 if __name__=='__main__':unittest.main()
