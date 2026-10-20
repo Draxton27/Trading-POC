@@ -110,6 +110,96 @@ def bootstrap_by_session(rows,y,probabilities,iterations=200,seed=7):
         values.append(metrics(y[idx],probabilities[idx])['macro_f1'])
     return {'method':'bootstrap por sesiones (no velas independientes)','iterations':iterations,'macro_f1_95pct':[float(np.quantile(values,.025)),float(np.quantile(values,.975))]}
 
+VARIANTS={
+    'standard':{'max_depth':2,'learning_rate':.05,'min_child_weight':8,'reg_lambda':1.},
+    'class_weighted':{'max_depth':2,'learning_rate':.05,'min_child_weight':8,'reg_lambda':1.},
+    'regularized':{'max_depth':2,'learning_rate':.03,'min_child_weight':12,'reg_lambda':4.},
+}
+def class_weights(y):
+    counts=np.bincount(y,minlength=3)
+    if np.any(counts == 0):
+        missing=', '.join(CLASSES[index] for index,count in enumerate(counts) if count == 0)
+        raise ValueError(f'Entrenamiento insuficiente: faltan clases en filas causales: {missing}.')
+    return np.array([len(y)/(3*c) for c in counts])
+def inner_early_stop(rows):
+    sessions=sorted({r['session_date_ny'] for r in rows})
+    if len(sessions)<3: raise ValueError('Filas insuficientes para early stopping interno.')
+    early_sessions=set(sessions[-max(1,len(sessions)//5):]); early=[r for r in rows if r['session_date_ny'] in early_sessions]
+    core=purge_train([r for r in rows if r['session_date_ny'] not in early_sessions],early[0]['observed_at_utc'])
+    if not core or not early: raise ValueError('Early stopping interno vacio tras purga.')
+    return core,early
+def fit_variant(train_rows,early_rows,variant):
+    try: import xgboost as xgb
+    except ImportError as error: raise RuntimeError('Falta XGBoost.') from error
+    x,y=arrays(train_rows); xe,ye=arrays(early_rows); weights=class_weights(y)[y] if variant=='class_weighted' else np.ones(len(y))
+    model=xgb.XGBClassifier(objective='multi:softprob',num_class=3,n_estimators=300,subsample=.8,colsample_bytree=.9,random_state=7,n_jobs=int(os.getenv('TRADING_POC_ML_THREADS','2')),eval_metric='mlogloss',early_stopping_rounds=30,**VARIANTS[variant])
+    model.fit(x,y,sample_weight=weights,eval_set=[(xe,ye)],sample_weight_eval_set=[np.ones(len(ye))],verbose=False)
+    return model,{'variant':variant,'weights':class_weights(y).tolist() if variant=='class_weighted' else None,'n_estimators':model.best_iteration+1}
+def refit_with_trees(rows,variant,trees):
+    try: import xgboost as xgb
+    except ImportError as error: raise RuntimeError('Falta XGBoost.') from error
+    x,y=arrays(rows); weights=class_weights(y)[y] if variant=='class_weighted' else np.ones(len(y))
+    model=xgb.XGBClassifier(objective='multi:softprob',num_class=3,n_estimators=trees,subsample=.8,colsample_bytree=.9,random_state=7,n_jobs=int(os.getenv('TRADING_POC_ML_THREADS','2')),eval_metric='mlogloss',**VARIANTS[variant])
+    model.fit(x,y,sample_weight=weights,verbose=False)
+    return model,{'variant':variant,'weights':class_weights(y).tolist() if variant=='class_weighted' else None,'n_estimators':trees}
+def paired_bootstrap(rows,y,left,right,iterations=400,seed=7):
+    """Paired session bootstrap. Every resample uses the same session indexes for both models."""
+    if len(rows) != len(y) or len(left) != len(rows) or len(right) != len(rows):
+        raise ValueError('Bootstrap pareado requiere predicciones alineadas con las filas externas.')
+    groups={};rng=np.random.default_rng(seed)
+    for i,row in enumerate(rows):groups.setdefault(row['session_date_ny'],[]).append(i)
+    sessions=sorted(groups)
+    if len(sessions)<2: return {'paired_by':'session','status':'insufficient_sessions','sessions':len(sessions),'iterations':0,'difference_95pct':None}
+    diffs={key:[] for key in ('macro_f1','balanced_accuracy','log_loss','bear_precision','bear_recall')}
+    for _ in range(iterations):
+        ix=np.concatenate([groups[s] for s in rng.choice(sessions,len(sessions),replace=True)])
+        a,b=metrics(y[ix],left[ix]),metrics(y[ix],right[ix])
+        values={'macro_f1':a['macro_f1']-b['macro_f1'],'balanced_accuracy':a['balanced_accuracy']-b['balanced_accuracy'],'log_loss':a['log_loss']-b['log_loss'],'bear_precision':a['per_class']['BAJISTA']['precision']-b['per_class']['BAJISTA']['precision'],'bear_recall':a['per_class']['BAJISTA']['recall']-b['per_class']['BAJISTA']['recall']}
+        for key,value in values.items():diffs[key].append(value)
+    return {'paired_by':'session','status':'ok','sessions':len(sessions),'iterations':iterations,'seed':seed,'difference':'left_minus_right','difference_95pct':{key:[float(np.quantile(values,.025)),float(np.quantile(values,.975))] for key,values in diffs.items()}}
+def walk_forward(rows,folds=3):
+    results=[]
+    for number,(available,external) in enumerate(session_folds(rows,folds),1):
+        core,early=inner_early_stop(available); _,yext=arrays(external); xext,_=arrays(external)
+        cutoff=external[0]['observed_at_utc']
+        item={'fold':number,'external_sessions':sorted({r['session_date_ny'] for r in external}),'causal_cutoff_utc':cutoff,'max_training_label_available_at_utc':max(r['label_available_at_utc'] for r in available),'max_early_stop_label_available_at_utc':max(r['label_available_at_utc'] for r in early),'models':{}}
+        probabilities={}
+        for variant in VARIANTS:
+            _,selection=fit_variant(core,early,variant)
+            model,info=refit_with_trees(available,variant,selection['n_estimators'])
+            p=model.predict_proba(xext);probabilities[variant]=p
+            item['models'][variant]={'metrics':metrics(yext,p),'training':info,'selection_rows':len(core),'early_stop_rows':len(early),'selection_trees':selection['n_estimators']}
+        _,yavailable=arrays(available)
+        probabilities['majority']=probabilities_majority(yavailable,len(external));probabilities['frequency']=probabilities_frequency(yavailable,len(external))
+        item['models']['majority']={'metrics':metrics(yext,probabilities['majority'])}
+        item['models']['frequency']={'metrics':metrics(yext,probabilities['frequency'])}
+        item['paired_bootstrap']={
+            'against_standard':{name:paired_bootstrap(external,yext,p,probabilities['standard']) for name,p in probabilities.items() if name!='standard'},
+            'against_frequency':{name:paired_bootstrap(external,yext,p,probabilities['frequency']) for name,p in probabilities.items() if name not in ('frequency','majority')},
+        }
+        item['out_of_sample_predictions']=[{
+            'bar_start_utc':row['bar_start_utc'],'session_date_ny':row['session_date_ny'],'label':row['label'],
+            **{f'prob_{variant}':probabilities[variant][index].tolist() for variant in probabilities}
+        } for index,row in enumerate(external)]
+        results.append(item)
+    return results
+def select_variant(folds):
+    """Select only from external development-fold results; evaluation years are absent."""
+    summary={}
+    for variant in VARIANTS:
+        scores=[fold['models'][variant]['metrics'] for fold in folds]
+        summary[variant]={'macro_f1':float(np.mean([x['macro_f1'] for x in scores])),'log_loss':float(np.mean([x['log_loss'] for x in scores]))}
+    selected=min(summary,key=lambda name:(-summary[name]['macro_f1'],summary[name]['log_loss']))
+    return selected,summary
+def refit_final(development,variant):
+    core,early=inner_early_stop(development)
+    _,selection=fit_variant(core,early,variant)
+    # The final model uses every causally available development row.  Its metadata
+    # must describe those rows, not the smaller early-stopping subset.
+    final,info=refit_with_trees(development,variant,selection['n_estimators'])
+    info['selection_rows']=len(core);info['early_stop_rows']=len(early)
+    return final,info
+
 def train_xgb(train,valid,evaluation):
     try: import xgboost as xgb
     except ImportError as error: raise RuntimeError('Falta XGBoost. Cree el entorno virtual e instale ml/phase28/requirements.txt.') from error
@@ -127,13 +217,14 @@ def main():
     parser=argparse.ArgumentParser();parser.add_argument('--dataset',required=True);parser.add_argument('--output');args=parser.parse_args()
     rows,metadata=load_dataset(Path(args.dataset)); development=[r for r in rows if r['partition']=='desarrollo']; evaluation=[r for r in rows if r['partition']=='evaluacion_exploratoria']
     if not development or not evaluation: raise ValueError('Se requieren desarrollo y evaluacion exploratoria.')
-    folds=session_folds(rows); train,valid=folds[-1]; _,ye=arrays(evaluation); report={'experimental':True,'warning':'Evaluacion 2025-2026 es retrospectiva exploratoria; no es evidencia independiente ni una estrategia u orden.','features':list(FEATURES),'class_index':CLASS_INDEX,'dataset_sha256':sha(Path(args.dataset)/'dataset.csv'),'rows':len(rows),'sessions':len({r['session_date_ny'] for r in rows}),'class_distribution':dict(Counter(r['label'] for r in rows)),'walk_forward_folds':[{'train_rows':len(a),'validation_rows':len(b),'train_sessions':len({r['session_date_ny'] for r in a}),'validation_sessions':len({r['session_date_ny'] for r in b})} for a,b in folds],'purge':'Se purgan filas de entrenamiento cuya etiqueta no estaba disponible antes del inicio del fold. No se requiere embargo extra: Fase 23 no permite horizontes que crucen sesiones.','baselines':{}}
+    fold_results=walk_forward(rows); selected,selection=select_variant(fold_results); _,ye=arrays(evaluation); report={'experimental':True,'warning':'Evaluacion 2025-2026 es retrospectiva exploratoria; no es evidencia independiente ni una estrategia u orden.','features':list(FEATURES),'class_index':CLASS_INDEX,'dataset_sha256':sha(Path(args.dataset)/'dataset.csv'),'rows':len(rows),'sessions':len({r['session_date_ny'] for r in rows}),'class_distribution':dict(Counter(r['label'] for r in rows)),'walk_forward_folds':fold_results,'selection':{'rule':'maximo Macro F1 promedio; empate por minimo log loss','selected':selected,'development_only':selection},'purge':'Se purgan filas de entrenamiento cuya etiqueta no estaba disponible antes del inicio del fold. No se requiere embargo extra: Fase 23 no permite horizontes que crucen sesiones.','baselines':{}}
     # XGBoost is refit with the same development rows (train + validation).
     # Baseline frequencies must use exactly that information as well.
-    final_development=train+valid
+    final_development=development
     for name,fn in [('mayoritaria',probabilities_majority),('frecuencia',probabilities_frequency)]:
         _,yt=arrays(final_development); p=fn(yt,len(evaluation)); report['baselines'][name]=metrics(ye,p);report['baselines'][name]['uncertainty']=bootstrap_by_session(evaluation,ye,p)
-    model,probabilities,model_info=train_xgb(train,valid,evaluation); report['xgboost']=metrics(ye,probabilities);report['xgboost']['uncertainty']=bootstrap_by_session(evaluation,ye,probabilities);report['model']=model_info
+    model,model_info=refit_final(final_development,selected); probabilities=model.predict_proba(arrays(evaluation)[0]); report['xgboost']=metrics(ye,probabilities);report['xgboost']['uncertainty']=bootstrap_by_session(evaluation,ye,probabilities);report['model']=model_info
+    report['exploratory_by_year']={year:metrics(*((lambda subset:(arrays(subset)[1],model.predict_proba(arrays(subset)[0])))([r for r in evaluation if r['session_date_ny'].startswith(year)]))) for year in ('2025','2026') if any(r['session_date_ny'].startswith(year) for r in evaluation)}
     root=Path(args.output) if args.output else Path('trading_poc_001_bollinger/output/real/phase28-xgboost')/(datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')+'-'+report['dataset_sha256'][:12]);root.mkdir(parents=True,exist_ok=False)
     model.save_model(root/'model.json');(root/'report.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf8')
     with (root/'exploratory_predictions.csv').open('w',newline='',encoding='utf8') as target:

@@ -10,7 +10,10 @@ class Phase28Tests(unittest.TestCase):
         directory=Path(tempfile.mkdtemp())
         fields=list(train.REQUIRED)
         rows=[]
-        for day,part in [('2024-01-02','desarrollo'),('2024-01-03','desarrollo'),('2024-01-04','desarrollo'),('2024-01-05','desarrollo'),('2024-01-08','desarrollo'),('2024-01-09','desarrollo'),('2025-01-02','evaluacion_exploratoria')]:
+        days=[(datetime(2024,1,2)+timedelta(days=index)).date().isoformat() for index in range(16)]
+        days.append('2025-01-02')
+        for day in days:
+            part='desarrollo' if day<'2025-01-01' else 'evaluacion_exploratoria'
             for minute,label in [(0,'ALCISTA'),(15,'BAJISTA'),(30,'LATERAL')]:
                 stamp=(datetime.fromisoformat(day+'T14:30:00+00:00')+timedelta(minutes=minute)).isoformat(timespec='milliseconds').replace('+00:00','Z')
                 label_at=(datetime.fromisoformat(stamp.replace('Z','+00:00'))+timedelta(minutes=60)).isoformat(timespec='milliseconds').replace('+00:00','Z')
@@ -26,7 +29,7 @@ class Phase28Tests(unittest.TestCase):
 
     def test_loads_and_prohibits_future_columns(self):
         path=self.make_dataset();rows,_=train.load_dataset(path)
-        self.assertEqual(len(rows),21);self.assertTrue(train.FORBIDDEN.isdisjoint(train.FEATURES))
+        self.assertEqual(len(rows),51);self.assertTrue(train.FORBIDDEN.isdisjoint(train.FEATURES))
         self.assertEqual(train.CLASS_INDEX,{'ALCISTA':0,'BAJISTA':1,'LATERAL':2})
     def test_rejects_duplicate_timestamp(self):
         path=self.make_dataset(lambda rows:rows.__setitem__(1,{**rows[1],'bar_start_utc':rows[0]['bar_start_utc']}))
@@ -45,5 +48,30 @@ class Phase28Tests(unittest.TestCase):
         path=Path(tempfile.mkdtemp())/'model.json';model.save_model(path)
         import xgboost as xgb
         reloaded=xgb.XGBClassifier();reloaded.load_model(path);self.assertEqual(reloaded.predict_proba(train.arrays(evaluation)[0]).shape[1],3)
+    def test_walk_forward_evaluates_three_external_folds_causally(self):
+        rows,_=train.load_dataset(self.make_dataset());folds=train.walk_forward(rows,3)
+        self.assertEqual(len(folds),3)
+        for fold in folds:
+            self.assertEqual(set(fold['models']),{'standard','class_weighted','regularized','majority','frequency'})
+            self.assertIsNotNone(fold['models']['class_weighted']['training']['weights'])
+            self.assertLess(train.iso(fold['max_training_label_available_at_utc']),train.iso(fold['causal_cutoff_utc']))
+            self.assertLess(train.iso(fold['max_early_stop_label_available_at_utc']),train.iso(fold['causal_cutoff_utc']))
+            self.assertEqual(len(fold['out_of_sample_predictions']),sum(1 for row in rows if row['session_date_ny'] in fold['external_sessions']))
+            self.assertIn('regularized',fold['paired_bootstrap']['against_standard'])
+            self.assertIn('standard',fold['paired_bootstrap']['against_frequency'])
+
+    def test_paired_bootstrap_is_reproducible_and_aligned_by_session(self):
+        rows,_=train.load_dataset(self.make_dataset()); external=[row for row in rows if row['partition']=='desarrollo'][:12]
+        _,y=train.arrays(external); left=train.probabilities_frequency(y,len(external)); right=train.probabilities_majority(y,len(external))
+        self.assertEqual(train.paired_bootstrap(external,y,left,right,iterations=20),train.paired_bootstrap(external,y,left,right,iterations=20))
+        with self.assertRaisesRegex(ValueError,'alineadas'): train.paired_bootstrap(external,y,left[:-1],right)
+
+    def test_refit_final_records_weights_from_all_development_rows(self):
+        rows,_=train.load_dataset(self.make_dataset()); development=[row for row in rows if row['partition']=='desarrollo']
+        _,info=train.refit_final(development,'class_weighted')
+        self.assertEqual(info['weights'],train.class_weights(train.arrays(development)[1]).tolist())
+
+    def test_missing_class_is_explicitly_rejected(self):
+        with self.assertRaisesRegex(ValueError,'faltan clases'): train.class_weights(__import__('numpy').array([0,0,1]))
 
 if __name__=='__main__':unittest.main()
