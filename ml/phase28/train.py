@@ -131,16 +131,34 @@ def fit_variant(train_rows,early_rows,variant):
     model=xgb.XGBClassifier(objective='multi:softprob',num_class=3,n_estimators=300,subsample=.8,colsample_bytree=.9,random_state=7,n_jobs=int(os.getenv('TRADING_POC_ML_THREADS','2')),eval_metric='mlogloss',early_stopping_rounds=30,**VARIANTS[variant])
     model.fit(x,y,sample_weight=weights,eval_set=[(xe,ye)],sample_weight_eval_set=[np.ones(len(ye))],verbose=False)
     return model,{'variant':variant,'weights':class_weights(y).tolist() if variant=='class_weighted' else None,'n_estimators':model.best_iteration+1}
+def refit_with_trees(rows,variant,trees):
+    try: import xgboost as xgb
+    except ImportError as error: raise RuntimeError('Falta XGBoost.') from error
+    x,y=arrays(rows); weights=class_weights(y)[y] if variant=='class_weighted' else np.ones(len(y))
+    model=xgb.XGBClassifier(objective='multi:softprob',num_class=3,n_estimators=trees,subsample=.8,colsample_bytree=.9,random_state=7,n_jobs=int(os.getenv('TRADING_POC_ML_THREADS','2')),eval_metric='mlogloss',**VARIANTS[variant])
+    model.fit(x,y,sample_weight=weights,verbose=False)
+    return model,{'variant':variant,'weights':class_weights(y).tolist() if variant=='class_weighted' else None,'n_estimators':trees}
+def paired_bootstrap(rows,y,left,right,iterations=400,seed=7):
+    groups={};rng=np.random.default_rng(seed)
+    for i,row in enumerate(rows):groups.setdefault(row['session_date_ny'],[]).append(i)
+    sessions=list(groups); diffs={key:[] for key in ('macro_f1','balanced_accuracy','log_loss','bear_precision','bear_recall')}
+    for _ in range(iterations):
+        ix=np.concatenate([groups[s] for s in rng.choice(sessions,len(sessions),replace=True)])
+        a,b=metrics(y[ix],left[ix]),metrics(y[ix],right[ix]); values={'macro_f1':a['macro_f1']-b['macro_f1'],'balanced_accuracy':a['balanced_accuracy']-b['balanced_accuracy'],'log_loss':a['log_loss']-b['log_loss'],'bear_precision':a['per_class']['BAJISTA']['precision']-b['per_class']['BAJISTA']['precision'],'bear_recall':a['per_class']['BAJISTA']['recall']-b['per_class']['BAJISTA']['recall']}
+        for key,value in values.items():diffs[key].append(value)
+    return {'paired_by':'session','iterations':iterations,'seed':seed,'difference_95pct':{key:[float(np.quantile(values,.025)),float(np.quantile(values,.975))] for key,values in diffs.items()}}
 def walk_forward(rows,folds=3):
     results=[]
     for number,(available,external) in enumerate(session_folds(rows,folds),1):
         core,early=inner_early_stop(available); _,yext=arrays(external); xext,_=arrays(external)
         item={'fold':number,'external_sessions':sorted({r['session_date_ny'] for r in external}),'models':{}}
+        probabilities={}
         for variant in VARIANTS:
-            model,info=fit_variant(core,early,variant); p=model.predict_proba(xext);item['models'][variant]={'metrics':metrics(yext,p),'training':info}
+            _,selection=fit_variant(core,early,variant); model,info=refit_with_trees(available,variant,selection['n_estimators']); p=model.predict_proba(xext);probabilities[variant]=p;item['models'][variant]={'metrics':metrics(yext,p),'training':info,'selection_rows':len(core),'early_stop_rows':len(early)}
         _,yavailable=arrays(available)
-        item['models']['majority']={'metrics':metrics(yext,probabilities_majority(yavailable,len(external)))}
-        item['models']['frequency']={'metrics':metrics(yext,probabilities_frequency(yavailable,len(external)))}
+        probabilities['majority']=probabilities_majority(yavailable,len(external));probabilities['frequency']=probabilities_frequency(yavailable,len(external))
+        item['models']['majority']={'metrics':metrics(yext,probabilities['majority'])};item['models']['frequency']={'metrics':metrics(yext,probabilities['frequency'])}
+        item['paired_bootstrap']={name:paired_bootstrap(external,yext,p,'') if False else paired_bootstrap(external,yext,p,probabilities['standard']) for name,p in probabilities.items() if name!='standard'}
         results.append(item)
     return results
 def select_variant(folds):
