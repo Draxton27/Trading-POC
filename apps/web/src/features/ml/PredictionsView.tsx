@@ -1,6 +1,6 @@
 import {useState} from 'react';
 import {useQuery} from '@tanstack/react-query';
-import type {MlMetrics,MlMetricsResponse,MlPredictionsPage,MlStatus,MlSummary} from '@trading-poc/contracts';
+import type {MlMetrics,MlMetricsResponse,MlPredictionsPage,MlProspectiveRecord,MlStatus,MlSummary} from '@trading-poc/contracts';
 import {api,dateTime,fmt} from '../../lib/api.ts';
 import {Badge,Button,Card,SectionTitle} from '../../components/ui.tsx';
 
@@ -17,9 +17,10 @@ export default function PredictionsView(){
   const summary=useQuery<MlSummary>({queryKey:['ml-summary'],queryFn:()=>api('/ml/summary'),enabled:ready});
   const metrics=useQuery<MlMetricsResponse>({queryKey:['ml-metrics'],queryFn:()=>api('/ml/metrics'),enabled:ready});
   const predictions=useQuery<MlPredictionsPage>({queryKey:['ml-predictions',offset],queryFn:()=>api(`/ml/predictions?symbol=NVDA&timeframe=15m&offset=${offset}&limit=${limit}`),enabled:ready});
-  const loading=status.isPending||(ready&&(summary.isPending||metrics.isPending||predictions.isPending));
-  const error=status.error??summary.error??metrics.error??predictions.error;
-  const model=summary.data,report=metrics.data,page=predictions.data;
+  const prospective=useQuery<MlProspectiveRecord>({queryKey:['ml-prospective'],queryFn:()=>api('/ml/prospective?symbol=NVDA&timeframe=15m'),enabled:ready});
+  const loading=status.isPending||(ready&&(summary.isPending||metrics.isPending||predictions.isPending||prospective.isPending));
+  const error=status.error??summary.error??metrics.error??predictions.error??prospective.error;
+  const model=summary.data,report=metrics.data,page=predictions.data,tracking=prospective.data;
   return <div className="content-page ml-page"><SectionTitle eyebrow="INVESTIGACIÓN HISTÓRICA" title="Predicciones" aside={<Badge tone="warning">EXPERIMENTAL</Badge>}/>
     <Card className="ml-warning" role="note"><strong>{notice}</strong></Card>
     {loading&&<Card role="status">Cargando artefactos del experimento local…</Card>}
@@ -32,6 +33,7 @@ export default function PredictionsView(){
       <MetricsTable title="Resultados walk-forward por fold de desarrollo" items={report.walkForward.flatMap(fold=>[{name:`Fold ${fold.fold} · estándar · ${fold.externalSessions} sesiones`,value:fold.standard},{name:`Fold ${fold.fold} · ponderado`,value:fold.classWeighted},{name:`Fold ${fold.fold} · regularizado`,value:fold.regularized},{name:`Fold ${fold.fold} · frecuencia`,value:fold.frequencyBaseline}])}/>
       <MetricsTable title="Evaluación retrospectiva por año" items={(['2025','2026'] as const).filter(year=>report.exploratoryByYear[year]).map(year=>({name:year,value:report.exploratoryByYear[year]!}))}/>
       <Card><h3>Predicciones históricas paginadas</h3><p className="subtle">Son probabilidades de clase calculadas retrospectivamente. La clase dominante describe el valor máximo del modelo; no es una señal vigente.</p><div className="table-wrap"><table aria-label="Predicciones históricas"><thead><tr><th>Vela UTC</th><th>Sesión NY</th><th>ALCISTA</th><th>BAJISTA</th><th>LATERAL</th><th>Clase dominante</th><th>Origen</th></tr></thead><tbody>{page.items.map(item=><tr key={item.timestampUtc}><td>{item.timestampUtc}</td><td>{item.sessionDateNy}</td><td>{pct(item.probabilities.ALCISTA)}</td><td>{pct(item.probabilities.BAJISTA)}</td><td>{pct(item.probabilities.LATERAL)}</td><td>{item.dominantClass}</td><td>Histórico exploratorio</td></tr>)}</tbody></table></div><div className="ml-pagination"><span>{page.total?`${page.offset+1}–${Math.min(page.offset+page.items.length,page.total)} de ${page.total}`:'Sin observaciones'}</span><Button variant="secondary" disabled={offset===0} onClick={()=>setOffset(Math.max(0,offset-limit))}>Anterior</Button><Button variant="secondary" disabled={page.nextOffset===null} onClick={()=>setOffset(page.nextOffset!)}>Siguiente</Button></div></Card>
+      <Card><h3>Seguimiento prospectivo</h3><p className="subtle">Solo muestra una captura local ya registrada. No crea inferencias, señales ni órdenes.</p>{tracking&&<div className="ml-facts"><div><small>Estado</small><strong>{tracking.status}</strong></div><div><small>Modelo</small><strong>{tracking.modelId??'N/D'}</strong></div><div><small>Fuente</small><strong>{tracking.source??'N/D'}</strong></div><div><small>Última observación</small><strong>{tracking.lastObservationUtc?dateTime(tracking.lastObservationUtc):'N/D'}</strong></div><div><small>Recepción</small><strong>{tracking.receivedAtUtc?dateTime(tracking.receivedAtUtc):'N/D'}</strong></div><div><small>Registro</small><strong>{tracking.registeredAtUtc?dateTime(tracking.registeredAtUtc):'N/D'}</strong></div></div>}{tracking?.probabilities&&<p>ALCISTA {pct(tracking.probabilities.ALCISTA)} · BAJISTA {pct(tracking.probabilities.BAJISTA)} · LATERAL {pct(tracking.probabilities.LATERAL)} · clase {tracking.dominantClass}</p>}<p className="subtle">{tracking?.reason??'Sin datos de seguimiento.'}{tracking?.recordedBeforeNextEntry===false?' El registro fue posterior a la apertura hipotética de la siguiente vela; no representa una oportunidad ejecutable a ese precio.':''}</p></Card>
     </>}
   </div>;
 }

@@ -28,7 +28,7 @@ const classes=['ALCISTA','BAJISTA','LATERAL'] as const;
 // CSV serializes model probabilities as decimal text.  This tolerance covers that
 // round-trip and ordinary floating-point evaluation without accepting material drift.
 const metricTolerance=1e-6;
-type Ready={status:'READY';summary:MlSummary;metrics:MlMetricsResponse;predictions:Prediction[]};
+type Ready={status:'READY';summary:MlSummary;metrics:MlMetricsResponse;predictions:Prediction[];modelSha256:string};
 type Label=(typeof classes)[number];
 type ParsedPrediction={prediction:Prediction;label:Label};
 type LoadResult=Ready|{status:'NO_MODEL'|'INVALID_ARTIFACT'|'UNAVAILABLE';reason:string;experimentId:null};
@@ -130,7 +130,7 @@ export function loadMlRun(directory:string|undefined):LoadResult{
     const experimentId=createHash('sha256').update(files['report.json']).update(files['model.json']).update(files['exploratory_predictions.csv']).update(files['reproduction.json']).digest('hex').slice(0,24);
     const summary=MlSummary.parse({status:'READY',symbol:'NVDA',timeframe:'15m',origin:'HISTORICAL_EXPLORATORY',experimentId,createdAtUtc,modelVersion,selectedVariant:report.selection.selected,trees:report.model.n_estimators,datasetSha256:report.dataset_sha256,predictionCount:predictions.length});
     const metrics=MlMetricsResponse.parse({status:'READY',model:metric(report.xgboost),frequencyBaseline:metric(report.baselines.frecuencia),walkForward:report.walk_forward_folds.map(fold=>({fold:fold.fold,externalSessions:fold.external_sessions.length,standard:metric(fold.models.standard.metrics),classWeighted:metric(fold.models.class_weighted.metrics),regularized:metric(fold.models.regularized.metrics),frequencyBaseline:metric(fold.models.frequency.metrics)})),exploratoryByYear:Object.fromEntries((['2025','2026'] as const).filter(year=>report.exploratory_by_year[year]).map(year=>[year,metric(report.exploratory_by_year[year]!)])),warning});
-    return {status:'READY',summary,metrics,predictions};
+    return {status:'READY',summary,metrics,predictions,modelSha256:sha(files['model.json'])};
   }catch(error){
     const code=(error as NodeJS.ErrnoException).code;
     if(code==='ENOENT'){
