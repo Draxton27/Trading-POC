@@ -5,7 +5,7 @@ import type {Candle} from './domain.ts';
 import {newYorkBarParts} from './strategy-validation.ts';
 import type {MarketCalendar} from './alpaca-calendar.ts';
 
-export type IngestionStatus = 'READY' | 'NO_DATA' | 'DELAYED' | 'PERMISSION_DENIED' | 'RATE_LIMIT' | 'HTTP_ERROR' | 'NETWORK_ERROR' | 'INVALID_DATA';
+export type IngestionStatus = 'READY' | 'NO_DATA' | 'DELAYED' | 'PERMISSION_DENIED' | 'RECENT_DATA_FORBIDDEN' | 'RATE_LIMIT' | 'HTTP_ERROR' | 'NETWORK_ERROR' | 'INVALID_DATA';
 export type IngestionRecord = {
   schema: 'phase32-alpaca-v1'; recordId: string; previousHash: string | null; recordHash: string;
   kind: 'bar' | 'status' | 'query'; receivedAtUtc: string; status: IngestionStatus; detail: string;
@@ -63,12 +63,13 @@ function writeRecords(path: string, prior: readonly IngestionRecord[], inputs: r
 }
 
 /** Rejects incomplete, future, off-calendar and unresolved intraday-gap bars. */
-export function validateCapture(candles: readonly Candle[], calendar: MarketCalendar, receivedAtUtc: string, clock: () => number = Date.now): void {
+export function validateCapture(candles: readonly Candle[], calendar: MarketCalendar, receivedAtUtc: string, clock: () => number = Date.now, minimumBarAgeMs = 0, queryAtUtc = receivedAtUtc): void {
   const received = Date.parse(receivedAtUtc); if (!Number.isFinite(received)) throw new Error('Recepción inválida.');
+  const queryAt = Date.parse(queryAtUtc); if (!Number.isFinite(queryAt) || !Number.isFinite(minimumBarAgeMs) || minimumBarAgeMs < 0) throw new Error('Tiempo de consulta o retraso inválido.');
   let prior = -Infinity;
   for (const candle of candles) {
     const at = Date.parse(candle.timestamp), local = newYorkBarParts(candle.timestamp), session = calendar.get(local.day);
-    if (!Number.isFinite(at) || at <= prior || at + BAR_MS > received || at > clock() + 60_000 || !session || minutes(local.slot) < session.open || minutes(local.slot) >= session.close) throw new Error('Vela incompatible con calendario, recepción u orden.');
+    if (!Number.isFinite(at) || at <= prior || at + BAR_MS > received || at + BAR_MS > queryAt - minimumBarAgeMs || at > clock() + 60_000 || !session || minutes(local.slot) < session.open || minutes(local.slot) >= session.close) throw new Error('Vela incompatible con calendario, recepción, retraso u orden.');
     if (prior > 0 && newYorkBarParts(new Date(prior).toISOString()).day === local.day && at - prior !== BAR_MS) throw new Error('Hueco intradía no resuelto.');
     prior = at;
   }

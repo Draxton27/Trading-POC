@@ -11,7 +11,7 @@ export const MlPrediction=z.object({
 export type MlPrediction=z.infer<typeof MlPrediction>;
 
 export const MlProspectiveStatus=z.enum(['READY','NO_MODEL','SOURCE_ABSENT','HISTORICAL_DATA','STALE_DATA','INDICATORS_INSUFFICIENT','MODEL_INCOMPATIBLE','UNAVAILABLE']);
-export const MlIngestionState=z.enum(['READY','NO_DATA','DELAYED','PERMISSION_DENIED','RATE_LIMIT','HTTP_ERROR','NETWORK_ERROR','INVALID_DATA','NOT_CONFIGURED']);
+export const MlIngestionState=z.enum(['READY','NO_DATA','DELAYED','PERMISSION_DENIED','RECENT_DATA_FORBIDDEN','RATE_LIMIT','HTTP_ERROR','NETWORK_ERROR','INVALID_DATA','NOT_CONFIGURED']);
 export const MlIngestionStatus=z.object({
   status:MlIngestionState,provider:z.literal('Alpaca Market Data API'),feed:z.literal('sip'),adjustment:z.literal('split'),
   availability:z.enum(['CURRENT','DELAYED','UNAVAILABLE']),lastBarStartUtc:z.iso.datetime({offset:true}).nullable(),

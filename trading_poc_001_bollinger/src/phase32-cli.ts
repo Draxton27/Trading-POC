@@ -2,7 +2,7 @@ import {config as loadEnv} from 'dotenv';
 import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {AlpacaCalendarError, fetchAlpacaCalendar} from './alpaca-calendar.ts';
-import {AlpacaCaptureError, fetchAlpacaCaptureBars} from './alpaca.ts';
+import {AlpacaCaptureError, delayedCaptureWindow, fetchAlpacaCaptureBars} from './alpaca.ts';
 import {appendIngestionStatus, appendSuccessfulCapture, validateCapture} from './phase32-ingestion.ts';
 
 const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
@@ -11,23 +11,30 @@ loadEnv({path: resolve(repoRoot, '.env'), override: false, quiet: true});
 const args = process.argv.slice(2);
 const value = (name: string) => { const index = args.indexOf(name); return index < 0 ? undefined : args[index + 1]; };
 const interval = value('--every-seconds');
-if (args.some(arg => !['--once', '--every-seconds', '--log'].includes(arg)) && !args.some((arg, index) => index > 0 && ['--every-seconds', '--log'].includes(args[index - 1]!))) {
-  throw new Error('Uso: npm run alpaca:ingest -- [--once] [--every-seconds 60] [--log ruta-privada].');
+const requestedDelay = value('--delay-minutes');
+const optionWithValue = ['--every-seconds', '--delay-minutes', '--log'];
+if (args.some((arg, index) => optionWithValue.includes(arg) && (!args[index + 1] || args[index + 1]!.startsWith('--'))) ||
+    (args.some(arg => !['--once', ...optionWithValue].includes(arg)) && !args.some((arg, index) => index > 0 && optionWithValue.includes(args[index - 1]!)))) {
+  throw new Error('Uso: npm run alpaca:ingest -- [--once] [--delay-minutes 20] [--every-seconds 60] [--log ruta-privada].');
 }
 const repeatSeconds = interval === undefined ? undefined : Number(interval);
 if (repeatSeconds !== undefined && (!Number.isInteger(repeatSeconds) || repeatSeconds < 60)) throw new Error('--every-seconds debe ser un entero de al menos 60.');
+const delayMinutes = requestedDelay === undefined ? 20 : Number(requestedDelay);
+if (!Number.isInteger(delayMinutes) || delayMinutes < 20) throw new Error('--delay-minutes debe ser un entero de al menos 20.');
 const ledgerPath = value('--log') ?? process.env.TRADING_POC_ALPACA_INGESTION_LOG ?? resolve(repoRoot, 'private', 'alpaca-ingestion', 'ledger.jsonl');
 const key = process.env.APCA_API_KEY_ID ?? '', secret = process.env.APCA_API_SECRET_KEY ?? '';
 
 async function once(): Promise<void> {
-  const now = Date.now(), end = Math.floor(now / (15 * 60_000)) * 15 * 60_000, start = end - 40 * 60 * 60_000;
-  const startUtc = new Date(start).toISOString(), endUtc = new Date(end).toISOString();
+  const window = delayedCaptureWindow(Date.now(), delayMinutes);
+  const startUtc = window.start, endUtc = window.end;
   try {
     const calendar = await fetchAlpacaCalendar({apiKey: key, secretKey: secret, start: startUtc, end: endUtc});
-    const result = await fetchAlpacaCaptureBars({apiKey: key, secretKey: secret, start: startUtc, end: endUtc, calendar});
-    validateCapture(result.candles, calendar, result.receivedAtUtc);
+    const result = await fetchAlpacaCaptureBars({apiKey: key, secretKey: secret, start: startUtc, end: endUtc, calendar, minimumBarAgeMs: window.delayMs});
+    validateCapture(result.candles, calendar, result.receivedAtUtc, Date.now, window.delayMs, result.queryAtUtc);
     const appended = appendSuccessfulCapture(ledgerPath, result);
-    process.stdout.write(`Alpaca SIP NVDA 15Min: consulta exitosa; ${result.candles.length} velas observadas, ${appended.barsAdded} nuevas/revisadas, disponibilidad ${result.availability}.\n`);
+    const latest = result.candles.at(-1);
+    const closeUtc = latest ? new Date(Date.parse(latest.timestamp) + 15 * 60_000).toISOString() : 'N/D';
+    process.stdout.write(`Alpaca SIP NVDA 15Min: consulta ${result.queryAtUtc}, recepción ${result.receivedAtUtc}, último cierre ${closeUtc}, retraso efectivo ${Number.isFinite(result.effectiveDelayMs) ? Math.round(result.effectiveDelayMs / 60_000) : 'N/D'} min; ${result.candles.length} velas, ${appended.barsAdded} nuevas/revisadas, disponibilidad ${result.availability}.\n`);
   } catch (error) {
     const state = error instanceof AlpacaCaptureError || error instanceof AlpacaCalendarError ? error.status : 'INVALID_DATA';
     const stage = error instanceof AlpacaCalendarError ? 'Calendario' : error instanceof AlpacaCaptureError ? 'Market Data' : 'Validación local';

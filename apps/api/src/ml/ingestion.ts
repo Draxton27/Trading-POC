@@ -26,7 +26,7 @@ export function readAlpacaIngestionStatus(logPath: string | undefined, clock: ()
     const successful = records.filter(record => record.kind === 'query').at(-1) ?? bar;
     const lastBarAvailability = bar?.bar ? availabilityForBarEnd(bar.bar.endUtc, clock()) : 'UNAVAILABLE';
     const effectiveDelayMs = bar?.bar ? Math.max(0, clock() - Date.parse(bar.bar.endUtc)) : null;
-    const error = ['PERMISSION_DENIED', 'RATE_LIMIT', 'HTTP_ERROR', 'NETWORK_ERROR', 'INVALID_DATA'].includes(attempt.status);
+    const error = ['PERMISSION_DENIED', 'RECENT_DATA_FORBIDDEN', 'RATE_LIMIT', 'HTTP_ERROR', 'NETWORK_ERROR', 'INVALID_DATA'].includes(attempt.status);
     const status = error ? attempt.status : bar ? (lastBarAvailability === 'CURRENT' ? 'READY' : 'DELAYED') : attempt.status;
     return MlIngestionStatus.parse({status, provider: attempt.provider, feed: attempt.feed, adjustment: attempt.adjustment,
       availability: lastBarAvailability, lastBarStartUtc: bar?.bar?.startUtc ?? null, lastBarEndUtc: bar?.bar?.endUtc ?? null,
