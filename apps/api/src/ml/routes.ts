@@ -11,5 +11,5 @@ export function registerMlRoutes(app:FastifyInstance,configuredDirectory:string|
   app.get('/api/v1/ml/summary',(req,reply)=>{if(!query.safeParse(req.query).success)return reply.code(400).send({error:'Solo NVDA de 15 minutos.'});return run.status==='READY'?run.summary:run;});
   app.get('/api/v1/ml/metrics',(req,reply)=>{if(!query.safeParse(req.query).success)return reply.code(400).send({error:'Solo NVDA de 15 minutos.'});return run.status==='READY'?run.metrics:run;});
   app.get('/api/v1/ml/predictions',(req,reply)=>{const parsed=pageQuery.safeParse(req.query);if(!parsed.success)return reply.code(400).send({error:'Consulta histórica inválida; solo NVDA de 15 minutos y páginas de hasta 100 filas.'});return run.status==='READY'?predictionsPage(run,parsed.data.offset,parsed.data.limit):run;});
-  app.get('/api/v1/ml/prospective',(req,reply)=>{if(!query.safeParse(req.query).success)return reply.code(400).send({error:'Solo NVDA de 15 minutos.'});return readProspectiveInference(inferenceLog,run.status==='READY');});
+  app.get('/api/v1/ml/prospective',(req,reply)=>{if(!query.safeParse(req.query).success)return reply.code(400).send({error:'Solo NVDA de 15 minutos.'});return readProspectiveInference(inferenceLog,run.status==='READY'?run.modelSha256:undefined);});
 }

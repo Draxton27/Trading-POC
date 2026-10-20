@@ -4,7 +4,10 @@ on:
   pull_request:
     paths:
       - 'ml/phase28/**'
+      - 'ml/phase31/**'
       - 'scripts/ml-train.mjs'
+      - 'scripts/ml-infer.mjs'
+      - 'trading_poc_001_bollinger/src/phase31-*.ts'
       - '.github/workflows/phase28-python.yml'
   workflow_dispatch:
 

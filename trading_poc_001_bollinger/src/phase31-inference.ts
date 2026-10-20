@@ -1,6 +1,6 @@
 /** Fase 31: preparación causal y registro local de inferencias congeladas. */
-import {createHash,randomUUID} from 'node:crypto';
-import {existsSync,mkdirSync,readFileSync,writeFileSync} from 'node:fs';
+import {createHash} from 'node:crypto';
+import {closeSync,existsSync,mkdirSync,openSync,readFileSync,unlinkSync,writeFileSync} from 'node:fs';
 import {dirname,join} from 'node:path';
 import type {Candle} from './domain.ts';
 import {loadDataset} from './csv.ts';
@@ -25,6 +25,11 @@ function assertCalendarCandle(candle:Candle,calendar:MarketCalendar){
   const local=newYorkBarParts(candle.timestamp),session=calendar.get(local.day);
   if(!session||minutes(local.slot)<session.open||minutes(local.slot)>=session.close)throw new Error('Vela fuera del calendario Alpaca.');
 }
+/** Fase 23 labels t with the close of t+4: its end must remain in this session. */
+export function assertPhase31HorizonEligible(timestamp:string,calendar:MarketCalendar){
+  const local=newYorkBarParts(timestamp),session=calendar.get(local.day);
+  if(!session||minutes(local.slot)+75>session.close)throw new Error('La vela no tiene horizonte Fase 23 completo dentro de la sesión.');
+}
 /** Uses Fase 23 unchanged. A null feature closes the gate for gaps, incomplete sessions and insufficient history. */
 export function preparePhase31Inference(candles:readonly Candle[],calendar:MarketCalendar,metadata:Parameters<typeof validateSource>[0],receivedAtUtc:string,nowUtc:string=new Date().toISOString()):PreparedInference{
   validateSource(metadata);const received=exactIso(receivedAtUtc,'receivedAtUtc'),now=exactIso(nowUtc,'nowUtc');
@@ -34,6 +39,7 @@ export function preparePhase31Inference(candles:readonly Candle[],calendar:Marke
   const last=candles.at(-1)!;const end=Date.parse(last.timestamp)+BAR_MS;
   if(end>now)throw new Error('La última vela aún no cerró.');
   if(received<end)throw new Error('La recepción declarada antecede el cierre de la vela.');
+  assertPhase31HorizonEligible(last.timestamp,calendar);
   const calculated=calculatePhase23Features(candles,calendar).at(-1);
   if(!calculated)throw new Error('Indicadores insuficientes o continuidad temporal incompleta.');
   const local=newYorkBarParts(last.timestamp),session=calendar.get(local.day)!;
@@ -57,14 +63,19 @@ function readRecords(path:string):InferenceRecord[]{
   return lines.map(line=>{const record=JSON.parse(line) as InferenceRecord;if(record.schema!=='phase31-inference-v1'||record.previousHash!==prior)throw new Error('Registro de inferencias alterado o no secuencial.');
     const {recordHash,...unsigned}=record;if(hash(canonical(unsigned))!==recordHash)throw new Error('Hash inválido en registro de inferencias.');prior=recordHash;return record;});
 }
+function withRecordLock<T>(path:string,work:()=>T):T{
+  mkdirSync(dirname(path),{recursive:true});const lock=`${path}.lock`,deadline=Date.now()+5_000;let descriptor:number|undefined;
+  while(descriptor===undefined){try{descriptor=openSync(lock,'wx');}catch(error){if((error as NodeJS.ErrnoException).code!=='EEXIST')throw error;if(Date.now()>=deadline)throw new Error('Otro proceso mantiene el registro de inferencias; reintente sin escribir en paralelo.');Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,20);}}
+  try{return work();}finally{closeSync(descriptor);unlinkSync(lock);}
+}
 export function appendPhase31Record(path:string,input:Omit<InferenceRecord,'schema'|'recordId'|'previousHash'|'recordHash'|'registeredAtUtc'|'outcomeKnownAtUtc'|'recordedBeforeOutcome'|'recordedBeforeNextEntry'>,registeredAtUtc:string=new Date().toISOString()):{record:InferenceRecord;alreadyPresent:boolean}{
-  const registered=exactIso(registeredAtUtc,'registeredAtUtc'),records=readRecords(path);
-  const recordId=hash(canonical({model:input.model.sha256,bar:input.bar.startUtc,mode:input.mode,features:input.features.hash}));
-  const existing=records.find(record=>record.recordId===recordId);if(existing)return {record:existing,alreadyPresent:true};
-  const outcomeKnownAtUtc=new Date(Date.parse(input.bar.startUtc)+BAR_MS*5).toISOString();
-  if(input.mode==='PROSPECTIVE_CAPTURE'&&(Date.parse(input.bar.endUtc)<=Date.parse(input.model.createdAtUtc)||registered>Date.parse(outcomeKnownAtUtc)))throw new Error('Captura prospectiva sin evidencia temporal admisible.');
-  const unsigned={schema:'phase31-inference-v1' as const,recordId,previousHash:records.at(-1)?.recordHash??null,...input,registeredAtUtc:new Date(registered).toISOString(),outcomeKnownAtUtc,recordedBeforeOutcome:registered<=Date.parse(outcomeKnownAtUtc),recordedBeforeNextEntry:registered<=Date.parse(input.bar.endUtc)};
-  const record={...unsigned,recordHash:hash(canonical(unsigned))};mkdirSync(dirname(path),{recursive:true});writeFileSync(path,JSON.stringify(record)+'\n',{flag:'a'});return {record,alreadyPresent:false};
+  if(input.mode==='PROSPECTIVE_CAPTURE')throw new Error('PROSPECTIVE_CAPTURE está bloqueado: falta una ingesta con recepción automática y procedencia verificable.');
+  return withRecordLock(path,()=>{const registered=exactIso(registeredAtUtc,'registeredAtUtc'),records=readRecords(path);
+    const recordId=hash(canonical({model:input.model.sha256,bar:input.bar.startUtc,mode:input.mode,features:input.features.hash}));
+    const existing=records.find(record=>record.recordId===recordId);if(existing)return {record:existing,alreadyPresent:true};
+    const outcomeKnownAtUtc=new Date(Date.parse(input.bar.startUtc)+BAR_MS*5).toISOString();
+    const unsigned={schema:'phase31-inference-v1' as const,recordId,previousHash:records.at(-1)?.recordHash??null,...input,registeredAtUtc:new Date(registered).toISOString(),outcomeKnownAtUtc,recordedBeforeOutcome:registered<=Date.parse(outcomeKnownAtUtc),recordedBeforeNextEntry:registered<=Date.parse(input.bar.endUtc)};
+    const record={...unsigned,recordHash:hash(canonical(unsigned))};writeFileSync(path,JSON.stringify(record)+'\n',{flag:'a'});return {record,alreadyPresent:false};});
 }
 export function latestPhase31Record(path:string):InferenceRecord|null{return readRecords(path).at(-1)??null;}
 export function frozenModel(directory:string){
