@@ -44,6 +44,32 @@ En Fase 24 la respuesta de mercado mostraba principalmente cifras. Esta fase añ
 
 Se conservan las llamadas a herramientas nativas ya usadas por Fase 24 y se valida estrictamente cada nombre y argumento con Zod. La documentación de Ollama describe `format` con JSON Schema para restringir el contenido de una respuesta estructurada, y documenta las llamadas a herramientas como otro mecanismo. No documenta en esos ejemplos que el esquema `format` valide de forma conjunta los argumentos de `tool_calls` en la misma respuesta. Por eso esta fase no agrega un segundo formato de selección: no ofrecería una garantía adicional demostrada y podría interferir con la compatibilidad del selector. Las llamadas desconocidas o mal formadas siguen fallando cerradas. No se hizo una prueba con Llama 3.2 3B real en esta ejecución; las pruebas usan Ollama simulado.
 
+### Selector local y errores de herramientas
+
+El backend reconoce antes de llamar a Ollama un conjunto pequeño de consultas inequívocas y de solo lectura: análisis histórico de uno o dos símbolos permitidos (`NVDA`, `QQQ`, `SMH`), comparación explícita de hasta dos de ellos, explicación educativa de indicadores y estado explícito del sistema/IBKR. Las dos consultas siguientes entran por ese camino y reciben evidencia local estructurada aun cuando Ollama no esté iniciado:
+
+- «Analizá el histórico de NVDA. Explicá sus medias móviles, Bollinger, retornos y volumen relativo.»
+- «Compará NVDA con QQQ. ¿Cuál mostró mayor fortaleza relativa en los últimos 15 y 60 minutos del histórico?»
+
+El selector no infiere símbolos, no admite más de dos activos y no convierte frases de compra, venta, órdenes, contratos, texto adversarial o consultas ambiguas en una acción local. Esas consultas mantienen la ruta de Ollama y, si sus argumentos no pasan Zod, se devuelven como error controlado. La recuperación de una llamada malformada solo reutiliza el selector con el texto original; por diseño, un caso inequívoco ya habría evitado Ollama desde el inicio.
+
+Cuando una herramienta devuelta por Ollama no es válida, el servidor emite un diagnóstico estructurado de nivel `warn` con el modelo, el nombre de herramienta, el tipo y las claves de los argumentos y códigos/rutas de Zod. No incluye valores de argumentos, historial, pregunta, rangos académicos, velas, cotizaciones, credenciales ni secretos. `TRADING_POC_LOG_LEVEL` permite ajustar el nivel de salida; su valor predeterminado es `warn`. Las validaciones estrictas, el límite de una llamada a Ollama, `keep_alive` y el timeout se mantienen.
+
+### Prueba manual con Llama 3.2 3B en Windows
+
+Esta ejecución no usó Ollama real. Para comprobarlo localmente, con Ollama instalado y el modelo descargado, iniciar el servicio y luego la aplicación DEMO:
+
+```powershell
+ollama pull llama3.2:3b
+ollama serve
+
+$env:TRADING_POC_MODE='DEMO'
+$env:TRADING_POC_OLLAMA_MODEL='llama3.2:3b'
+npm.cmd run dev
+```
+
+En otra consola, abrir `http://127.0.0.1:5173/`, obtener la sesión local desde la interfaz y enviar las dos consultas anteriores en **Asistente**. Deben aparecer secciones de datos observados, interpretación, limitaciones y, para la segunda, comparación entre activos. Confirmar que no aparece `Ollama solicitó argumentos de mercado inválidos`; para estas dos frases tampoco debe llegar una solicitud a `/api/chat` de Ollama. Probar por separado una frase ambigua y una instrucción de compra para confirmar que no se transforman en acciones deterministas.
+
 ## Proyectos revisados
 
 | Proyecto | Patrón útil | Licencia del repositorio | Decisión |

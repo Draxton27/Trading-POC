@@ -68,7 +68,9 @@ export async function createApp(options:Options={}){
     }
   });
   const token=randomBytes(32).toString('hex');
-  const app=Fastify({logger:false,bodyLimit:2*1024*1024});await app.register(websocket);
+  // Fastify does not include request bodies in its standard logs. Route-level diagnostics
+  // contain only allowlisted metadata and are emitted at warn level.
+  const app=Fastify({logger:{level:process.env.TRADING_POC_LOG_LEVEL??'warn'},bodyLimit:2*1024*1024});await app.register(websocket);
   app.addHook('onRequest',async(request,reply)=>{
     if(!browserOrigin(request.headers.origin))return bad(reply,'Origen no autorizado',403);
     if(request.url.startsWith('/api/v1/session')&&!request.headers.origin&&

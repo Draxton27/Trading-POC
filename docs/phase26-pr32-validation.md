@@ -69,7 +69,7 @@ En este entorno Windows la variante en que Playwright inicia `npm run dev` por s
 
 ## Resultados finales
 
-- `npm test`: 105 pruebas de Vitest y 177 históricas, todas aprobadas.
+- `npm test`: 110 pruebas de Vitest y 177 históricas, todas aprobadas. Las cinco pruebas adicionales cubren el selector local, argumentos de Ollama malformados, símbolos no permitidos, campos extra, entradas ambiguas e instrucciones adversariales.
 - `npm run typecheck`: aprobado para el monorepositorio y el POC histórico.
 - `npm run build`: aprobado; Vite advierte que el paquete JavaScript principal supera 500 kB, aviso preexistente y ajeno a esta corrección.
 - `npm run test:e2e` con API y web DEMO aislados: 8/8 aprobadas, incluidas las tres que habían fallado. El modo se verificó tanto directamente en la API como a través del proxy web.
