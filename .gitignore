@@ -12,3 +12,6 @@ academy-private/
 *.sqlite-*
 playwright-report/
 test-results/
+.venv/
+__pycache__/
+*.pyc
