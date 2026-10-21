@@ -37,6 +37,7 @@ jobs:
       - run: npm test
       - run: npm run build
       - name: Probar npm run dev, puertos y cierre en Windows
+        timeout-minutes: 5
         shell: pwsh
         run: ./scripts/windows/dev-smoke.ps1
   phase28-python:
