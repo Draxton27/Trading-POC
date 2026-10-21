@@ -35,6 +35,13 @@ vela que era demasiado reciente en ese instante. El ledger privado append-only
 conserva para cada consulta y vela la hora de consulta, la hora de recepción
 tras leer la respuesta, el inicio y cierre de la vela, su hash y el retraso
 efectivo. Las revisiones, el bloqueo exclusivo y la idempotencia se mantienen.
+El calendario oficial usado en la consulta se guarda localmente junto al ledger
+(`ledger.jsonl.calendar.json`). La escritura crea directorios privados faltantes
+y publica un archivo completo mediante temporal y renombrado; un fallo conserva
+el calendario anterior válido para el observador. Las sesiones de cada respuesta
+oficial se fusionan con las ya guardadas: las fechas nuevas sustituyen la versión
+anterior de esa fecha y las sesiones antiguas se conservan para indicadores que
+cruzan varios días.
 
 Todas las capturas de este comando se etiquetan como `DELAYED`; no representan
 cotizaciones en tiempo real. `PROSPECTIVE_CAPTURE` sigue bloqueado.

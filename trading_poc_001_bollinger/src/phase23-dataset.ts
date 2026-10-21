@@ -43,6 +43,21 @@ function contiguous(previous: Candle, current: Candle, calendar: MarketCalendar,
     minutes(a.slot)+15===before.close && minutes(b.slot)===after.open;
 }
 
+/** The latest causally continuous segment. It is shared so inference preserves Fase 23's EMA state. */
+export function phase23ContinuousSuffix(candles:readonly Candle[],calendar:MarketCalendar):Candle[]{
+  if(!candles.length)return [];
+  const days=[...calendar.keys()].sort(),priorDay=new Map(days.slice(1).map((day,i)=>[day,days[i]!]));
+  let start=candles.length-1;
+  for(;start>0;start--){
+    const previous=candles[start-1]!,current=candles[start]!,previousLocal=newYorkBarParts(previous.timestamp),currentLocal=newYorkBarParts(current.timestamp);
+    // Missing official hours are ambiguous at a session boundary; never silently restart EMA there.
+    if(!calendar.has(previousLocal.day)||!calendar.has(currentLocal.day))throw new Error('Calendario oficial incompleto para la continuidad de Fase 23.');
+    if(!contiguous(previous,current,calendar,priorDay))break;
+  }
+  const first=newYorkBarParts(candles[start]!.timestamp);if(!calendar.has(first.day))throw new Error('Calendario oficial incompleto para la continuidad de Fase 23.');
+  return candles.slice(start);
+}
+
 /** Indicators restart at a gap; all values in a feature row use candles through t only. */
 export function calculatePhase23Features(candles: readonly Candle[], calendar: MarketCalendar): (Calculated|null)[] {
   const days=[...calendar.keys()].sort();
