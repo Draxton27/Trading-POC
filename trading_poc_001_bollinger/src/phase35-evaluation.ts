@@ -24,21 +24,48 @@ const validBar=(row:IngestionRecord,calendar:MarketCalendar)=>{
 };
 export function readEvaluations(path:string):EvaluationRecord[]{
   if(!existsSync(path))return [];let previous:string|null=null;
-  return readFileSync(path,'utf8').split(/\r?\n/).filter(Boolean).map(line=>{const row=JSON.parse(line) as EvaluationRecord,{recordHash,...unsigned}=row;
+  const rows=readFileSync(path,'utf8').split(/\r?\n/).filter(Boolean).map(line=>{const row=JSON.parse(line) as EvaluationRecord,{recordHash,...unsigned}=row;
     if(row.schema!=='phase35-evaluation-v1'||row.previousHash!==previous||sha(JSON.stringify(unsigned))!==recordHash||!['EVALUATED','REVISION_NOTICE'].includes(row.kind))throw new Error('Ledger de evaluación alterado.');
     previous=recordHash;return row;
   });
+  const originals=new Map<string,EvaluationRecord>();
+  for(const row of rows){
+    if(row.kind==='EVALUATED'){
+      if(originals.has(row.predictionId))throw new Error('Ledger de evaluación contiene más de una evaluación original para una predicción.');
+      originals.set(row.predictionId,row);
+    }
+  }
+  for(const row of rows)if(row.kind==='REVISION_NOTICE'){
+    const original=originals.get(row.predictionId);
+    if(!original||row.supersedes!==original.recordHash)throw new Error('Aviso de revisión sin evaluación original compatible.');
+  }
+  return rows;
 }
 function locked<T>(path:string,run:()=>T):T{
   mkdirSync(dirname(path),{recursive:true});const lock=`${path}.lock`,until=Date.now()+5_000;let fd:number|undefined;
   while(fd===undefined)try{fd=openSync(lock,'wx');}catch(error){if((error as NodeJS.ErrnoException).code!=='EEXIST')throw error;if(Date.now()>=until)throw new Error('Otra evaluación mantiene el bloqueo.');Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,20);}
   try{return run();}finally{closeSync(fd);unlinkSync(lock);}
 }
-function append(path:string,input:Omit<EvaluationRecord,'schema'|'recordId'|'previousHash'|'recordHash'>):{record:EvaluationRecord;added:boolean}{
-  return locked(path,()=>{const rows=readEvaluations(path),{schema:_schema,recordId:_id,previousHash:_previous,recordHash:_hash,...fields}=input as EvaluationRecord,recordId=sha(JSON.stringify({kind:fields.kind,predictionId:fields.predictionId,outcomeBars:fields.outcomeBars.map(b=>b.recordHash)}));
-    const existing=rows.find(row=>row.recordId===recordId);if(existing)return {record:existing,added:false};
+function append(path:string,input:Omit<EvaluationRecord,'schema'|'recordId'|'previousHash'|'recordHash'>):{record:EvaluationRecord;added:boolean;writtenKind:'EVALUATED'|'REVISION_NOTICE'|null}{
+  return locked(path,()=>{
+    // Re-read only after acquiring the exclusive lock. The ledger is the authority
+    // for the first result; a decision calculated before the lock is only a proposal.
+    const rows=readEvaluations(path),{schema:_schema,recordId:_id,previousHash:_previous,recordHash:_hash,...candidate}=input as EvaluationRecord;
+    const original=rows.find(row=>row.kind==='EVALUATED'&&row.predictionId===candidate.predictionId);
+    let fields:Omit<EvaluationRecord,'schema'|'recordId'|'previousHash'|'recordHash'>=candidate;
+    if(candidate.kind==='EVALUATED'&&original){
+      const sameOutcome=candidate.outcomeBars.every((bar,index)=>bar.recordHash===original.outcomeBars[index]?.recordHash)&&candidate.outcomeBars.length===original.outcomeBars.length;
+      if(sameOutcome)return {record:original,added:false,writtenKind:null};
+      // A racing evaluator saw newer outcome revisions. Preserve the first outcome
+      // and turn the later proposal into the auditable form of a correction.
+      fields={...candidate,kind:'REVISION_NOTICE',status:'REVISED_AFTER_EVALUATION',supersedes:original.recordHash};
+    }else if(candidate.kind==='REVISION_NOTICE'){
+      if(!original||candidate.supersedes!==original.recordHash)throw new Error('El aviso de revisión debe referenciar la evaluación original.');
+    }
+    const recordId=sha(JSON.stringify({kind:fields.kind,predictionId:fields.predictionId,supersedes:fields.supersedes,outcomeBars:fields.outcomeBars.map(bar=>bar.recordHash)}));
+    const existing=rows.find(row=>row.recordId===recordId);if(existing)return {record:existing,added:false,writtenKind:null};
     const unsigned={schema:'phase35-evaluation-v1' as const,recordId,previousHash:rows.at(-1)?.recordHash??null,...fields},record={...unsigned,recordHash:sha(JSON.stringify(unsigned))};
-    writeFileSync(path,JSON.stringify(record)+'\n',{flag:'a'});return {record,added:true};
+    writeFileSync(path,JSON.stringify(record)+'\n',{flag:'a'});return {record,added:true,writtenKind:record.kind};
   });
 }
 function originalBars(prediction:ForwardObservation,ingestion:IngestionRecord[],calendar:MarketCalendar){
@@ -98,7 +125,9 @@ export function evaluateOnce(options:{ingestionLog:string;observationLog:string;
         const saved=append(options.evaluationLog,notice);if(saved.added)revisionNotices++;}
       continue;
     }
-    if(append(options.evaluationLog,decision.record).added)added++;
+    const saved=append(options.evaluationLog,decision.record);
+    if(saved.added&&saved.writtenKind==='EVALUATED')added++;
+    if(saved.added&&saved.writtenKind==='REVISION_NOTICE')revisionNotices++;
   }
   return {predictions:predictions.length,evaluated:readEvaluations(options.evaluationLog).filter(row=>row.kind==='EVALUATED').length,pending:decisions.filter(row=>row.state==='PENDING').length,nonEvaluable:decisions.filter(row=>row.state==='NON_EVALUABLE').length,added,revisionNotices,decisions};
 }

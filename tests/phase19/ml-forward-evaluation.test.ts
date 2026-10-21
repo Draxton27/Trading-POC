@@ -1,5 +1,6 @@
 import {afterEach,describe,expect,it} from 'vitest';
-import {mkdtempSync,mkdirSync,readFileSync,rmSync,writeFileSync} from 'node:fs';
+import {copyFileSync,mkdtempSync,mkdirSync,readFileSync,rmSync,writeFileSync} from 'node:fs';
+import {createHash} from 'node:crypto';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {appendSuccessfulCapture,readIngestion} from '../../trading_poc_001_bollinger/src/phase32-ingestion.ts';
@@ -9,7 +10,7 @@ import {classifyMovement} from '../../trading_poc_001_bollinger/src/phase23-data
 import {evaluationReport,frozenDevelopmentBaseline,scores} from '../../trading_poc_001_bollinger/src/phase35-metrics.ts';
 import {frozenModel} from '../../trading_poc_001_bollinger/src/phase31-inference.ts';
 import {saveMarketCalendar} from '../../trading_poc_001_bollinger/src/alpaca-calendar.ts';
-import {evaluationStatus,evaluationHistory} from '../../apps/api/src/ml/evaluation.ts';
+import {evaluationStatus,evaluationHistory,evaluationMetrics} from '../../apps/api/src/ml/evaluation.ts';
 import {createApp} from '../../apps/api/src/server.ts';
 import {spawn} from 'node:child_process';
 
@@ -56,6 +57,17 @@ describe('Fase 35: evaluación causal de observaciones adelantadas',()=>{
     const child=()=>new Promise<number>((done,reject)=>{const proc=spawn(process.execPath,['--experimental-strip-types','--input-type=module','-e',script,JSON.stringify(options)],{cwd:process.cwd(),windowsHide:true,stdio:'ignore'});proc.once('error',reject);proc.once('close',code=>done(code??1));});
     expect(await Promise.all([child(),child()])).toEqual([0,0]);expect(readEvaluations(f.evaluationLog)).toHaveLength(1);
   });
+  it('dos procesos con revisiones distintas conservan una original y un aviso válido',async()=>{
+    const f=fixture();f.addOutcome(103);const firstLedger=join(f.dir,'first-ledger.jsonl');copyFileSync(f.ledger,firstLedger);
+    appendSuccessfulCapture(f.ledger,{candles:[candle(25,104)],queryAtUtc:'2026-01-02T21:40:00.000Z',receivedAtUtc:'2026-01-02T21:40:00.000Z',responseSha256:'r'.repeat(64),availability:'DELAYED',barAgeMs:20*60_000});
+    writeFileSync(join(f.run,'report.json'),JSON.stringify({class_index:{ALCISTA:0,BAJISTA:1,LATERAL:2},walk_forward_folds:[]}));
+    const script="import {evaluateOnce} from './trading_poc_001_bollinger/src/phase35-evaluation.ts'; evaluateOnce({...JSON.parse(process.argv[1]),clock:()=> '2026-01-02T21:41:00.000Z'});";
+    const child=(ingestionLog:string)=>new Promise<number>((done,reject)=>{const options={ingestionLog,observationLog:f.observationLog,calendarPath:f.calendarPath,modelDir:f.run,evaluationLog:f.evaluationLog};const proc=spawn(process.execPath,['--experimental-strip-types','--input-type=module','-e',script,JSON.stringify(options)],{cwd:process.cwd(),windowsHide:true,stdio:'ignore'});proc.once('error',reject);proc.once('close',code=>done(code??1));});
+    expect(await Promise.all([child(firstLedger),child(f.ledger)])).toEqual([0,0]);
+    const rows=readEvaluations(f.evaluationLog),originals=rows.filter(row=>row.kind==='EVALUATED'),notices=rows.filter(row=>row.kind==='REVISION_NOTICE');
+    expect(originals).toHaveLength(1);expect(notices).toHaveLength(1);expect(notices[0]).toMatchObject({predictionId:f.prediction.recordId,supersedes:originals[0]!.recordHash,status:'REVISED_AFTER_EVALUATION'});
+    expect(evaluationMetrics({observationLog:f.observationLog,evaluationLog:f.evaluationLog,statusPath:undefined,runDir:f.run,modelSha256:f.model.sha256})).toMatchObject({state:'READY',sampleSize:1});
+  });
   it('conserva la evaluación original y añade aviso idempotente ante revisión posterior',()=>{
     const f=fixture();f.addOutcome();run(f);const first=readEvaluations(f.evaluationLog)[0]!;
     const revised={...candle(25,104),timestamp:iso(25*15)};appendSuccessfulCapture(f.ledger,{candles:[revised],queryAtUtc:'2026-01-02T21:40:00.000Z',receivedAtUtc:'2026-01-02T21:40:00.000Z',responseSha256:'d'.repeat(64),availability:'DELAYED',barAgeMs:20*60_000});
@@ -70,6 +82,14 @@ describe('Fase 35: evaluación causal de observaciones adelantadas',()=>{
     expect(evaluatePrediction(f.prediction,readIngestion(f.ledger),calendar,'f'.repeat(64),'2026-01-02T21:31:00.000Z').state).toBe('NON_EVALUABLE');
     run(f);writeFileSync(f.evaluationLog,readFileSync(f.evaluationLog,'utf8').replace('VERIFIED','BROKEN'));
     expect(()=>readEvaluations(f.evaluationLog)).toThrow(/alterado/);
+    expect(evaluationStatus({observationLog:f.observationLog,evaluationLog:f.evaluationLog,statusPath:undefined,runDir:f.run,modelSha256:f.model.sha256}).state).toBe('INVALID_ARTIFACT');
+  });
+  it('rechaza un ledger previamente válido con dos evaluaciones originales para una predicción',()=>{
+    const f=fixture();f.addOutcome();run(f);const first=readEvaluations(f.evaluationLog)[0]!;
+    const duplicate={...first,recordId:'d'.repeat(64),previousHash:first.recordHash,evaluatedAtUtc:'2026-01-02T21:32:00.000Z',recordHash:''};
+    const {recordHash,...unsigned}=duplicate;duplicate.recordHash=createHash('sha256').update(JSON.stringify(unsigned)).digest('hex');
+    writeFileSync(f.evaluationLog,readFileSync(f.evaluationLog,'utf8')+JSON.stringify(duplicate)+'\n');
+    expect(()=>readEvaluations(f.evaluationLog)).toThrow(/más de una evaluación original/);
     expect(evaluationStatus({observationLog:f.observationLog,evaluationLog:f.evaluationLog,statusPath:undefined,runDir:f.run,modelSha256:f.model.sha256}).state).toBe('INVALID_ARTIFACT');
   });
   it('rechaza cierre anticipado y conserva el ATR de la revisión original de t',()=>{
