@@ -28,6 +28,13 @@ export const MlCollectorStatus=z.object({
   nextQueryAtUtc:z.iso.datetime({offset:true}).nullable(),lastError:z.string().nullable(),newObservations:z.number().int().nonnegative(),
 }).strict();
 export type MlCollectorStatus=z.infer<typeof MlCollectorStatus>;
+export const MlEvaluationState=z.enum(['NO_MODEL','NO_DATA','NOT_RUN','PENDING','PARTIAL','READY','INVALID_ARTIFACT','ERROR']);
+export const MlEvaluationStatus=z.object({state:MlEvaluationState,observations:z.number().int().nonnegative(),pending:z.number().int().nonnegative(),evaluated:z.number().int().nonnegative(),nonEvaluable:z.number().int().nonnegative(),revisionNotices:z.number().int().nonnegative(),updatedAtUtc:z.iso.datetime({offset:true}).nullable(),reason:z.string()}).strict();
+export type MlEvaluationStatus=z.infer<typeof MlEvaluationStatus>;
+export const MlEvaluationItem=z.object({predictionId:z.string().regex(/^[a-f0-9]{64}$/),barStartUtc:z.iso.datetime({offset:true}),sessionDateNy:z.string().date(),evaluatedAtUtc:z.iso.datetime({offset:true}),predictedClass:MlClass,actualClass:MlClass,entryOpen:z.number().finite().positive(),exitClose:z.number().finite().positive(),change:z.number().finite(),changePct:z.number().finite(),atr14:z.number().finite().positive(),revisionNotice:z.boolean()}).strict();
+export type MlEvaluationItem=z.infer<typeof MlEvaluationItem>;
+export const MlEvaluationPage=z.object({items:z.array(MlEvaluationItem),total:z.number().int().nonnegative(),offset:z.number().int().nonnegative(),limit:z.number().int().min(1).max(100),nextOffset:z.number().int().nonnegative().nullable()}).strict();
+export type MlEvaluationPage=z.infer<typeof MlEvaluationPage>;
 export const MlProspectiveRecord=z.object({status:MlProspectiveStatus,mode:z.enum(['REPLAY','PROSPECTIVE_CAPTURE','DELAYED_FORWARD_OBSERVATION']).nullable(),modelId:z.string().nullable(),modelSha256:z.string().regex(/^[a-f0-9]{64}$/).nullable(),source:z.string().nullable(),lastObservationUtc:z.iso.datetime({offset:true}).nullable(),receivedAtUtc:z.iso.datetime({offset:true}).nullable(),registeredAtUtc:z.iso.datetime({offset:true}).nullable(),probabilities:z.object({ALCISTA:z.number().min(0).max(1),BAJISTA:z.number().min(0).max(1),LATERAL:z.number().min(0).max(1)}).nullable(),dominantClass:z.enum(['ALCISTA','BAJISTA','LATERAL']).nullable(),entryAtUtc:z.iso.datetime({offset:true}).nullable(),recordedBeforeNextEntry:z.boolean().nullable(),recordedBeforeOutcome:z.boolean().nullable().default(null),effectiveDelayMs:z.number().finite().nonnegative().nullable().default(null),reason:z.string().min(1)});
 export type MlProspectiveRecord=z.infer<typeof MlProspectiveRecord>;
 export const MlStatus=z.object({status:MlState,reason:z.string().nullable(),experimentId:z.string().nullable()}).strict();

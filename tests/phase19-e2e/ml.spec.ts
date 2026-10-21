@@ -14,6 +14,12 @@ test('Predicciones muestra estado del recolector sin presentar una señal operat
   await expect(page.getByText('Ingesta retrasada y observaciones adelantadas al desenlace. No son señales operativas.')).toBeVisible();
   await expect(page.getByText('RECORDED')).toBeVisible();
 });
+test('Evaluación adelantada distingue ausencia de observaciones reales y apertura no ejecutable',async({page})=>{
+  await page.goto('/');await page.getByRole('button',{name:'Predicciones'}).click();
+  await expect(page.getByRole('heading',{name:'Evaluación de observaciones adelantadas'})).toBeVisible();
+  await expect(page.getByText('La apertura hipotética t+1 ya había ocurrido cuando se registraron estas predicciones retrasadas.',{exact:false})).toBeVisible();
+  await expect(page.getByRole('table',{name:'Historial de evaluaciones'})).toHaveCount(0);
+});
 test('Predicciones muestra experimento histórico paginado sin señal vigente',async({page})=>{
   await page.route('**/api/v1/ml/status',route=>route.fulfill({json:{status:'READY',reason:null,experimentId:'synthetic-test'}}));
   await page.route('**/api/v1/ml/summary',route=>route.fulfill({json:{status:'READY',symbol:'NVDA',timeframe:'15m',origin:'HISTORICAL_EXPLORATORY',experimentId:'synthetic-test',createdAtUtc:'2026-10-20T13:49:17.000Z',modelVersion:'XGBoost 2.1.4 · nvda-15m-v1',selectedVariant:'standard',trees:12,datasetSha256:'a'.repeat(64),predictionCount:2}}));
