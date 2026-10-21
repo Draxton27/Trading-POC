@@ -47,3 +47,4 @@ export const AgentKind=z.enum(['agent.hello','agent.heartbeat','agent.status','a
 export const AgentMessage=z.object({protocolVersion:z.literal(PROTOCOL_VERSION),messageId:z.uuid(),requestId:z.uuid().nullable(),agentId:z.string().min(1),connectionId:z.uuid(),sequence:z.number().int().nonnegative(),issuedAtUtc:utc,kind:AgentKind,payload:z.record(z.string(),z.unknown()).default({})});
 export type AgentMessage=z.infer<typeof AgentMessage>;
 export const allowedRequestKinds = ['market.subscribe','market.unsubscribe','option.resolve','option.parameters','broker.positions.request','broker.executions.request'] as const;
+export {NewsClassification,NewsCategory,NewsSentiment,NewsRelevance} from './news.ts';

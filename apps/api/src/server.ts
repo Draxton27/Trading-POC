@@ -19,8 +19,9 @@ import {registerOptionRoutes} from './options/routes.ts';
 import {registerAcademyRoutes} from './academy/routes.ts';
 import {registerAssistantRoutes} from './assistant/routes.ts';
 import {registerMlRoutes} from './ml/routes.ts';
+import {registerNewsRoutes} from './news/routes.ts';
 
-type Options={mode?:'DEMO'|'OFFLINE'|'PAPER';privateDir?:string;phase17Private?:string;phase16Ledger?:string;dbPath?:string;agentSecret?:string;assistantFetch?:typeof fetch;assistantTimeoutMs?:number;mlRunDir?:string|null;mlInferenceLog?:string|null;mlIngestionLog?:string|null;mlForwardObservationLog?:string|null;mlCollectorStatus?:string|null;mlEvaluationLog?:string|null;mlEvaluationStatus?:string|null};
+type Options={mode?:'DEMO'|'OFFLINE'|'PAPER';privateDir?:string;newsDir?:string;phase17Private?:string;phase16Ledger?:string;dbPath?:string;agentSecret?:string;assistantFetch?:typeof fetch;assistantTimeoutMs?:number;mlRunDir?:string|null;mlInferenceLog?:string|null;mlIngestionLog?:string|null;mlForwardObservationLog?:string|null;mlCollectorStatus?:string|null;mlEvaluationLog?:string|null;mlEvaluationStatus?:string|null};
 const repoRoot=fileURLToPath(new URL('../../../',import.meta.url));
 // Commands can be launched from a workspace directory, so never resolve local
 // configuration relative to process.cwd(). Existing process variables win.
@@ -140,6 +141,8 @@ export async function createApp(options:Options={}){
   registerAcademyRoutes(app,db.sqlite);
   registerAssistantRoutes(app,{mode,hub,sqlite:db.sqlite,barsFor,offlineAvailable,offlineMetadata,calendarFor:s=>mode==='DEMO'?null:offlineCalendar(s),transport:options.assistantFetch,timeoutMs:options.assistantTimeoutMs});
   registerMlRoutes(app,options.mlRunDir===undefined?process.env.TRADING_POC_ML_RUN_DIR:options.mlRunDir??undefined,options.mlInferenceLog===undefined?process.env.TRADING_POC_ML_INFERENCE_LOG??resolve(privateDir,'ml-inference','records.jsonl'):options.mlInferenceLog??undefined,options.mlIngestionLog===undefined?process.env.TRADING_POC_ALPACA_INGESTION_LOG??resolve(privateDir,'alpaca-ingestion','ledger.jsonl'):options.mlIngestionLog??undefined,options.mlForwardObservationLog===undefined?process.env.TRADING_POC_ML_FORWARD_OBSERVATION_LOG??resolve(privateDir,'ml-forward-observation','records.jsonl'):options.mlForwardObservationLog??undefined,options.mlCollectorStatus===undefined?process.env.TRADING_POC_ML_COLLECTOR_STATUS??resolve(repoRoot,'private','ml-collector','status.json'):options.mlCollectorStatus??undefined,options.mlEvaluationLog===undefined?process.env.TRADING_POC_ML_EVALUATION_LOG??resolve(privateDir,'ml-evaluation','records.jsonl'):options.mlEvaluationLog??undefined,options.mlEvaluationStatus===undefined?process.env.TRADING_POC_ML_EVALUATION_STATUS??resolve(privateDir,'ml-evaluation','status.json'):options.mlEvaluationStatus??undefined);
+  const newsDir=resolve(options.newsDir??process.env.TRADING_POC_NEWS_DIR??resolve(privateDir,'news'));
+  registerNewsRoutes(app,{newsLog:resolve(newsDir,'news.jsonl'),analysisLog:resolve(newsDir,'analysis.jsonl'),statusPath:resolve(newsDir,'status.json')});
   app.get('/api/v1/options/quotes',async()=>({items:mode==='DEMO'?demoOptions():[],source:mode==='DEMO'?'DEMO sintético':'Consulte /options/contracts para suscribirse a contratos visibles'}));
   app.get('/api/v1/positions',async()=>{if(mode!=='PAPER'||!hub.status().connected)return {items:[],source:'IBKR desconectado'};
     const m=await hub.request('broker.positions.request',{});return {items:m.kind==='broker.positions.snapshot'?m.payload.items:[],source:hub.status().simulation?'Agente simulado':'IBKR Paper'};});

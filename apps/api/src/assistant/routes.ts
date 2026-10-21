@@ -1,6 +1,4 @@
 import type {FastifyInstance} from 'fastify';
-import {request as httpRequest} from 'node:http';
-import {Readable} from 'node:stream';
 import type Database from 'better-sqlite3';
 import {z} from 'zod';
 import {MarketQuote,symbol,type MarketBar} from '@trading-poc/contracts';
@@ -10,6 +8,7 @@ import type {MarketCalendar} from '../../../../trading_poc_001_bollinger/src/alp
 import {academyRanges,selectAcademyReference} from '../academy/service.ts';
 import type {AgentHub} from '../streams/agent-hub.ts';
 import {analyzeAtCommonTimestamp,analyzeMarketBars,compareMarketAnalyses,explainIndicators,type IndicatorName,type MarketAnalysis} from './analysis.ts';
+import {localOllamaFetch} from './local-ollama-transport.ts';
 
 type Mode='DEMO'|'OFFLINE'|'PAPER';
 type Dependencies={mode:Mode;hub:AgentHub;sqlite:Database.Database;barsFor:(symbol:Symbol,frame:Timeframe)=>MarketBar[];offlineAvailable:()=>boolean;offlineMetadata:(symbol:Symbol)=>DataMetadata;calendarFor?:(symbol:Symbol)=>MarketCalendar|null;transport?:typeof fetch;timeoutMs?:number};
@@ -140,15 +139,7 @@ function timeoutSetting(override:number|undefined):number|null{
   const value=Number(raw);return Number.isSafeInteger(value)&&value>=1000&&value<=MAX_TIMEOUT_MS?value:null;
 }
 
-// A direct socket avoids proxy environment variables and refuses redirects by design.
-const localFetch:typeof fetch=async(_url,init)=>new Promise<Response>((resolve,reject)=>{
-  const req=httpRequest({hostname:'127.0.0.1',port:11434,path:'/api/chat',method:'POST',headers:{'content-type':'application/json'},signal:init?.signal??undefined},res=>{
-    const headers=new Headers();for(const [key,value] of Object.entries(res.headers))if(typeof value==='string')headers.set(key,value);
-    const status=res.statusCode??500;
-    resolve(new Response(status===204||status===304?null:Readable.toWeb(res) as unknown as ReadableStream<Uint8Array>,{status,headers}));
-  });
-  req.on('error',reject);req.end(typeof init?.body==='string'?init.body:'');
-});
+const localFetch=localOllamaFetch;
 
 function statusEvidence(deps:Dependencies,now:number):Evidence{
   const status=deps.hub.status();
