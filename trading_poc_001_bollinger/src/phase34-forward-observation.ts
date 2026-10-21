@@ -8,6 +8,8 @@ import {readIngestion, type IngestionRecord} from './phase32-ingestion.ts';
 import {PHASE31_FEATURES, preparePhase31Inference, type Phase31Feature, type PreparedInference} from './phase31-inference.ts';
 
 const BAR_MS=15*60_000;
+/** Twenty prior bars are required by Bollinger and relative volume, plus t. */
+const FEATURE_HISTORY_BARS=21;
 const sha=(value:string|Buffer)=>createHash('sha256').update(value).digest('hex');
 const canonical=(value:unknown)=>JSON.stringify(value);
 const exact=(value:string,label:string)=>{const at=Date.parse(value);if(!Number.isFinite(at)||new Date(at).toISOString()!==value)throw new Error(`${label} debe ser UTC ISO exacto.`);return at;};
@@ -40,13 +42,13 @@ function asCandle(row:IngestionRecord):Candle{const bar=row.bar!;return {timesta
 /** Uses only ledger revisions known at the observer clock and chooses the newest bar, never an older backfill. */
 export function prepareForwardObservation(ledgerPath:string,calendar:MarketCalendar,model:FrozenModel,nowUtc:string):ForwardPreparation{
   const now=exact(nowUtc,'nowUtc'),rows=barRows(readIngestion(ledgerPath),now);if(!rows.length)throw new Error('No hay velas SIP retrasadas verificadas en el ledger.');
-  const candidate=rows.at(-1)!, bar=candidate.bar!, start=exact(bar.startUtc,'inicio de vela'), outcome=start+BAR_MS*5;
+  const recentRows=rows.slice(-FEATURE_HISTORY_BARS),candidate=recentRows.at(-1)!, bar=candidate.bar!, start=exact(bar.startUtc,'inicio de vela'), outcome=start+BAR_MS*5;
   if(exact(model.createdAtUtc,'creación de modelo')>=start)throw new Error('El modelo congelado es posterior o simultáneo a la vela observada.');
   // A delayed ledger can be stale. Recording after this instant would manufacture a historical observation.
   if(now>=outcome)throw new Error('La vela más nueva ya alcanzó el desenlace t+4; no se realiza backfill.');
-  const candles=rows.map(asCandle),prepared=preparePhase31Inference(candles,calendar,{asset:'NVDA',provider:'Alpaca Market Data API',bar_minutes:15,data_class:'real',session:'regular',exchange_timezone:'America/New_York',feed:'sip',adjustment:'split'},candidate.receivedAtUtc,nowUtc);
+  const candles=recentRows.map(asCandle),prepared=preparePhase31Inference(candles,calendar,{asset:'NVDA',provider:'Alpaca Market Data API',bar_minutes:15,data_class:'real',session:'regular',exchange_timezone:'America/New_York',feed:'sip',adjustment:'split'},candidate.receivedAtUtc,nowUtc);
   if(prepared.barStartUtc!==bar.startUtc)throw new Error('La preparación no coincide con la última vela del ledger.');
-  return {prepared,candidate,candles,sourceBars:rows.map(row=>({startUtc:row.bar!.startUtc,endUtc:row.bar!.endUtc,revision:row.bar!.revision,recordHash:row.recordHash,responseSha256:row.responseSha256!,receivedAtUtc:row.receivedAtUtc}))};
+  return {prepared,candidate,candles,sourceBars:recentRows.map(row=>({startUtc:row.bar!.startUtc,endUtc:row.bar!.endUtc,revision:row.bar!.revision,recordHash:row.recordHash,responseSha256:row.responseSha256!,receivedAtUtc:row.receivedAtUtc}))};
 }
 function validPrediction(value:ForwardObservation['prediction']){const numbers=[value.ALCISTA,value.BAJISTA,value.LATERAL];if(numbers.some(n=>!Number.isFinite(n)||n<0||n>1)||Math.abs(numbers[0]!+numbers[1]!+numbers[2]!-1)>1e-6||!['ALCISTA','BAJISTA','LATERAL'].includes(value.dominantClass))throw new Error('Probabilidades de XGBoost inválidas.');const winner=(['ALCISTA','BAJISTA','LATERAL'] as const)[numbers.indexOf(Math.max(...numbers))]!;if(winner!==value.dominantClass)throw new Error('Clase dominante inconsistente.');}
 export function appendForwardObservation(path:string,input:Omit<ForwardObservation,'schema'|'recordId'|'previousHash'|'recordHash'|'registeredAtUtc'|'outcomeKnownAtUtc'|'entryAtUtc'|'outcomeCloseAtUtc'|'recordedBeforeOutcome'|'recordedBeforeNextEntry'|'hypotheticalNextEntryOpen'|'outcomeT4Close'>,registeredAtUtc:string):{record:ForwardObservation;alreadyPresent:boolean}{

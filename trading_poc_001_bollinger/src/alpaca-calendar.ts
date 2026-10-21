@@ -10,6 +10,10 @@ export class AlpacaCalendarError extends Error {
 }
 export type CalendarFileOps = Pick<typeof mkdirSync, never> & {mkdirSync:(path:string, options:{recursive:true})=>string|undefined;writeFileSync:(path:string,data:string)=>void;renameSync:(oldPath:string,newPath:string)=>void;rmSync:(path:string,options:{force:true})=>void;randomUUID:()=>string};
 const calendarFileOps:CalendarFileOps={mkdirSync,writeFileSync,renameSync,rmSync,randomUUID};
+/** Latest official response wins for overlapping dates; older verified sessions remain available for the ledger. */
+export function mergeMarketCalendars(existing:MarketCalendar, recent:MarketCalendar):MarketCalendar {
+  return new Map([...existing, ...recent]);
+}
 /** Writes a complete replacement before atomically publishing it. The prior valid file remains on any failure. */
 export function saveMarketCalendar(path: string, calendar: MarketCalendar, ops: CalendarFileOps = calendarFileOps): void {
   const sessions = [...calendar].sort(([a], [b]) => a.localeCompare(b))

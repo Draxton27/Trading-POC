@@ -27,6 +27,14 @@ gaps, el historial insuficiente, sesiones incompatibles y velas posteriores al
 el horizonte Fase 23: el cierre de `t+4` debe permanecer dentro de la sesión,
 incluidos cierres anticipados.
 
+El observador valida solo la ventana causal mínima de 21 velas: las veinte
+anteriores requeridas por Bollinger y volumen relativo, más `t`. Cada una debe
+existir en el calendario oficial y formar una secuencia continua; si un viernes
+precede a un lunes, el calendario debe incluir ambas sesiones. La ingesta fusiona
+las nuevas sesiones oficiales con el calendario privado existente, por lo que
+una consulta reciente no elimina días anteriores aún necesarios. No rellena
+huecos ni inventa horarios.
+
 ## Registro privado
 
 `TRADING_POC_ML_FORWARD_OBSERVATION_LOG` apunta por defecto a
