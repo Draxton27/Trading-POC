@@ -87,8 +87,14 @@ export function startDev({names=scripts,env=process.env,spawnProcess=spawn,platf
   for(const name of names){
     let child;
     try{
-      child=spawnProcess(process.execPath,[cli,'run',name],
-        {cwd:root,stdio:'inherit',env:{...env},shell:false,windowsHide:true,
+      // On Windows, npm adds cmd.exe between the launcher and Vite. If a sibling
+      // fails while that shell is starting, taskkill can miss the new Vite process.
+      // Make the process that owns the listening socket a direct child instead.
+      const directWeb=platform==='win32'&&name==='dev:web';
+      child=spawnProcess(process.execPath,directWeb
+        ?[resolve(root,'node_modules/vite/bin/vite.js'),'--host','127.0.0.1']
+        :[cli,'run',name],
+        {cwd:directWeb?resolve(root,'apps/web'):root,stdio:'inherit',env:{...env},shell:false,windowsHide:true,
           detached:platform!=='win32'});
     }catch(error){console.error(`No se pudo iniciar ${name}:`,error);stop(1);break;}
     children.push(child);
