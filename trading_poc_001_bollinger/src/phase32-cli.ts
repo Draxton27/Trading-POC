@@ -1,10 +1,7 @@
 import {config as loadEnv} from 'dotenv';
-import {existsSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {AlpacaCalendarError, fetchAlpacaCalendar, loadMarketCalendar, mergeMarketCalendars, saveMarketCalendar} from './alpaca-calendar.ts';
-import {AlpacaCaptureError, delayedCaptureWindow, fetchAlpacaCaptureBars} from './alpaca.ts';
-import {appendIngestionStatus, appendSuccessfulCapture, validateCapture} from './phase32-ingestion.ts';
+import {captureOnce} from './phase32-capture-once.ts';
 
 const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
 loadEnv({path: resolve(repoRoot, '.env.local'), override: false, quiet: true});
@@ -29,24 +26,9 @@ const calendarPath = process.env.TRADING_POC_ALPACA_INGESTION_CALENDAR ?? `${led
 const key = process.env.APCA_API_KEY_ID ?? '', secret = process.env.APCA_API_SECRET_KEY ?? '';
 
 async function once(): Promise<void> {
-  const window = delayedCaptureWindow(Date.now(), delayMinutes);
-  const startUtc = window.start, endUtc = window.end;
-  try {
-    const calendar = await fetchAlpacaCalendar({apiKey: key, secretKey: secret, start: startUtc, end: endUtc});
-    const accumulatedCalendar=mergeMarketCalendars(existsSync(calendarPath)?loadMarketCalendar(calendarPath):new Map(),calendar);
-    saveMarketCalendar(calendarPath, accumulatedCalendar);
-    const result = await fetchAlpacaCaptureBars({apiKey: key, secretKey: secret, start: startUtc, end: endUtc, calendar, minimumBarAgeMs: window.delayMs});
-    validateCapture(result.candles, calendar, result.receivedAtUtc, Date.now, window.delayMs, result.queryAtUtc);
-    const appended = appendSuccessfulCapture(ledgerPath, result);
-    const latest = result.candles.at(-1);
-    const closeUtc = latest ? new Date(Date.parse(latest.timestamp) + 15 * 60_000).toISOString() : 'N/D';
-    process.stdout.write(`Alpaca SIP NVDA 15Min: consulta ${result.queryAtUtc}, recepción ${result.receivedAtUtc}, último cierre ${closeUtc}, retraso efectivo ${Number.isFinite(result.effectiveDelayMs) ? Math.round(result.effectiveDelayMs / 60_000) : 'N/D'} min; ${result.candles.length} velas, ${appended.barsAdded} nuevas/revisadas, disponibilidad ${result.availability}.\n`);
-  } catch (error) {
-    const state = error instanceof AlpacaCaptureError || error instanceof AlpacaCalendarError ? error.status : 'INVALID_DATA';
-    const stage = error instanceof AlpacaCalendarError ? 'Calendario' : error instanceof AlpacaCaptureError ? 'Market Data' : 'Validación local';
-    appendIngestionStatus(ledgerPath, state, `${stage}: ${error instanceof Error ? error.message : 'Error de ingesta Alpaca.'}`);
-    throw error;
-  }
+  const result=await captureOnce({ledgerPath,calendarPath,apiKey:key,secretKey:secret,delayMinutes});
+  const latest=result.candles.at(-1),closeUtc=latest?new Date(Date.parse(latest.timestamp)+15*60_000).toISOString():'N/D';
+  process.stdout.write(`Alpaca SIP NVDA 15Min: consulta ${result.queryAtUtc}, recepción ${result.receivedAtUtc}, último cierre ${closeUtc}, retraso efectivo ${Number.isFinite(result.effectiveDelayMs)?Math.round(result.effectiveDelayMs/60_000):'N/D'} min; ${result.candles.length} velas, ${result.barsAdded} nuevas/revisadas, disponibilidad ${result.availability}.\n`);
 }
 
 let stopped = false, active = false;

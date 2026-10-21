@@ -27,6 +27,28 @@ describe('iniciador Windows',()=>{
       await runner.completion;
     }finally{rmSync(dir,{recursive:true,force:true});}
   });
+  it('en Windows lanza Vite directamente para poder esperar el cierre del servidor',async()=>{
+    const dir=mkdtempSync(join(tmpdir(),'Trading POC direct Vite '));
+    const priorExit=process.exitCode;
+    try{
+      const cli=join(dir,'npm-cli.js');writeFileSync(cli,'');
+      class Child extends EventEmitter{pid=12001;exitCode:null|number=null;signalCode:null|string=null;kill(){} }
+      const web=new Child(),killer=new Child();
+      const calls:Array<{cmd:string;args:string[];options:Record<string,unknown>}>=[];
+      const runner=startDev({names:['dev:web'],env:{npm_execpath:cli},platform:'win32',
+        spawnProcess:(cmd:string,args:string[],options:Record<string,unknown>)=>{
+          calls.push({cmd,args,options});return calls.length===1?web:killer;
+        }});
+      expect(calls[0]!.cmd).toBe(process.execPath);
+      expect(calls[0]!.args[0]).toMatch(/node_modules[\\/]vite[\\/]bin[\\/]vite\.js$/);
+      expect(calls[0]!.args.slice(1)).toEqual(['--host','127.0.0.1']);
+      expect(calls[0]!.options.cwd).toMatch(/apps[\\/]web$/);
+      runner.stop();
+      web.exitCode=0;web.emit('close',0,null);
+      killer.emit('close',0,null);
+      await runner.completion;
+    }finally{process.exitCode=priorExit;rmSync(dir,{recursive:true,force:true});}
+  });
   it('se detiene antes de duplicar un servidor en un puerto ocupado',async()=>{
     const server=createServer();await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
     try{
