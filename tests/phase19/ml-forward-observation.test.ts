@@ -9,6 +9,7 @@ import {createApp} from '../../apps/api/src/server.ts';
 import {mergeMarketCalendars,saveMarketCalendar} from '../../trading_poc_001_bollinger/src/alpaca-calendar.ts';
 import {observeOnce} from '../../trading_poc_001_bollinger/src/phase34-observer.ts';
 import {frozenModel} from '../../trading_poc_001_bollinger/src/phase31-inference.ts';
+import {calculatePhase23Features} from '../../trading_poc_001_bollinger/src/phase23-dataset.ts';
 
 const clean:string[]=[];afterEach(()=>clean.splice(0).forEach(path=>rmSync(path,{recursive:true,force:true})));
 const day='2026-01-02',calendar=new Map([[day,{open:570,close:960}]]);
@@ -22,7 +23,7 @@ describe('Fase 34: observación adelantada desde ledger SIP retrasado',()=>{
   it('registra la última vela admisible antes de t+4, preserva revisión y es idempotente',()=>{
     const folder=root(),ledger=join(folder,'ledger.jsonl'),log=join(folder,'forward.jsonl');appendSuccessfulCapture(ledger,capture(bars()));
     const prepared=prepareForwardObservation(ledger,calendar,model,'2026-01-02T20:05:00.000Z');
-    expect(prepared.prepared.barStartUtc).toBe('2026-01-02T19:45:00.000Z');expect(prepared.sourceBars).toHaveLength(21);
+    expect(prepared.prepared.barStartUtc).toBe('2026-01-02T19:45:00.000Z');expect(prepared.sourceBars).toHaveLength(22);
     const first=appendForwardObservation(log,input(prepared),'2026-01-02T20:05:01.000Z');expect(first.record).toMatchObject({mode:'DELAYED_FORWARD_OBSERVATION',recordedBeforeOutcome:true,recordedBeforeNextEntry:false,hypotheticalNextEntryOpen:null,outcomeT4Close:null});
     // A later provider correction to an older candle cannot mutate the first record.
     appendSuccessfulCapture(ledger,capture([{...bars(1)[0]!,close:101}], '2026-01-02T20:06:00.000Z'));
@@ -62,7 +63,7 @@ describe('Fase 34: observación adelantada desde ledger SIP retrasado',()=>{
     const monday='2026-01-05',tuesday='2026-01-06',wednesday='2026-01-07',rows=[...session(monday,10),...session(tuesday,10),...session(wednesday,1)];
     appendSuccessfulCapture(ledger,capture(rows as ReturnType<typeof bars>,'2026-01-07T14:50:00.000Z'));
     const recent=new Map([[tuesday,hours],[wednesday,hours]]),accumulated=mergeMarketCalendars(new Map([[monday,hours]]),recent);
-    expect(()=>prepareForwardObservation(ledger,recent,model,'2026-01-07T14:50:00.000Z')).toThrow(/calendario/);
+    expect(()=>prepareForwardObservation(ledger,recent,model,'2026-01-07T14:50:00.000Z')).toThrow(/calendario/i);
     expect(prepareForwardObservation(ledger,accumulated,model,'2026-01-07T14:50:00.000Z').sourceBars).toHaveLength(21);
   });
   it('reconoce continuidad oficial entre viernes y lunes sin inventar sesiones',()=>{
@@ -70,5 +71,14 @@ describe('Fase 34: observación adelantada desde ledger SIP retrasado',()=>{
     const session=(date:string,count:number)=>Array.from({length:count},(_,i)=>{const at=new Date(`${date}T14:30:00.000Z`);at.setUTCMinutes(at.getUTCMinutes()+i*15);const open=100+i*.1;return {timestamp:at.toISOString(),open,high:open+.2,low:open-.2,close:open+.05,volume:1000+i};});
     const friday='2026-01-02',monday='2026-01-05',rows=[...session(friday,20),...session(monday,1)];appendSuccessfulCapture(ledger,capture(rows as ReturnType<typeof bars>,'2026-01-05T14:50:00.000Z'));
     expect(prepareForwardObservation(ledger,new Map([[friday,hours],[monday,hours]]),model,'2026-01-05T14:50:00.000Z').prepared.barStartUtc).toBe('2026-01-05T14:30:00.000Z');
+  });
+  it('mantiene EMA9 y las diez variables equivalentes a Fase 23, sin reiniciarla a las últimas 21 velas',()=>{
+    const folder=root(),ledger=join(folder,'ema-continuity.jsonl'),days=['2026-01-05','2026-01-06','2026-01-07','2026-01-08','2026-01-09'],hours={open:570,close:870},series:any[]=[];
+    for(const [dayIndex,date] of days.entries())for(let slot=0;slot<(dayIndex===4?1:20);slot++){const at=new Date(`${date}T14:30:00.000Z`);at.setUTCMinutes(at.getUTCMinutes()+slot*15);const index=series.length,close=index<60?100:100+(index-59)*5,open=close-.5;series.push({timestamp:at.toISOString(),open,high:close+.25,low:open-.25,close,volume:1000+index});}
+    const calendar80=new Map(days.map(date=>[date,hours]));appendSuccessfulCapture(ledger,capture(series as ReturnType<typeof bars>,'2026-01-09T14:50:00.000Z'));
+    const full=calculatePhase23Features(series,calendar80).at(-1)!,tail=calculatePhase23Features(series.slice(-21),calendar80).at(-1)!,prepared=prepareForwardObservation(ledger,calendar80,model,'2026-01-09T14:50:00.000Z');
+    expect(Math.abs(tail.distance_ema9-full.distance_ema9)).toBeGreaterThan(1e-6);expect(prepared.sourceBars).toHaveLength(81);
+    const expected={return_1:full.return_1,return_4:full.return_4,distance_ema9:full.distance_ema9,distance_sma20:full.distance_sma20,bollinger_position:full.bollinger_position,relative_volume_20:full.relative_volume_20,candle_range:full.candle_range,candle_body:full.candle_body,atr14_relative:full.atr14_relative,minutes_from_open:0};
+    for(const [name,value] of Object.entries(expected))expect(prepared.prepared.features[name as keyof typeof prepared.prepared.features]).toBeCloseTo(value,12);
   });
 });

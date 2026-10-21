@@ -27,13 +27,15 @@ gaps, el historial insuficiente, sesiones incompatibles y velas posteriores al
 el horizonte Fase 23: el cierre de `t+4` debe permanecer dentro de la sesión,
 incluidos cierres anticipados.
 
-El observador valida solo la ventana causal mínima de 21 velas: las veinte
-anteriores requeridas por Bollinger y volumen relativo, más `t`. Cada una debe
-existir en el calendario oficial y formar una secuencia continua; si un viernes
-precede a un lunes, el calendario debe incluir ambas sesiones. La ingesta fusiona
-las nuevas sesiones oficiales con el calendario privado existente, por lo que
-una consulta reciente no elimina días anteriores aún necesarios. No rellena
-huecos ni inventa horarios.
+El observador exige como mínimo 21 velas: las veinte anteriores requeridas por
+Bollinger y volumen relativo, más `t`. Después usa **todo el sufijo continuo
+verificable** del ledger para no reinicializar EMA9 arbitrariamente. Cada vela
+utilizada debe existir en el calendario oficial y formar una secuencia continua;
+si un viernes precede a un lunes, el calendario debe incluir ambas sesiones. Si
+no hay historia continua suficiente se declara período de calentamiento y no se
+afirma equivalencia exacta. La ingesta fusiona las nuevas sesiones oficiales con
+el calendario privado existente, por lo que una consulta reciente no elimina
+días anteriores aún necesarios. No rellena huecos ni inventa horarios.
 
 ## Registro privado
 
