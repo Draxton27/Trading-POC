@@ -35,6 +35,8 @@ La [ingesta Alpaca SIP retrasada](docs/phase33-alpaca-delayed-sip.md) obtiene ú
 
 La [observación XGBoost retrasada](docs/phase34-delayed-forward-inference.md) lee exclusivamente ese ledger y un modelo congelado configurado mediante `TRADING_POC_ML_RUN_DIR`. Tras una ingesta válida, `npm.cmd run ml:observe -- --once` solo registra una observación si ocurre estrictamente antes del cierre de `t+4`. No completa observaciones antiguas, no usa CSV manuales y no constituye una señal operativa.
 
+La [evaluación de observaciones adelantadas](docs/phase35-forward-evaluation.md) usa `npm.cmd run ml:evaluate -- --once` una vez recibidas las cuatro velas SIP posteriores. `ml:collect` la ejecuta tras la ingesta sin detener la captura si el evaluador falla. El panel muestra estados y métricas solo cuando existen observaciones auténticas; no convierte aciertos de clase en ganancias.
+
 El [recolector coordinado de Fase 34.1](docs/phase34-1-automated-collection.md) permite `npm.cmd run ml:collect -- --once` o `npm.cmd run ml:collect -- --continuous`. Consulta el calendario oficial, ingiere velas SIP retrasadas y ejecuta el observador únicamente para una vela nueva y elegible. Su estado privado se muestra en Predicciones.
 
 Para Paper con dos computadoras, lea [la guía Windows](shared-artifacts/phase19-ibkr-ui/phase19-windows-setup.md) y [el modelo de red](shared-artifacts/phase19-ibkr-ui/phase19-network-security.md). La API HTTP escucha solo en `127.0.0.1`. El agente se ejecuta junto a TWS en A y sale hacia un puerto privado de B. Necesita un secreto de aplicación propio y una cuenta Paper esperada para comprobar la sesión. La conexión auténtica con TWS y la prueba física entre equipos **no se han verificado en Codex**.

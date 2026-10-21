@@ -3,6 +3,7 @@ import {useQuery} from '@tanstack/react-query';
 import type {MlCollectorStatus,MlIngestionStatus,MlMetrics,MlMetricsResponse,MlPredictionsPage,MlProspectiveRecord,MlStatus,MlSummary} from '@trading-poc/contracts';
 import {api,dateTime,fmt} from '../../lib/api.ts';
 import {Badge,Button,Card,SectionTitle} from '../../components/ui.tsx';
+import ForwardEvaluationView from './ForwardEvaluationView.tsx';
 
 const notice='Modelo experimental. Evaluación retrospectiva no independiente. Probabilidades no calibradas para uso operativo. No constituye recomendación CALL o PUT.';
 const classes=['ALCISTA','BAJISTA','LATERAL'] as const;
@@ -26,6 +27,7 @@ export default function PredictionsView(){
   const model=summary.data,report=metrics.data,page=predictions.data,tracking=prospective.data,forwardTracking=forward.data;
   return <div className="content-page ml-page"><SectionTitle eyebrow="INVESTIGACIÓN HISTÓRICA" title="Predicciones" aside={<Badge tone="warning">EXPERIMENTAL</Badge>}/>
     <Card className="ml-warning" role="note"><strong>{notice}</strong></Card>
+    <ForwardEvaluationView/>
     <Card><h3>Recolector Alpaca SIP + XGBoost</h3><p className="subtle">Ingesta retrasada y observaciones adelantadas al desenlace. No son señales operativas.</p>{collector.isPending?<p>Consultando recolector…</p>:collector.error?<p role="alert">No se pudo leer el estado del recolector.</p>:<><div className="ml-facts"><div><small>Proceso</small><strong>{collector.data?.active?'Activo':'Detenido'}</strong></div><div><small>Último ciclo</small><strong>{collector.data?.state??'N/D'}</strong></div><div><small>Última ingesta correcta</small><strong>{dateTime(collector.data?.lastSuccessfulIngestionAtUtc)}</strong></div><div><small>Última vela</small><strong>{dateTime(collector.data?.lastBarEndUtc)}</strong></div><div><small>Última observación</small><strong>{dateTime(collector.data?.lastObservationAtUtc)}</strong></div><div><small>Próxima consulta</small><strong>{dateTime(collector.data?.nextQueryAtUtc)}</strong></div><div><small>Observaciones nuevas</small><strong>{collector.data?.newObservations??0}</strong></div></div>{collector.data?.lastError&&<p role="alert">{collector.data.lastError}</p>}</>}</Card>
     {loading&&<Card role="status">Cargando artefactos del experimento local…</Card>}
     {error&&<Card role="alert">No se pudo consultar el experimento: {error.message}</Card>}

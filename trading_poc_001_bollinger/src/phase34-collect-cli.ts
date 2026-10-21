@@ -1,4 +1,5 @@
 import {spawn,type ChildProcess} from 'node:child_process';
+import {existsSync,readFileSync} from 'node:fs';
 import {config as loadEnv} from 'dotenv';
 import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -45,6 +46,15 @@ function observe():Promise<{alreadyPresent:boolean}>{
     });
   });
 }
+async function evaluateAfterIngestion():Promise<void>{
+  await new Promise<void>(done=>{
+    const child=spawn(process.execPath,['--experimental-strip-types',resolve(root,'trading_poc_001_bollinger/src/phase35-cli.ts'),'--once'],{cwd:root,env:process.env,windowsHide:true,stdio:'ignore'});
+    activeChild=child;
+    const timeout=setTimeout(()=>child.kill(),120_000);
+    child.once('error',()=>{clearTimeout(timeout);activeChild=undefined;done();});
+    child.once('close',()=>{clearTimeout(timeout);activeChild=undefined;done();});
+  });
+}
 async function cycle():Promise<CollectorStatus>{
   const now=Date.now();
   const status=await collectOnce({ledger,observationLog,modelDir:process.env.TRADING_POC_ML_RUN_DIR,statusPath,stopped:()=>stopped,
@@ -54,6 +64,14 @@ async function cycle():Promise<CollectorStatus>{
       return {barsAdded:result.barsAdded,calendar};
     },
     observe});
+  // Evaluation has its own status and failure domain; never prevent a new capture.
+  const evaluationStatusPath=process.env.TRADING_POC_ML_EVALUATION_STATUS??resolve(root,'private','ml-evaluation','status.json');
+  type PreviousEvaluation={updatedAtUtc?:string;state?:string};
+  let priorEvaluation:PreviousEvaluation|null=null;
+  try{if(existsSync(evaluationStatusPath))priorEvaluation=JSON.parse(readFileSync(evaluationStatusPath,'utf8')) as PreviousEvaluation;}catch{}
+  const previousAt=Date.parse(priorEvaluation?.updatedAtUtc??'');
+  const newDataSinceEvaluation=!!status.lastSuccessfulIngestionAtUtc&&(!Number.isFinite(previousAt)||Date.parse(status.lastSuccessfulIngestionAtUtc)>previousAt);
+  if(['RECORDED','DUPLICATE','NO_NEW_BARS','INDICATORS_INSUFFICIENT','HORIZON_INELIGIBLE','OUTCOME_PASSED'].includes(status.state)&&(newDataSinceEvaluation||priorEvaluation?.state==='ERROR'))await evaluateAfterIngestion();
   process.stdout.write(JSON.stringify({state:status.state,lastBarEndUtc:status.lastBarEndUtc,nextQueryAtUtc:status.nextQueryAtUtc,newObservations:status.newObservations,lastError:status.lastError})+'\n');
   if(args[0]==='--once'&&['ALPACA_PERMISSION','ALPACA_NETWORK','ALPACA_RATE_LIMIT','LEDGER_INVALID','PYTHON_ERROR','ERROR','MODEL_NOT_CONFIGURED'].includes(status.state))process.exitCode=1;
   return status;
