@@ -1,8 +1,8 @@
-import {mkdtempSync, rmSync} from 'node:fs';
+import {mkdtempSync, readFileSync, rmSync} from 'node:fs';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {describe, expect, it} from 'vitest';
-import {AlpacaCalendarError, fetchAlpacaCalendar} from '../../trading_poc_001_bollinger/src/alpaca-calendar.ts';
+import {AlpacaCalendarError, fetchAlpacaCalendar, loadMarketCalendar, saveMarketCalendar} from '../../trading_poc_001_bollinger/src/alpaca-calendar.ts';
 import {AlpacaCaptureError, CAPTURE_BAR_MS, DELAYED_CAPTURE_MS, delayedCaptureWindow, fetchAlpacaCaptureBars} from '../../trading_poc_001_bollinger/src/alpaca.ts';
 import {appendSuccessfulCapture, readIngestion, validateCapture} from '../../trading_poc_001_bollinger/src/phase32-ingestion.ts';
 import {readAlpacaIngestionStatus} from '../../apps/api/src/ml/ingestion.ts';
@@ -14,6 +14,21 @@ const response = (bars: unknown[]) => new Response(JSON.stringify({bars: {NVDA: 
 const capture = (candles: any[], receivedAtUtc: string, hash: string, queryAtUtc = '2026-10-20T15:00:00.000Z') => ({candles, queryAtUtc, receivedAtUtc, responseSha256: hash.repeat(64).slice(0, 64), availability: 'CURRENT' as const, barAgeMs: 60_000});
 
 describe('ingesta Alpaca SIP Fase 32', () => {
+  it('inicializa atómicamente el calendario privado y conserva el anterior si falla la publicación', () => {
+    const root = mkdtempSync(join(tmpdir(), 'phase32-calendar-')), path = join(root, 'private', 'alpaca', 'ledger.jsonl.calendar.json');
+    try {
+      saveMarketCalendar(path, calendar); expect(loadMarketCalendar(path)).toEqual(calendar);
+      const prior = readFileSync(path, 'utf8');
+      expect(() => saveMarketCalendar(path, new Map([[day, {open: 600, close: 900}]]), {
+        mkdirSync: () => undefined, writeFileSync: () => { throw new Error('disco lleno'); }, renameSync: () => {}, rmSync: () => {}, randomUUID: () => 'write-failure',
+      })).toThrow(/disco lleno/);
+      expect(readFileSync(path, 'utf8')).toBe(prior);
+      expect(() => saveMarketCalendar(path, new Map([[day, {open: 600, close: 900}]]), {
+        mkdirSync: () => undefined, writeFileSync: () => {}, renameSync: () => { throw new Error('renombrado bloqueado'); }, rmSync: () => {}, randomUUID: () => 'test',
+      })).toThrow(/renombrado bloqueado/);
+      expect(readFileSync(path, 'utf8')).toBe(prior); expect(loadMarketCalendar(path)).toEqual(calendar);
+    } finally { rmSync(root, {recursive: true, force: true}); }
+  });
   it('alinea el límite retrasado a 15 minutos y exige cierres con 20 minutos de antigüedad', () => {
     const now = Date.parse(`${day}T15:35:00.000Z`), window = delayedCaptureWindow(now, 20, 2 * CAPTURE_BAR_MS);
     expect(window).toMatchObject({start: `${day}T14:30:00.000Z`, end: `${day}T15:00:00.000Z`, delayMs: DELAYED_CAPTURE_MS});

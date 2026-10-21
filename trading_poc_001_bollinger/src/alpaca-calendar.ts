@@ -1,4 +1,6 @@
-import {readFileSync, writeFileSync} from 'node:fs';
+import {mkdirSync, readFileSync, renameSync, rmSync, writeFileSync} from 'node:fs';
+import {dirname} from 'node:path';
+import {randomUUID} from 'node:crypto';
 import type {HttpGet} from './alpaca.ts';
 
 export type MarketCalendar = Map<string, {open: number; close: number}>;
@@ -6,10 +8,16 @@ export class AlpacaCalendarError extends Error {
   readonly status: 'PERMISSION_DENIED'|'RATE_LIMIT'|'HTTP_ERROR'|'NETWORK_ERROR';
   constructor(status: 'PERMISSION_DENIED'|'RATE_LIMIT'|'HTTP_ERROR'|'NETWORK_ERROR', message: string) { super(message); this.status = status; }
 }
-export function saveMarketCalendar(path: string, calendar: MarketCalendar): void {
+export type CalendarFileOps = Pick<typeof mkdirSync, never> & {mkdirSync:(path:string, options:{recursive:true})=>string|undefined;writeFileSync:(path:string,data:string)=>void;renameSync:(oldPath:string,newPath:string)=>void;rmSync:(path:string,options:{force:true})=>void;randomUUID:()=>string};
+const calendarFileOps:CalendarFileOps={mkdirSync,writeFileSync,renameSync,rmSync,randomUUID};
+/** Writes a complete replacement before atomically publishing it. The prior valid file remains on any failure. */
+export function saveMarketCalendar(path: string, calendar: MarketCalendar, ops: CalendarFileOps = calendarFileOps): void {
   const sessions = [...calendar].sort(([a], [b]) => a.localeCompare(b))
     .map(([date, hours]) => ({date, ...hours}));
-  writeFileSync(path, JSON.stringify({provider: 'Alpaca Market Calendar', sessions}, null, 2) + '\n');
+  const parent=dirname(path),temporary=`${path}.${ops.randomUUID()}.tmp`;
+  ops.mkdirSync(parent,{recursive:true});
+  try { ops.writeFileSync(temporary, JSON.stringify({provider: 'Alpaca Market Calendar', sessions}, null, 2) + '\n'); ops.renameSync(temporary,path); }
+  catch(error) { try { ops.rmSync(temporary,{force:true}); } catch {} throw error; }
 }
 
 export function loadMarketCalendar(path: string): MarketCalendar {

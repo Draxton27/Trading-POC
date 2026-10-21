@@ -11,7 +11,9 @@ El observador acepta solamente revisiones verificables del ledger de Fases
 `DELAYED`. Verifica la cadena de hashes antes de usar una vela. El calendario
 oficial de Alpaca se guarda localmente junto al ledger como
 `ledger.jsonl.calendar.json`; es metadato de sesión, no una fuente alternativa
-de precios. Si falta, el observador se detiene.
+de precios. La ingesta crea su directorio si falta y publica ese JSON mediante
+archivo temporal y renombrado atómico; si una actualización falla conserva el
+calendario válido anterior. Si falta, el observador se detiene.
 
 En cada ejecución toma **solo la vela más nueva** conocida por el ledger. No
 recorre velas antiguas para completar huecos. La predicción se rechaza si el

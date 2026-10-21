@@ -1,11 +1,14 @@
 import {afterEach,describe,expect,it} from 'vitest';
-import {mkdtempSync,rmSync,writeFileSync} from 'node:fs';
+import {mkdtempSync,mkdirSync,rmSync,writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {appendSuccessfulCapture,readIngestion} from '../../trading_poc_001_bollinger/src/phase32-ingestion.ts';
 import {appendForwardObservation,prepareForwardObservation,readForwardObservations} from '../../trading_poc_001_bollinger/src/phase34-forward-observation.ts';
 import {readForwardObservation} from '../../apps/api/src/ml/forward-observation.ts';
 import {createApp} from '../../apps/api/src/server.ts';
+import {saveMarketCalendar} from '../../trading_poc_001_bollinger/src/alpaca-calendar.ts';
+import {observeOnce} from '../../trading_poc_001_bollinger/src/phase34-observer.ts';
+import {frozenModel} from '../../trading_poc_001_bollinger/src/phase31-inference.ts';
 
 const clean:string[]=[];afterEach(()=>clean.splice(0).forEach(path=>rmSync(path,{recursive:true,force:true})));
 const day='2026-01-02',calendar=new Map([[day,{open:570,close:960}]]);
@@ -45,5 +48,12 @@ describe('Fase 34: observación adelantada desde ledger SIP retrasado',()=>{
     const folder=root(),ledger=join(folder,'early.jsonl');appendSuccessfulCapture(ledger,capture([...sequence(priorDay,13,26),...sequence(earlyDay,13,10)],'2026-07-03T16:05:00.000Z'));
     expect(prepareForwardObservation(ledger,earlyCalendar,model,'2026-07-03T16:05:00.000Z').prepared.barStartUtc).toBe('2026-07-03T15:45:00.000Z');
     const {app}=await createApp({mode:'DEMO',privateDir:folder,dbPath:join(folder,'test.sqlite')});try{expect((await app.inject('/api/v1/ml/forward-observation?symbol=NVDA&timeframe=15m')).json()).toMatchObject({status:'NO_MODEL'});expect(app.printRoutes()).not.toMatch(/\/api\/v1\/ml\/.*(observe|order|capture)/);}finally{await app.close();}
+  });
+  it('integra el flujo de ml:observe con fixtures privadas, sin consulta ni entrenamiento',()=>{
+    const folder=root(),ledger=join(folder,'private','alpaca','ledger.jsonl'),calendarPath=`${ledger}.calendar.json`,log=join(folder,'private','forward','records.jsonl'),run=join(folder,'20250101T000000Z-aaaaaaaaaaaa');
+    appendSuccessfulCapture(ledger,capture(bars())); saveMarketCalendar(calendarPath,calendar); mkdirSync(run); writeFileSync(join(run,'model.json'),'{}'); writeFileSync(join(run,'report.json'),'{}');
+    const frozen=frozenModel(run),stored=observeOnce({ledger,calendarPath,log,modelDir:run,clock:()=> '2026-01-02T20:05:01.000Z',predict:(_path,_features)=>({modelSha256:frozen.sha256,probabilities:{ALCISTA:.2,BAJISTA:.3,LATERAL:.5},dominantClass:'LATERAL'})});
+    expect(stored).toMatchObject({alreadyPresent:false,record:{mode:'DELAYED_FORWARD_OBSERVATION',recordedBeforeOutcome:true,recordedBeforeNextEntry:false}});
+    expect(observeOnce({ledger,calendarPath,log,modelDir:run,clock:()=> '2026-01-02T20:05:02.000Z',predict:()=>({modelSha256:frozen.sha256,probabilities:{ALCISTA:.2,BAJISTA:.3,LATERAL:.5},dominantClass:'LATERAL'})}).alreadyPresent).toBe(true);
   });
 });
