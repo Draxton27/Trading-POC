@@ -1,6 +1,6 @@
 import {useState} from 'react';
 import {useQuery} from '@tanstack/react-query';
-import type {MlIngestionStatus,MlMetrics,MlMetricsResponse,MlPredictionsPage,MlProspectiveRecord,MlStatus,MlSummary} from '@trading-poc/contracts';
+import type {MlCollectorStatus,MlIngestionStatus,MlMetrics,MlMetricsResponse,MlPredictionsPage,MlProspectiveRecord,MlStatus,MlSummary} from '@trading-poc/contracts';
 import {api,dateTime,fmt} from '../../lib/api.ts';
 import {Badge,Button,Card,SectionTitle} from '../../components/ui.tsx';
 
@@ -20,11 +20,13 @@ export default function PredictionsView(){
   const prospective=useQuery<MlProspectiveRecord>({queryKey:['ml-prospective'],queryFn:()=>api('/ml/prospective?symbol=NVDA&timeframe=15m'),enabled:ready});
   const forward=useQuery<MlProspectiveRecord>({queryKey:['ml-forward-observation'],queryFn:()=>api('/ml/forward-observation?symbol=NVDA&timeframe=15m'),enabled:ready});
   const ingestion=useQuery<MlIngestionStatus>({queryKey:['ml-ingestion'],queryFn:()=>api('/ml/ingestion?symbol=NVDA&timeframe=15m')});
+  const collector=useQuery<MlCollectorStatus>({queryKey:['ml-collector'],queryFn:()=>api('/ml/collector?symbol=NVDA&timeframe=15m'),refetchInterval:30_000});
   const loading=status.isPending||(ready&&(summary.isPending||metrics.isPending||predictions.isPending||prospective.isPending));
   const error=status.error??summary.error??metrics.error??predictions.error??prospective.error;
   const model=summary.data,report=metrics.data,page=predictions.data,tracking=prospective.data,forwardTracking=forward.data;
   return <div className="content-page ml-page"><SectionTitle eyebrow="INVESTIGACIÓN HISTÓRICA" title="Predicciones" aside={<Badge tone="warning">EXPERIMENTAL</Badge>}/>
     <Card className="ml-warning" role="note"><strong>{notice}</strong></Card>
+    <Card><h3>Recolector Alpaca SIP + XGBoost</h3><p className="subtle">Ingesta retrasada y observaciones adelantadas al desenlace. No son señales operativas.</p>{collector.isPending?<p>Consultando recolector…</p>:collector.error?<p role="alert">No se pudo leer el estado del recolector.</p>:<><div className="ml-facts"><div><small>Proceso</small><strong>{collector.data?.active?'Activo':'Detenido'}</strong></div><div><small>Último ciclo</small><strong>{collector.data?.state??'N/D'}</strong></div><div><small>Última ingesta correcta</small><strong>{dateTime(collector.data?.lastSuccessfulIngestionAtUtc)}</strong></div><div><small>Última vela</small><strong>{dateTime(collector.data?.lastBarEndUtc)}</strong></div><div><small>Última observación</small><strong>{dateTime(collector.data?.lastObservationAtUtc)}</strong></div><div><small>Próxima consulta</small><strong>{dateTime(collector.data?.nextQueryAtUtc)}</strong></div><div><small>Observaciones nuevas</small><strong>{collector.data?.newObservations??0}</strong></div></div>{collector.data?.lastError&&<p role="alert">{collector.data.lastError}</p>}</>}</Card>
     {loading&&<Card role="status">Cargando artefactos del experimento local…</Card>}
     {error&&<Card role="alert">No se pudo consultar el experimento: {error.message}</Card>}
     {!loading&&!error&&status.data?.status!=='READY'&&<Card role="status"><h3>{status.data?.status==='NO_MODEL'?'Modelo no configurado':status.data?.status==='INVALID_ARTIFACT'?'Artefactos inválidos':'Experimento no disponible'}</h3><p>{status.data?.reason}</p></Card>}

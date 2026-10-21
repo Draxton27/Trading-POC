@@ -21,6 +21,13 @@ export const MlIngestionStatus=z.object({
   lastBarReceivedAtUtc:z.iso.datetime({offset:true}).nullable(),lastBarAvailability:z.enum(['CURRENT','DELAYED','UNAVAILABLE']),reason:z.string().min(1),
 }).strict();
 export type MlIngestionStatus=z.infer<typeof MlIngestionStatus>;
+export const MlCollectorStatus=z.object({
+  state:z.enum(['RUNNING','MARKET_CLOSED','NO_NEW_BARS','RECORDED','DUPLICATE','INDICATORS_INSUFFICIENT','HORIZON_INELIGIBLE','OUTCOME_PASSED','MODEL_NOT_CONFIGURED','ALPACA_PERMISSION','ALPACA_NETWORK','ALPACA_RATE_LIMIT','LEDGER_INVALID','PYTHON_ERROR','ERROR','STOPPED','NOT_CONFIGURED']),
+  active:z.boolean(),updatedAtUtc:z.iso.datetime({offset:true}).nullable(),lastSuccessfulIngestionAtUtc:z.iso.datetime({offset:true}).nullable(),
+  lastBarEndUtc:z.iso.datetime({offset:true}).nullable(),lastObservationAtUtc:z.iso.datetime({offset:true}).nullable(),
+  nextQueryAtUtc:z.iso.datetime({offset:true}).nullable(),lastError:z.string().nullable(),newObservations:z.number().int().nonnegative(),
+}).strict();
+export type MlCollectorStatus=z.infer<typeof MlCollectorStatus>;
 export const MlProspectiveRecord=z.object({status:MlProspectiveStatus,mode:z.enum(['REPLAY','PROSPECTIVE_CAPTURE','DELAYED_FORWARD_OBSERVATION']).nullable(),modelId:z.string().nullable(),modelSha256:z.string().regex(/^[a-f0-9]{64}$/).nullable(),source:z.string().nullable(),lastObservationUtc:z.iso.datetime({offset:true}).nullable(),receivedAtUtc:z.iso.datetime({offset:true}).nullable(),registeredAtUtc:z.iso.datetime({offset:true}).nullable(),probabilities:z.object({ALCISTA:z.number().min(0).max(1),BAJISTA:z.number().min(0).max(1),LATERAL:z.number().min(0).max(1)}).nullable(),dominantClass:z.enum(['ALCISTA','BAJISTA','LATERAL']).nullable(),entryAtUtc:z.iso.datetime({offset:true}).nullable(),recordedBeforeNextEntry:z.boolean().nullable(),recordedBeforeOutcome:z.boolean().nullable().default(null),effectiveDelayMs:z.number().finite().nonnegative().nullable().default(null),reason:z.string().min(1)});
 export type MlProspectiveRecord=z.infer<typeof MlProspectiveRecord>;
 export const MlStatus=z.object({status:MlState,reason:z.string().nullable(),experimentId:z.string().nullable()}).strict();

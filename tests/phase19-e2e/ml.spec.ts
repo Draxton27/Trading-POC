@@ -7,6 +7,13 @@ test('Predicciones muestra modelo ausente y el aviso estadístico en DEMO',async
   await expect(page.getByText('Modelo experimental. Evaluación retrospectiva no independiente. Probabilidades no calibradas para uso operativo. No constituye recomendación CALL o PUT.')).toBeVisible();
   await expect(page.getByRole('table',{name:'Predicciones históricas'})).toHaveCount(0);
 });
+test('Predicciones muestra estado del recolector sin presentar una señal operativa',async({page})=>{
+  await page.route('**/api/v1/ml/collector?*',route=>route.fulfill({json:{state:'RECORDED',active:false,updatedAtUtc:'2026-10-20T15:40:00.000Z',lastSuccessfulIngestionAtUtc:'2026-10-20T15:36:00.000Z',lastBarEndUtc:'2026-10-20T15:15:00.000Z',lastObservationAtUtc:'2026-10-20T15:40:00.000Z',nextQueryAtUtc:'2026-10-20T15:50:00.000Z',lastError:null,newObservations:1}}));
+  await page.goto('/');await page.getByRole('button',{name:'Predicciones'}).click();
+  await expect(page.getByRole('heading',{name:'Recolector Alpaca SIP + XGBoost'})).toBeVisible();
+  await expect(page.getByText('Ingesta retrasada y observaciones adelantadas al desenlace. No son señales operativas.')).toBeVisible();
+  await expect(page.getByText('RECORDED')).toBeVisible();
+});
 test('Predicciones muestra experimento histórico paginado sin señal vigente',async({page})=>{
   await page.route('**/api/v1/ml/status',route=>route.fulfill({json:{status:'READY',reason:null,experimentId:'synthetic-test'}}));
   await page.route('**/api/v1/ml/summary',route=>route.fulfill({json:{status:'READY',symbol:'NVDA',timeframe:'15m',origin:'HISTORICAL_EXPLORATORY',experimentId:'synthetic-test',createdAtUtc:'2026-10-20T13:49:17.000Z',modelVersion:'XGBoost 2.1.4 · nvda-15m-v1',selectedVariant:'standard',trees:12,datasetSha256:'a'.repeat(64),predictionCount:2}}));
