@@ -1,13 +1,14 @@
 import {afterEach,describe,expect,it} from 'vitest';
 import {mkdtempSync,readFileSync,rmSync,writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
-import {join} from 'node:path';
+import {join,resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {spawn} from 'node:child_process';
 import {createApp} from '../../apps/api/src/server.ts';
 import {appendNews,readNews,readNewsAnalyses,type NewsArticle} from '../../apps/api/src/news/store.ts';
 import {collectOnce,analyzeOnce} from '../../apps/api/src/news/service.ts';
-import {FED_MONETARY,parseFeed,fetchFeed} from '../../apps/api/src/news/providers.ts';
+import {FED_MONETARY,parseFeed,fetchFeed,parseSourceDate} from '../../apps/api/src/news/providers.ts';
+import {newsPaths,resolveNewsDir} from '../../apps/api/src/news/paths.ts';
 
 const roots:string[]=[],apps:Array<{close:()=>Promise<unknown>}>=[];
 afterEach(async()=>{for(const app of apps.splice(0))await app.close();for(const dir of roots.splice(0))rmSync(dir,{recursive:true,force:true});});
@@ -22,6 +23,27 @@ const ollama=(value:unknown)=>async(url:unknown)=>String(url).endsWith('/api/tag
 const processRun=(script:string,args:string[]=[])=>new Promise<{code:number|null;stderr:string}>((resolve,reject)=>{const child=spawn(process.execPath,['--experimental-strip-types',script,...args],{windowsHide:true});let stderr='';child.stderr.on('data',part=>stderr+=part);child.on('error',reject);child.on('close',code=>resolve({code,stderr}));});
 
 describe('Fase 36: noticias verificables',()=>{
+  it('usa la misma ruta de noticias para CLI y API con LOCALAPPDATA de Windows',async()=>{
+    const f=fixture(),localAppData=join(f.dir,'local-app-data'),privateDir=join(localAppData,'Trading-POC');
+    const env={LOCALAPPDATA:localAppData} as NodeJS.ProcessEnv;
+    const cliPaths=newsPaths({repoRoot:join(f.dir,'repo'),env,platform:'win32',localAppData});
+    expect(cliPaths.base).toBe(resolve(localAppData,'Trading-POC','news'));
+    expect(resolveNewsDir({repoRoot:join(f.dir,'repo'),env:{...env,TRADING_POC_NEWS_DIR:join(f.dir,'explicit-news')},platform:'win32',localAppData})).toBe(resolve(f.dir,'explicit-news'));
+    expect(resolveNewsDir({repoRoot:join(f.dir,'repo'),privateDir:join(f.dir,'private-override'),env,platform:'win32',localAppData})).toBe(resolve(f.dir,'private-override','news'));
+    await collectOnce(cliPaths,{providers:[FED_MONETARY],fetcher:(async()=>response(xml())) as typeof fetch,clock:()=>now,cooldownMs:0});
+    const created=await createApp({mode:'DEMO',privateDir,dbPath:join(f.dir,'db.sqlite'),mlRunDir:null});apps.push(created.app);
+    expect((await created.app.inject('/api/v1/news/items')).json().total).toBe(1);
+  });
+
+  it('valida exactamente calendarios y zonas antes de Date.parse',()=>{
+    expect(parseSourceDate('2024-02-29T09:30:00-05:00',now)).toMatchObject({status:'KNOWN',value:'2024-02-29T14:30:00.000Z'});
+    expect(parseSourceDate('Thu, 29 Feb 2024 09:30:00 -0500',now)).toMatchObject({status:'KNOWN',value:'2024-02-29T14:30:00.000Z'});
+    expect(parseSourceDate('2026-02-30T09:30:00Z',now)).toEqual({value:null,status:'INVALID'});
+    expect(parseSourceDate('31 Nov 2026 09:30:00 GMT',now)).toEqual({value:null,status:'INVALID'});
+    expect(parseSourceDate('',now)).toEqual({value:null,status:'MISSING'});
+    expect(parseSourceDate('2026-10-22T15:02:00Z',now)).toMatchObject({status:'INCONSISTENT',value:'2026-10-22T15:02:00.000Z'});
+  });
+
   it('parsea RSS y Atom, conserva la fecha declarada y no retrotrae firstSeen',async()=>{
     const f=fixture(),feed=parseFeed(xml(),FED_MONETARY,now);expect(feed).toHaveLength(1);
     const saved=appendNews(f.newsLog,feed[0]!,now);expect(saved.added).toBe(true);

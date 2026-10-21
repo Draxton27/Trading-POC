@@ -10,7 +10,9 @@ La arquitectura admite agregar proveedores fijos después de comprobar sus condi
 
 ## Configuración Windows
 
-Desde la raíz del repositorio, configure `.env.local` (ignorado por Git). `TRADING_POC_NEWS_DIR` puede apuntar a un directorio privado; por defecto se usa `private/news/`. Ollama debe escuchar localmente en `127.0.0.1:11434`; el modelo es `llama3.2:3b` salvo que se configure `TRADING_POC_NEWS_OLLAMA_MODEL`. El timeout de clasificación predeterminado es 20 segundos y el `keep_alive` reutiliza `TRADING_POC_OLLAMA_KEEP_ALIVE`. Ninguna URL de Ollama se toma del contenido ni de la API.
+Desde la raíz del repositorio, configure `.env.local` (ignorado por Git). API y CLI resuelven exactamente el mismo directorio: `TRADING_POC_NEWS_DIR` tiene prioridad; si no se define, usan `TRADING_POC_PRIVATE_DIR/news`; y si tampoco existe, en Windows usan `%LOCALAPPDATA%\Trading-POC\news` (fuera de Windows, `private/news/` del repositorio). Ollama debe escuchar localmente en `127.0.0.1:11434`; el modelo es `llama3.2:3b` salvo que se configure `TRADING_POC_NEWS_OLLAMA_MODEL`. El timeout de clasificación predeterminado es 20 segundos y el `keep_alive` reutiliza `TRADING_POC_OLLAMA_KEEP_ALIVE`. Ninguna URL de Ollama se toma del contenido ni de la API.
+
+La versión inicial del CLI pudo guardar en `private/news/` del repositorio mientras la API de Windows leía `%LOCALAPPDATA%\Trading-POC\news`. No se mueven ni borran registros: inspeccione ambas ubicaciones si ya usó esa versión. Para seguir leyendo una ubicación anterior, establezca `TRADING_POC_NEWS_DIR` en `.env.local` con esa carpeta antes de ejecutar CLI y API.
 
 ```powershell
 npm.cmd run news:collect -- --once
