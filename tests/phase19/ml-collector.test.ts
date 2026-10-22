@@ -51,6 +51,12 @@ describe('recolector coordinado Fase 34.1',()=>{
       try{runFrozenPython('unused',{}, {root:paths.root,python,script:failing});}catch(error){realPythonFailure=error;}
       expect(observerFailure(realPythonFailure)).toMatchObject({code:'PYTHON_ERROR',exitCode:1,cause:'RuntimeError: controlled inference failure'});
     }
+    const executable=existsSync(python)?python:(process.platform==='win32'?'py':'python3');
+    const jsonErrorScript=join(paths.root,'failing-python-json.py');
+    writeFileSync(jsonErrorScript,"import json\nprint(json.dumps({'error': 'XGBoost incompatible'}))\nraise SystemExit(1)\n");
+    let jsonFailure:unknown;
+    try{runFrozenPython('unused',{}, {root:paths.root,python:executable,script:jsonErrorScript});}catch(error){jsonFailure=error;}
+    expect(observerFailure(jsonFailure)).toMatchObject({code:'PYTHON_ERROR',exitCode:1,cause:'XGBoost incompatible',retryable:false});
     const encoded=encodeObserverFailure(failure);expect(decodeObserverFailure(encoded)).toMatchObject({code:'PYTHON_ERROR',exitCode:37});
     const wrapper=join(paths.root,'observer.mjs');writeFileSync(wrapper,`process.stderr.write(${JSON.stringify(encoded+'\n')});process.exit(1);`);
     await expect(runObserverProcess({root:paths.root,script:wrapper})).rejects.toMatchObject({code:'PYTHON_ERROR',details:{exitCode:37}});
@@ -59,14 +65,14 @@ describe('recolector coordinado Fase 34.1',()=>{
       TRADING_POC_ALPACA_INGESTION_CALENDAR:join(paths.root,'missing-calendar.json'),
       TRADING_POC_ML_RUN_DIR:paths.modelDir}})).rejects.toMatchObject({code:'LEDGER_INVALID'});
     const result=await collectOnce({...paths,clock:()=>Date.parse('2026-10-21T14:06:00Z'),calendar:async()=>regular,
-      capture:async()=>capture(paths.ledger,'2026-10-21T13:30:00.000Z','2026-10-21T14:06:00.000Z'),observe:()=>{throw failure;}});
+      capture:async()=>capture(paths.ledger,'2026-10-21T13:30:00.000Z','2026-10-21T14:06:00.000Z'),observe:()=>{throw jsonFailure;}});
     expect(result).toMatchObject({state:'PYTHON_ERROR',lastError:'PYTHON_ERROR',retryable:false});
     const diagnostic=JSON.parse(readFileSync(`${paths.statusPath}.python.jsonl`,'utf8').trim());
-    expect(diagnostic).toMatchObject({exitCode:37,cause:'ModuleNotFoundError: No module named xgboost'});
-    expect(readFileSync(paths.statusPath,'utf8')).not.toContain('ModuleNotFoundError');
+    expect(diagnostic).toMatchObject({exitCode:1,cause:'XGBoost incompatible'});
+    expect(readFileSync(paths.statusPath,'utf8')).not.toContain('XGBoost incompatible');
     const {app}=await createApp({mode:'DEMO',privateDir:paths.root,dbPath:join(paths.root,'test.sqlite'),mlCollectorStatus:paths.statusPath});
     try{expect((await app.inject('/api/v1/ml/collector')).json().lastError).toBe('PYTHON_ERROR');
-      expect((await app.inject('/api/v1/ml/collector')).body).not.toContain('ModuleNotFoundError');}finally{await app.close();}
+      expect((await app.inject('/api/v1/ml/collector')).body).not.toContain('XGBoost incompatible');}finally{await app.close();}
   });
   it('limita los reintentos transitorios y nunca reintenta el horizonte cada minuto',async()=>{
     const paths=fixture();let calls=0;
