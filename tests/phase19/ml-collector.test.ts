@@ -1,9 +1,12 @@
-import {mkdtempSync,mkdirSync,readFileSync,rmSync,writeFileSync} from 'node:fs';
+import {existsSync,mkdtempSync,mkdirSync,readFileSync,rmSync,writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {afterEach,describe,expect,it} from 'vitest';
 import {appendSuccessfulCapture,readIngestion} from '../../trading_poc_001_bollinger/src/phase32-ingestion.ts';
-import {acquireCollectorLock,collectOnce,collectorSchedule,readCollectorStatus} from '../../trading_poc_001_bollinger/src/phase34-collector.ts';
+import {acquireCollectorLock,collectOnce,collectorSchedule,nextCollectorWake,readCollectorStatus,shouldEvaluateAfterIngestion} from '../../trading_poc_001_bollinger/src/phase34-collector.ts';
+import {ObserverFailure,observerFailure,encodeObserverFailure,decodeObserverFailure} from '../../trading_poc_001_bollinger/src/phase34-observer-errors.ts';
+import {runObserverProcess} from '../../trading_poc_001_bollinger/src/phase34-observer-process.ts';
+import {runFrozenPython} from '../../trading_poc_001_bollinger/src/phase34-python.ts';
 import {readMlCollectorStatus} from '../../apps/api/src/ml/collector.ts';
 import {createApp} from '../../apps/api/src/server.ts';
 import {appendForwardObservation} from '../../trading_poc_001_bollinger/src/phase34-forward-observation.ts';
@@ -21,6 +24,60 @@ function recordObservation(paths:ReturnType<typeof fixture>){
 const regular=new Map([['2026-10-20',{open:570,close:960}],['2026-10-21',{open:570,close:960}]]);
 
 describe('recolector coordinado Fase 34.1',()=>{
+  it('distingue 19:00 elegible de 19:15 no elegible el 21 de octubre de 2026',async()=>{
+    const eligible=fixture();let calls=0;
+    const first=await collectOnce({...eligible,clock:()=>Date.parse('2026-10-21T19:21:00Z'),calendar:async()=>regular,
+      capture:async()=>capture(eligible.ledger,'2026-10-21T18:45:00.000Z','2026-10-21T19:21:00.000Z'),
+      observe:()=>{calls++;throw new ObserverFailure('INDICATORS_INSUFFICIENT','Historial insuficiente.');}});
+    expect(first.state).toBe('INDICATORS_INSUFFICIENT');expect(calls).toBe(1);
+    const late=fixture();const second=await collectOnce({...late,clock:()=>Date.parse('2026-10-21T19:36:00Z'),calendar:async()=>regular,
+      capture:async()=>capture(late.ledger,'2026-10-21T19:00:00.000Z','2026-10-21T19:36:00.000Z'),
+      observe:()=>{calls++;return {alreadyPresent:false};}});
+    expect(second).toMatchObject({state:'HORIZON_INELIGIBLE',lastBarEndUtc:'2026-10-21T19:15:00.000Z',nextQueryAtUtc:'2026-10-21T19:50:00.000Z',retryable:false});
+    expect(calls).toBe(1);
+    expect(nextCollectorWake(second,Date.parse('2026-10-21T19:37:00Z'))).toBe(Date.parse('2026-10-21T19:50:00Z'));
+    expect(shouldEvaluateAfterIngestion(second,{updatedAtUtc:'2026-10-21T19:20:00.000Z',state:'OK'})).toBe(true);
+  });
+  it('conserva códigos estructurados y diagnóstico privado de un fallo Python real',async()=>{
+    const paths=fixture(),script=join(paths.root,'failing-python.mjs');
+    writeFileSync(script,"process.stderr.write('ModuleNotFoundError: No module named xgboost\\n');process.exit(37);");
+    let failure:unknown;
+    try{runFrozenPython('unused',{}, {root:paths.root,python:process.execPath,script});}catch(error){failure=error;}
+    expect(observerFailure(failure)).toMatchObject({code:'PYTHON_ERROR',exitCode:37,cause:'ModuleNotFoundError: No module named xgboost',retryable:false});
+    const python=join(process.cwd(),'.venv','phase28-py312','Scripts','python.exe');
+    if(existsSync(python)){
+      const failing=join(paths.root,'failing-python.py');writeFileSync(failing,"raise RuntimeError('controlled inference failure')\n");
+      let realPythonFailure:unknown;
+      try{runFrozenPython('unused',{}, {root:paths.root,python,script:failing});}catch(error){realPythonFailure=error;}
+      expect(observerFailure(realPythonFailure)).toMatchObject({code:'PYTHON_ERROR',exitCode:1,cause:'RuntimeError: controlled inference failure'});
+    }
+    const encoded=encodeObserverFailure(failure);expect(decodeObserverFailure(encoded)).toMatchObject({code:'PYTHON_ERROR',exitCode:37});
+    const wrapper=join(paths.root,'observer.mjs');writeFileSync(wrapper,`process.stderr.write(${JSON.stringify(encoded+'\n')});process.exit(1);`);
+    await expect(runObserverProcess({root:paths.root,script:wrapper})).rejects.toMatchObject({code:'PYTHON_ERROR',details:{exitCode:37}});
+    await expect(runObserverProcess({root:process.cwd(),env:{...process.env,
+      TRADING_POC_ALPACA_INGESTION_LOG:join(paths.root,'missing-ledger.jsonl'),
+      TRADING_POC_ALPACA_INGESTION_CALENDAR:join(paths.root,'missing-calendar.json'),
+      TRADING_POC_ML_RUN_DIR:paths.modelDir}})).rejects.toMatchObject({code:'LEDGER_INVALID'});
+    const result=await collectOnce({...paths,clock:()=>Date.parse('2026-10-21T14:06:00Z'),calendar:async()=>regular,
+      capture:async()=>capture(paths.ledger,'2026-10-21T13:30:00.000Z','2026-10-21T14:06:00.000Z'),observe:()=>{throw failure;}});
+    expect(result).toMatchObject({state:'PYTHON_ERROR',lastError:'PYTHON_ERROR',retryable:false});
+    const diagnostic=JSON.parse(readFileSync(`${paths.statusPath}.python.jsonl`,'utf8').trim());
+    expect(diagnostic).toMatchObject({exitCode:37,cause:'ModuleNotFoundError: No module named xgboost'});
+    expect(readFileSync(paths.statusPath,'utf8')).not.toContain('ModuleNotFoundError');
+    const {app}=await createApp({mode:'DEMO',privateDir:paths.root,dbPath:join(paths.root,'test.sqlite'),mlCollectorStatus:paths.statusPath});
+    try{expect((await app.inject('/api/v1/ml/collector')).json().lastError).toBe('PYTHON_ERROR');
+      expect((await app.inject('/api/v1/ml/collector')).body).not.toContain('ModuleNotFoundError');}finally{await app.close();}
+  });
+  it('limita los reintentos transitorios y nunca reintenta el horizonte cada minuto',async()=>{
+    const paths=fixture();let calls=0;
+    const retry=async(minute:number)=>collectOnce({...paths,clock:()=>Date.parse(`2026-10-21T14:${String(minute).padStart(2,'0')}:00Z`),calendar:async()=>regular,
+      capture:async()=>capture(paths.ledger,'2026-10-21T13:30:00.000Z','2026-10-21T14:06:00.000Z'),
+      observe:()=>{calls++;throw new ObserverFailure('PYTHON_ERROR','Python temporalmente ocupado.',{exitCode:null,cause:'EAGAIN',retryable:true});}});
+    expect(await retry(6)).toMatchObject({retryable:true,retryCount:1,nextQueryAtUtc:'2026-10-21T14:07:00.000Z'});
+    expect(await retry(7)).toMatchObject({retryable:true,retryCount:2,nextQueryAtUtc:'2026-10-21T14:09:00.000Z'});
+    expect(await retry(9)).toMatchObject({retryable:false,retryCount:3,nextQueryAtUtc:'2026-10-21T14:20:00.000Z'});
+    expect(calls).toBe(3);
+  });
   it('calcula instantes útiles con horario NY, fin de semana y cierre anticipado',()=>{
     expect(collectorSchedule(regular,Date.parse('2026-10-20T14:49:00Z'))).toMatchObject({latestDue:Date.parse('2026-10-20T14:35:00Z'),next:Date.parse('2026-10-20T14:50:00Z')});
     const early=new Map([['2026-11-27',{open:570,close:780}],['2026-11-30',{open:570,close:960}]]);

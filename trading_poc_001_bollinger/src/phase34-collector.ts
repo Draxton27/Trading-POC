@@ -7,14 +7,16 @@ import {CAPTURE_BAR_MS, DELAYED_CAPTURE_MS} from './alpaca.ts';
 import {readIngestion} from './phase32-ingestion.ts';
 import {readForwardObservations} from './phase34-forward-observation.ts';
 import {frozenModel} from './phase31-inference.ts';
+import {assertPhase31HorizonEligible} from './phase31-inference.ts';
+import {ObserverFailure,observerFailure} from './phase34-observer-errors.ts';
 import {newYorkBarParts} from './strategy-validation.ts';
 
 export type CollectorCode='RUNNING'|'MARKET_CLOSED'|'NO_NEW_BARS'|'RECORDED'|'DUPLICATE'|'INDICATORS_INSUFFICIENT'|'HORIZON_INELIGIBLE'|'OUTCOME_PASSED'|'MODEL_NOT_CONFIGURED'|'ALPACA_PERMISSION'|'ALPACA_NETWORK'|'ALPACA_RATE_LIMIT'|'LEDGER_INVALID'|'PYTHON_ERROR'|'ERROR'|'STOPPED';
-export type CollectorStatus={schema:'phase34-collector-v1';state:CollectorCode;updatedAtUtc:string;lastSuccessfulIngestionAtUtc:string|null;lastBarEndUtc:string|null;lastObservationAtUtc:string|null;nextQueryAtUtc:string|null;lastError:string|null;newObservations:number};
+export type CollectorStatus={schema:'phase34-collector-v1';state:CollectorCode;updatedAtUtc:string;lastSuccessfulIngestionAtUtc:string|null;lastBarEndUtc:string|null;lastObservationAtUtc:string|null;nextQueryAtUtc:string|null;lastError:string|null;newObservations:number;retryable?:boolean;retryCount?:number;retryBarEndUtc?:string|null};
 export type CaptureOutcome={barsAdded:number;calendar:MarketCalendar};
-export type CollectorDeps={ledger:string;observationLog:string;modelDir:string|undefined;statusPath:string;calendar:()=>Promise<MarketCalendar>;capture:(calendar:MarketCalendar)=>Promise<CaptureOutcome>;observe:()=>Promise<{alreadyPresent:boolean}>|{alreadyPresent:boolean};clock?:()=>number;stopped?:()=>boolean};
+export type CollectorDeps={ledger:string;observationLog:string;modelDir:string|undefined;statusPath:string;diagnosticPath?:string;calendar:()=>Promise<MarketCalendar>;capture:(calendar:MarketCalendar)=>Promise<CaptureOutcome>;observe:()=>Promise<{alreadyPresent:boolean}>|{alreadyPresent:boolean};clock?:()=>number;stopped?:()=>boolean};
 const iso=(time:number)=>new Date(time).toISOString();
-const initial=(now:number):CollectorStatus=>({schema:'phase34-collector-v1',state:'STOPPED',updatedAtUtc:iso(now),lastSuccessfulIngestionAtUtc:null,lastBarEndUtc:null,lastObservationAtUtc:null,nextQueryAtUtc:null,lastError:null,newObservations:0});
+const initial=(now:number):CollectorStatus=>({schema:'phase34-collector-v1',state:'STOPPED',updatedAtUtc:iso(now),lastSuccessfulIngestionAtUtc:null,lastBarEndUtc:null,lastObservationAtUtc:null,nextQueryAtUtc:null,lastError:null,newObservations:0,retryable:false,retryCount:0,retryBarEndUtc:null});
 export function readCollectorStatus(path:string):CollectorStatus|null{
   if(!existsSync(path))return null;
   const row=JSON.parse(readFileSync(path,'utf8')) as CollectorStatus;
@@ -40,7 +42,19 @@ export function collectorSchedule(calendar:MarketCalendar,now:number):{latestDue
   times.sort((a,b)=>a-b);
   return {latestDue:times.filter(time=>time<=now).at(-1)??null,next:times.find(time=>time>now)??null};
 }
+export function nextCollectorWake(status:CollectorStatus,now:number):number{
+  const scheduled=Date.parse(status.nextQueryAtUtc??'');
+  if(Number.isFinite(scheduled)&&scheduled>now)return scheduled;
+  return now+(status.retryable?5*60_000:60*60_000);
+}
+export function shouldEvaluateAfterIngestion(status:CollectorStatus,previous?:{updatedAtUtc?:string;state?:string}|null):boolean{
+  const evaluatedAt=Date.parse(previous?.updatedAtUtc??'');
+  const ingestedAt=Date.parse(status.lastSuccessfulIngestionAtUtc??'');
+  if(Number.isFinite(ingestedAt)&&(!Number.isFinite(evaluatedAt)||ingestedAt>evaluatedAt))return true;
+  return previous?.state==='ERROR'&&['RECORDED','DUPLICATE','NO_NEW_BARS','INDICATORS_INSUFFICIENT','HORIZON_INELIGIBLE','OUTCOME_PASSED','PYTHON_ERROR'].includes(status.state);
+}
 export function collectorError(error:unknown):CollectorCode{
+  if(error instanceof ObserverFailure)return error.code;
   if(error instanceof SyntaxError)return 'LEDGER_INVALID';
   const status=typeof error==='object'&&error!==null&&'status'in error?String(error.status):'';
   if(status==='PERMISSION_DENIED'||status==='RECENT_DATA_FORBIDDEN')return 'ALPACA_PERMISSION';
@@ -54,6 +68,13 @@ export function collectorError(error:unknown):CollectorCode{
   if(/ledger|registro de ingesta|calendario|hash|secuencial|alterado/i.test(message))return 'LEDGER_INVALID';
   if(/Inferencia XGBoost|Python/i.test(message))return 'PYTHON_ERROR';
   return 'ERROR';
+}
+/** Diagnostic details stay in a private file; the API receives only lastError codes. */
+function appendPythonDiagnostic(path:string,error:unknown,atUtc:string,barEndUtc:string|null){
+  const report=observerFailure(error);
+  if(report.code!=='PYTHON_ERROR')return;
+  mkdirSync(dirname(path),{recursive:true});
+  writeFileSync(path,JSON.stringify({schema:'phase34-python-diagnostic-v1',atUtc,barEndUtc,exitCode:report.exitCode,signal:report.signal,cause:report.cause})+'\n',{flag:'a'});
 }
 /** A process-level lock encloses calendar, capture, ledger inspection and inference. */
 export function acquireCollectorLock(path:string):()=>void{
@@ -69,13 +90,24 @@ export function acquireCollectorLock(path:string):()=>void{
 export async function collectOnce(deps:CollectorDeps):Promise<CollectorStatus>{
   const now=deps.clock??Date.now,at=now();let status:CollectorStatus;
   status=readCollectorStatus(deps.statusPath)??initial(at);
-  const update=(state:CollectorCode,fields:Partial<CollectorStatus>={})=>{status={...status,...fields,state,updatedAtUtc:iso(now())};publish(deps.statusPath,status);return status;};
+  const previous=status;let scheduledNext:string|null=null;
+  const update=(state:CollectorCode,fields:Partial<CollectorStatus>={})=>{status={...status,retryable:false,retryCount:0,retryBarEndUtc:null,...fields,state,updatedAtUtc:iso(now())};publish(deps.statusPath,status);return status;};
+  const fail=(error:unknown,base:Partial<CollectorStatus>={})=>{
+    const code=collectorError(error),barEndUtc=base.lastBarEndUtc??status.lastBarEndUtc;
+    if(code==='PYTHON_ERROR')appendPythonDiagnostic(deps.diagnosticPath??`${deps.statusPath}.python.jsonl`,error,iso(now()),barEndUtc??null);
+    const transient=code==='ALPACA_NETWORK'||code==='ALPACA_RATE_LIMIT'||(error instanceof ObserverFailure&&error.details.retryable===true);
+    const count=transient?(previous.retryBarEndUtc===barEndUtc&&previous.retryable?(previous.retryCount??0)+1:1):0;
+    const retryable=transient&&count<3;
+    const retryAt=retryable?iso(now()+Math.min(60_000*2**(count-1),240_000)):null;
+    return update(code,{...base,lastError:code,retryable,retryCount:count,retryBarEndUtc:barEndUtc??null,
+      nextQueryAtUtc:retryAt&&(!scheduledNext||retryAt<scheduledNext)?retryAt:scheduledNext});
+  };
   update('RUNNING');
   try{
     // The append-only observation ledger is authoritative after an interrupted status update.
     if(existsSync(deps.observationLog))status.newObservations=Math.max(status.newObservations,readForwardObservations(deps.observationLog).length);
     const calendar=await deps.calendar(),schedule=collectorSchedule(calendar,now());
-    const nextQueryAtUtc=schedule.next===null?null:iso(schedule.next);
+    const nextQueryAtUtc=schedule.next===null?null:iso(schedule.next);scheduledNext=nextQueryAtUtc;
     if(deps.stopped?.())return update('STOPPED',{nextQueryAtUtc});
     if(schedule.latestDue===null||now()-schedule.latestDue>=CAPTURE_BAR_MS){
       const local=newYorkBarParts(iso(now())),hours=calendar.get(local.day),[hour,minute]=local.slot.split(':').map(Number),nyMinute=hour!*60+minute!;
@@ -93,15 +125,16 @@ export async function collectOnce(deps:CollectorDeps):Promise<CollectorStatus>{
     // during the same eligible interval, while never promoting an older backfill.
     const dueBar=!!latest?.bar&&Date.parse(latest.bar.endUtc)+DELAYED_CAPTURE_MS===schedule.latestDue;
     if(!latest||(!alreadyQueried&&(capture?.barsAdded===0||latest.bar?.startUtc===latestBefore))||(alreadyQueried&&!dueBar))return update('NO_NEW_BARS',base);
-    if(!deps.modelDir)return update('MODEL_NOT_CONFIGURED',{...base,lastError:'TRADING_POC_ML_RUN_DIR no configurado.'});
+    if(!deps.modelDir)return update('MODEL_NOT_CONFIGURED',{...base,lastError:'MODEL_NOT_CONFIGURED'});
     const model=frozenModel(deps.modelDir);
     if(existsSync(deps.observationLog)&&readForwardObservations(deps.observationLog).some(row=>row.model.sha256===model.sha256&&row.bar.startUtc===latest.bar!.startUtc))return update('DUPLICATE',base);
     if(deps.stopped?.())return update('STOPPED',base);
+    try{assertPhase31HorizonEligible(latest.bar!.startUtc,calendar);}catch(error){return fail(error,base);}
     try{
       const observed=await deps.observe();
       if(observed.alreadyPresent)return update('DUPLICATE',base);
       const recorded=readForwardObservations(deps.observationLog).at(-1);
       return update('RECORDED',{...base,lastObservationAtUtc:recorded?.registeredAtUtc??iso(now()),newObservations:status.newObservations+1});
-    }catch(error){const code=collectorError(error);return update(code,{...base,lastError:code==='ERROR'?'Error de observación local.':code});}
-  }catch(error){const code=collectorError(error);return update(code,{lastError:code==='ERROR'?'Error de recolección local.':code});}
+    }catch(error){return fail(error,base);}
+  }catch(error){return fail(error);}
 }
