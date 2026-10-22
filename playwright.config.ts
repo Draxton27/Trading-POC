@@ -9,6 +9,8 @@ process.env.TRADING_POC_E2E_CONTROL_TOKEN=randomUUID();
 const serverEnv={...process.env,TRADING_POC_MODE:'DEMO',TRADING_POC_API_PORT:String(apiPort),TRADING_POC_WEB_PORT:String(webPort),
   TRADING_POC_E2E_CONTROL_PORT:String(apiPort+2),
   TRADING_POC_PRIVATE_DIR:privateDir,TRADING_POC_DB_PATH:resolve(privateDir,'trading-poc.sqlite'),
+  TRADING_POC_ALPACA_INGESTION_LOG:resolve(privateDir,'alpaca-ingestion','ledger.jsonl'),
+  TRADING_POC_IEX_LEDGER:resolve(privateDir,'iex','ledger.jsonl'),TRADING_POC_IEX_CALENDAR:resolve(privateDir,'iex','calendar.json'),
   TRADING_POC_PHASE16_LEDGER:resolve(privateDir,'phase16-ledger'),TRADING_POC_PHASE17_PRIVATE_DIR:resolve(privateDir,'phase17'),
   TRADING_POC_AGENT_SECRET:'',TRADING_POC_DISABLE_AGENT:'1',TRADING_POC_AGENT_PORT:String(apiPort+1),
   // An empty value is treated as unset by PowerShell, allowing .env.local to leak a private run into DEMO.

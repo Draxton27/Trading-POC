@@ -25,7 +25,9 @@ export function readIexFeedStatus(paths:{iexLog:string;calendar:string;sipLog:st
     return {status:quarter?(age!==null&&age<20*60_000?'READY':'STALE'):'NO_DATA',connection:active?latestStatus?.status??'CONNECTING':'DISCONNECTED',feed:'iex',adjustment:'raw',symbol:'NVDA',timeframe:'15m',lastBarStartUtc:quarter?.bar?.startUtc??null,lastBarEndUtc:quarter?.bar?.endUtc??null,receivedAtUtc:quarter?.receivedAtUtc??null,latencyMs:quarter?.latencyMs??null,revision:quarter?.revision??null,coverage,comparison,sip};
   }catch{return {...absent,status:'INVALID_DATA'};}
 }
-export function registerIexRoutes(app:FastifyInstance,privateDir:string,env:NodeJS.ProcessEnv=process.env){
-  const paths={iexLog:env.TRADING_POC_IEX_LEDGER??resolve(privateDir,'iex','ledger.jsonl'),calendar:env.TRADING_POC_IEX_CALENDAR??resolve(privateDir,'iex','calendar.json'),sipLog:env.TRADING_POC_ALPACA_INGESTION_LOG??resolve(privateDir,'alpaca-ingestion','ledger.jsonl')};
+export function registerIexRoutes(app:FastifyInstance,privateDir:string,repoRoot:string,env:NodeJS.ProcessEnv=process.env){
+  // Keep SIP's established CLI default, but honor an explicitly isolated private directory (for DEMO/E2E).
+  const sipBase=env.TRADING_POC_PRIVATE_DIR?privateDir:resolve(repoRoot,'private');
+  const paths={iexLog:env.TRADING_POC_IEX_LEDGER??resolve(privateDir,'iex','ledger.jsonl'),calendar:env.TRADING_POC_IEX_CALENDAR??resolve(privateDir,'iex','calendar.json'),sipLog:env.TRADING_POC_ALPACA_INGESTION_LOG??resolve(sipBase,'alpaca-ingestion','ledger.jsonl')};
   app.get('/api/v1/ml/feeds',(request,reply)=>{if(!query.safeParse(request.query).success)return reply.code(400).send({error:'Solo NVDA de 15 minutos.'});return readIexFeedStatus(paths);});
 }

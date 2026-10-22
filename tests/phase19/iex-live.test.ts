@@ -9,6 +9,8 @@ import {appendSuccessfulCapture,readIngestion} from '../../trading_poc_001_bolli
 import type {MarketCalendar} from '../../trading_poc_001_bollinger/src/alpaca-calendar.ts';
 import {saveMarketCalendar} from '../../trading_poc_001_bollinger/src/alpaca-calendar.ts';
 import {readIexFeedStatus} from '../../apps/api/src/ml/iex.ts';
+import {registerIexRoutes} from '../../apps/api/src/ml/iex.ts';
+import Fastify from 'fastify';
 import {acquireIexProcessLock,isIexProcessActive} from '../../trading_poc_001_bollinger/src/phase38-iex-lock.ts';
 
 const dirs:string[]=[];
@@ -116,6 +118,22 @@ describe('Alpaca IEX aislado',()=>{
     expect(status.status).toBe('NO_DATA');
     expect(JSON.stringify(status)).not.toContain(iex);
     expect(JSON.stringify(status)).not.toContain('probabilities');
+  });
+  it('API encuentra el ledger SIP del comando existente con rutas predeterminadas',async()=>{
+    const root=mkdtempSync(join(tmpdir(),'iex-route-'));dirs.push(root);
+    const sip=join(root,'private','alpaca-ingestion','ledger.jsonl');
+    appendSuccessfulCapture(sip,{candles:[{timestamp:'2026-10-21T13:30:00.000Z',open:100,high:101,low:99,close:100,volume:500}],queryAtUtc:'2026-10-21T14:10:00.000Z',receivedAtUtc:'2026-10-21T14:10:01.000Z',responseSha256:'x',availability:'DELAYED',barAgeMs:1500000});
+    const app=Fastify();registerIexRoutes(app,join(root,'appdata'),root,{});
+    try{
+      const response=await app.inject('/api/v1/ml/feeds?symbol=NVDA&timeframe=15m');
+      expect(response.statusCode).toBe(200);
+      expect(response.json().sip.lastBarStartUtc).toBe('2026-10-21T13:30:00.000Z');
+      expect((await app.inject('/api/v1/ml/feeds?symbol=QQQ')).statusCode).toBe(400);
+      expect((await app.inject({method:'POST',url:'/api/v1/ml/feeds'})).statusCode).toBe(404);
+    }finally{await app.close();}
+    const isolated=Fastify();registerIexRoutes(isolated,join(root,'demo-private'),root,{TRADING_POC_PRIVATE_DIR:join(root,'demo-private')});
+    try{expect((await isolated.inject('/api/v1/ml/feeds')).json().sip.lastBarStartUtc).toBeNull();}
+    finally{await isolated.close();}
   });
   it('rechaza un segundo proceso y libera el bloqueo al detenerse; recupera uno huérfano',()=>{
     const {iex}=paths(),release=acquireIexProcessLock(iex);
