@@ -34,6 +34,7 @@
     "ml:evaluate": "node scripts/ml-evaluate.mjs",
     "news:collect": "tsx apps/api/src/news/cli.ts collect",
     "news:analyze": "tsx apps/api/src/news/cli.ts analyze",
+    "ml:news-context": "tsx apps/api/src/ml/news-context-cli.ts",
     "alpaca:ingest": "tsx trading_poc_001_bollinger/src/phase32-cli.ts",
     "test:ml": "python -m unittest ml.phase28.test_train",
     "test:ml-inference": "python -m unittest ml.phase31.test_infer"
