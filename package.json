@@ -30,6 +30,7 @@
     "ml:infer": "node scripts/ml-infer.mjs",
     "ml:observe": "node scripts/ml-observe.mjs",
     "ml:collect": "node scripts/ml-collect.mjs",
+    "daily:run": "node --experimental-strip-types scripts/daily-orchestrator.ts",
     "ml:evaluate": "node scripts/ml-evaluate.mjs",
     "news:collect": "tsx apps/api/src/news/cli.ts collect",
     "news:analyze": "tsx apps/api/src/news/cli.ts analyze",

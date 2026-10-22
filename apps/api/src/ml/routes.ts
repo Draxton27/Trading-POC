@@ -5,6 +5,7 @@ import {readProspectiveInference} from './inference.ts';
 import {readAlpacaIngestionStatus} from './ingestion.ts';
 import {readForwardObservation} from './forward-observation.ts';
 import {readMlCollectorStatus} from './collector.ts';
+import {readDailyAutomation} from './daily.ts';
 import {evaluationStatus,evaluationMetrics,evaluationClasses,evaluationHistory} from './evaluation.ts';
 
 const query=z.object({symbol:z.literal('NVDA').default('NVDA'),timeframe:z.literal('15m').default('15m')}).strict();
@@ -20,6 +21,7 @@ export function registerMlRoutes(app:FastifyInstance,configuredDirectory:string|
   app.get('/api/v1/ml/forward-observation',(req,reply)=>{if(!query.safeParse(req.query).success)return reply.code(400).send({error:'Solo NVDA de 15 minutos.'});return readForwardObservation(forwardObservationLog,run.status==='READY'?run.modelSha256:undefined);});
   app.get('/api/v1/ml/ingestion',(req,reply)=>{if(!query.safeParse(req.query).success)return reply.code(400).send({error:'Solo NVDA de 15 minutos.'});return readAlpacaIngestionStatus(ingestionLog);});
   app.get('/api/v1/ml/collector',(req,reply)=>{if(!query.safeParse(req.query).success)return reply.code(400).send({error:'Solo NVDA de 15 minutos.'});return readMlCollectorStatus(collectorStatusPath);});
+  app.get('/api/v1/ml/daily-automation',()=>readDailyAutomation());
   app.get('/api/v1/ml/evaluation/status',(req,reply)=>{if(!query.safeParse(req.query).success)return reply.code(400).send({error:'Solo NVDA de 15 minutos.'});return evaluationStatus(evalPaths);});
   app.get('/api/v1/ml/evaluation/metrics',(req,reply)=>{if(!query.safeParse(req.query).success)return reply.code(400).send({error:'Solo NVDA de 15 minutos.'});return evaluationMetrics(evalPaths);});
   app.get('/api/v1/ml/evaluation/classes',(req,reply)=>{if(!query.safeParse(req.query).success)return reply.code(400).send({error:'Solo NVDA de 15 minutos.'});return evaluationClasses(evalPaths);});

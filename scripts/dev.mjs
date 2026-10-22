@@ -31,7 +31,7 @@ export async function assertPortsFree(env=process.env){
   }
 }
 
-export function startDev({names=scripts,env=process.env,spawnProcess=spawn,platform=process.platform}={}){
+export function startDev({names=scripts,env=process.env,spawnProcess=spawn,platform=process.platform,directApi=false}={}){
   const cli=npmCli(env);
   const children=[];
   let stopping=false,exitCode=0,remaining=0,pendingTerminators=0,finished=false;
@@ -91,7 +91,10 @@ export function startDev({names=scripts,env=process.env,spawnProcess=spawn,platf
       // fails while that shell is starting, taskkill can miss the new Vite process.
       // Make the process that owns the listening socket a direct child instead.
       const directWeb=platform==='win32'&&name==='dev:web';
-      child=spawnProcess(process.execPath,directWeb
+      const directApiProcess=directApi&&name==='dev:api';
+      child=spawnProcess(process.execPath,directApiProcess
+        ?['--import','tsx',resolve(root,'apps/api/src/server.ts')]
+        :directWeb
         ?[resolve(root,'node_modules/vite/bin/vite.js'),'--host','127.0.0.1']
         :[cli,'run',name],
         {cwd:directWeb?resolve(root,'apps/web'):root,stdio:'inherit',env:{...env},shell:false,windowsHide:true,
