@@ -37,6 +37,8 @@ La [observación XGBoost retrasada](docs/phase34-delayed-forward-inference.md) l
 
 La [evaluación de observaciones adelantadas](docs/phase35-forward-evaluation.md) usa `npm.cmd run ml:evaluate -- --once` una vez recibidas las cuatro velas SIP posteriores. `ml:collect` la ejecuta tras la ingesta sin detener la captura si el evaluador falla. El panel muestra estados y métricas solo cuando existen observaciones auténticas; no convierte aciertos de clase en ganancias.
 
+La [Fase 36](docs/phase36-verifiable-news.md) recopila titulares y resúmenes RSS oficiales con `npm.cmd run news:collect -- --once` y los clasifica localmente con `npm.cmd run news:analyze -- --once`. La nueva vista **Noticias** muestra la fecha declarada, la primera recepción local y el análisis de Ollama por separado. Los registros privados permanecen fuera de Git y no alimentan XGBoost ni generan señales.
+
 El [recolector coordinado de Fase 34.1](docs/phase34-1-automated-collection.md) permite `npm.cmd run ml:collect -- --once` o `npm.cmd run ml:collect -- --continuous`. Consulta el calendario oficial, ingiere velas SIP retrasadas y ejecuta el observador únicamente para una vela nueva y elegible. Su estado privado se muestra en Predicciones.
 
 Para Paper con dos computadoras, lea [la guía Windows](shared-artifacts/phase19-ibkr-ui/phase19-windows-setup.md) y [el modelo de red](shared-artifacts/phase19-ibkr-ui/phase19-network-security.md). La API HTTP escucha solo en `127.0.0.1`. El agente se ejecuta junto a TWS en A y sale hacia un puerto privado de B. Necesita un secreto de aplicación propio y una cuenta Paper esperada para comprobar la sesión. La conexión auténtica con TWS y la prueba física entre equipos **no se han verificado en Codex**.
