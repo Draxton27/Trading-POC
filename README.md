@@ -74,3 +74,7 @@ Se admiten hojas XLSX ordinarias, CSV y HTML de una hoja exportada. La base loca
 - `docs/phase26-assistant-analysis.md`: fórmulas, interpretación conversacional, sincronización temporal y revisión de proyectos externos.
 
 La documentación detalla los límites pendientes. Ningún resultado de investigación histórico se convierte aquí en recomendación de trading.
+
+## IEX Live experimental (Fase 38A)
+
+El canal IEX se prueba con `npm.cmd run iex:probe -- --once` y se inicia por separado con `npm.cmd run iex:collect -- --continuous`. Su ledger es privado y no alimenta el XGBoost SIP congelado ni la tarea diaria. Consulte [la guía IEX](docs/phase38a-iex-live.md) para procedencia, límites y comparación con SIP.
