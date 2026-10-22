@@ -3,7 +3,7 @@ import {fileURLToPath} from 'node:url';
 import {config as loadDotenv} from 'dotenv';
 import {newsPaths,resolvePrivateDir} from '../news/paths.ts';
 import {loadMlRun} from './reader.ts';
-import {buildNewsContext} from './news-context.ts';
+import {buildNewsContext,parseNewsWindows} from './news-context.ts';
 
 const repoRoot=fileURLToPath(new URL('../../../../',import.meta.url));
 loadDotenv({path:resolve(repoRoot,'.env.local'),override:false,quiet:true});
@@ -15,7 +15,7 @@ if(process.argv.slice(2).join(' ')!=='--once'){
   if(run.status!=='READY'){process.stderr.write('Configure un modelo congelado válido en TRADING_POC_ML_RUN_DIR.\n');process.exitCode=1;}
   else try{
     const news=newsPaths({repoRoot,privateDir,env:process.env});
-    const result=buildNewsContext({observationLog:process.env.TRADING_POC_ML_FORWARD_OBSERVATION_LOG??resolve(repoRoot,'private','ml-forward-observation','records.jsonl'),evaluationLog:process.env.TRADING_POC_ML_EVALUATION_LOG??resolve(repoRoot,'private','ml-evaluation','records.jsonl'),newsLog:news.newsLog,analysisLog:news.analysisLog,outputDir:process.env.TRADING_POC_ML_NEWS_CONTEXT_DIR??resolve(privateDir,'ml-news-context'),modelSha256:run.modelSha256});
-    process.stdout.write(JSON.stringify({observations:result.summary.observations,evaluated:result.summary.evaluated,withNews:result.summary.withNews,sessions:result.summary.sessions,csvSha256:result.manifest.csvSha256})+'\n');
+    const result=buildNewsContext({observationLog:process.env.TRADING_POC_ML_FORWARD_OBSERVATION_LOG??resolve(repoRoot,'private','ml-forward-observation','records.jsonl'),evaluationLog:process.env.TRADING_POC_ML_EVALUATION_LOG??resolve(repoRoot,'private','ml-evaluation','records.jsonl'),newsLog:news.newsLog,analysisLog:news.analysisLog,newsStatusPath:news.statusPath,outputDir:process.env.TRADING_POC_ML_NEWS_CONTEXT_DIR??resolve(privateDir,'ml-news-context'),modelSha256:run.modelSha256,windowsMinutes:parseNewsWindows(process.env.TRADING_POC_ML_NEWS_WINDOWS_MINUTES)});
+    process.stdout.write(JSON.stringify({observations:result.summary.observations,evaluated:result.summary.evaluated,withNews:result.summary.withNews,sessions:result.summary.sessions,evidenceState:result.summary.evidenceState,windowsMinutes:result.summary.windowsMinutes,csvSha256:result.manifest.csvSha256})+'\n');
   }catch(error){process.stderr.write((error instanceof Error?error.message:'NEWS_CONTEXT_ERROR')+'\n');process.exitCode=1;}
 }
