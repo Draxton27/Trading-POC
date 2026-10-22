@@ -49,7 +49,6 @@ export function missingSessionWindows(calendar:Map<string,{open:number;close:num
     const count=(hours.close-hours.open)/15,last=collectorSchedule(new Map([[date,hours]]),Number.MAX_SAFE_INTEGER).latestDue;
     if(last===null||last>now||date<nyDate(first))continue;
     const start=last-(count-1)*900_000-35*60_000,end=last-35*60_000;
-    if(start<Date.parse(first))continue;
     if(Array.from({length:count},(_,i)=>new Date(start+i*900_000).toISOString()).some(at=>!seen.has(at)))output.push({date,start:new Date(start).toISOString(),end:new Date(end).toISOString()});
   }
   if(output.length>30)throw new Error('ML_CATCHUP_RANGE_EXCEEDED');

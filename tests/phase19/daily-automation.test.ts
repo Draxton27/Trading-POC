@@ -56,4 +56,19 @@ describe('orquestación diaria',()=>{
     const calendar=new Map([['2026-10-15',{open:570,close:585}],['2026-10-16',{open:570,close:600}],['2026-10-19',{open:570,close:600}],['2026-10-20',{open:570,close:600}]]);
     expect(missingSessionWindows(calendar,ledger,Date.parse('2026-10-20T21:00:00Z')).map(row=>row.date)).toEqual(['2026-10-16','2026-10-19','2026-10-20']);
   });
+  it('recupera velas previas a la primera observación y omite sesiones posteriores completas',()=>{
+    const ledger=join(temporary(),'partial.jsonl');
+    appendSuccessfulCapture(ledger,{candles:[
+      {timestamp:'2026-10-15T13:45:00.000Z',open:1,high:2,low:1,close:2,volume:10},
+      {timestamp:'2026-10-16T13:30:00.000Z',open:1,high:2,low:1,close:2,volume:10}],queryAtUtc:'2026-10-16T14:05:00.000Z',receivedAtUtc:'2026-10-16T14:05:00.000Z',responseSha256:'b'.repeat(64),availability:'DELAYED',barAgeMs:20*60_000});
+    const calendar=new Map([['2026-10-15',{open:570,close:600}],['2026-10-16',{open:570,close:585}]]);
+    expect(missingSessionWindows(calendar,ledger,Date.parse('2026-10-17T21:00:00Z')).map(row=>row.date)).toEqual(['2026-10-15']);
+    expect(missingSessionWindows(calendar,ledger,Date.parse('2026-10-17T21:00:00Z'))[0]?.start).toBe('2026-10-15T13:30:00.000Z');
+  });
+  it('rechaza más de 30 sesiones incompletas en una ejecución',()=>{
+    const ledger=join(temporary(),'long-gap.jsonl');
+    appendSuccessfulCapture(ledger,{candles:[{timestamp:'2026-01-02T14:30:00.000Z',open:1,high:2,low:1,close:2,volume:10}],queryAtUtc:'2026-01-02T15:05:00.000Z',receivedAtUtc:'2026-01-02T15:05:00.000Z',responseSha256:'c'.repeat(64),availability:'DELAYED',barAgeMs:20*60_000});
+    const calendar=new Map(Array.from({length:70},(_,i)=>{const date=new Date(Date.parse('2026-01-02T12:00:00Z')+i*86_400_000).toISOString().slice(0,10);return [date,{open:570,close:585}] as const;}).filter(([date])=>{const day=new Date(`${date}T12:00:00Z`).getUTCDay();return day!==0&&day!==6;}));
+    expect(()=>missingSessionWindows(calendar,ledger,Date.parse('2026-04-01T20:00:00Z'))).toThrow(/ML_CATCHUP_RANGE_EXCEEDED/);
+  });
 });
