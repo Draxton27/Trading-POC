@@ -22,7 +22,7 @@ La comparación opcional con SIP se limita a cobertura de los mismos intervalos 
 
 ## Ejecución local del 23-10-2026
 
-Con el rango privado `[2025-10-23, 2026-10-22)` se obtuvieron 97.129 minutos observados. El calendario devolvió 251 sesiones completas dentro del período y una fecha de sesión fuera del período (22 de octubre de 2026), que se excluyó. Por tanto, hubo 97.140 minutos esperados y 11 sin barra en ocho sesiones; se incluyeron dos cierres anticipados. Se construyeron 6.465 velas estrictas de 15 minutos, de las cuales 6.280 tienen las variables de Fase 23 disponibles. El estado de viabilidad es `RESEARCH_POSSIBLE`, condicionado a revisar distribución de clases y estabilidad temporal antes de entrenar.
+Con el rango privado `[2025-10-23, 2026-10-22)` se obtuvieron 97.129 minutos observados. El calendario devolvió 250 sesiones completas dentro del período y una fecha de sesión fuera del período (22 de octubre de 2026), que se excluyó. Por tanto, hubo 97.140 minutos esperados y 11 sin barra en ocho sesiones; se incluyeron dos cierres anticipados. Se construyeron 6.465 velas estrictas de 15 minutos, de las cuales 6.280 tienen las variables de Fase 23 disponibles. El estado de viabilidad es `RESEARCH_POSSIBLE`, condicionado a revisar distribución de clases y estabilidad temporal antes de entrenar.
 
 El reporte anterior había contado por error la sesión del 22 de octubre completa aunque el final del rango era exclusivo. Eso sumaba 390 minutos esperados y ausentes que estaban fuera de la ventana. El filtrado por horas reales de sesión reduce los esperados de 97.530 a 97.140 y las ausencias de 401 a 11; los minutos observados, las velas estrictas y la elegibilidad de variables no cambian.
 
