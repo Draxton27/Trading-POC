@@ -5,7 +5,7 @@ import {isCalendarBar, type MarketCalendar} from './alpaca-calendar.ts';
 import {newYorkBarParts} from './strategy-validation.ts';
 
 export const IEX_STREAM_URL = 'wss://stream.data.alpaca.markets/v2/iex';
-const MINUTE = 60_000, QUARTER = 15 * MINUTE, MAX_LATENCY = 15 * MINUTE;
+const MINUTE = 60_000, QUARTER = 15 * MINUTE, MAX_LATENCY = 15 * MINUTE, MAX_CORRECTION_AGE = 7 * 24 * 60 * MINUTE;
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
 export type IexBar = {startUtc:string; endUtc:string; open:number; high:number; low:number; close:number; volume:number; tradeCount:number};
 export type IexRecord = {
@@ -52,7 +52,7 @@ export function parseIexMinute(value:unknown,receivedAtUtc:string,calendar:Marke
   if(!Number.isFinite(start)||!Number.isFinite(received)||start%MINUTE!==0)throw new Error('Timestamp IEX inválido.');
   if(!isCalendarBar(start,calendar))return null;
   const latency=received-start-MINUTE;
-  if(latency<0||latency>MAX_LATENCY)throw new Error('Latencia IEX inválida o excesiva.');
+  if(latency<0||latency>(row.T==='u'?MAX_CORRECTION_AGE:MAX_LATENCY))throw new Error('Latencia IEX inválida o excesiva.');
   const [o,h,l,c,v,n]=[row.o,row.h,row.l,row.c,row.v,row.n];
   if([o,h,l,c,v,n].some(x=>typeof x!=='number'||!Number.isFinite(x))||
     (o as number)<=0||(l as number)<=0||(h as number)<Math.max(o as number,c as number,l as number)||
@@ -86,10 +86,15 @@ export function appendIexMinute(path:string,message:ReturnType<typeof parseIexMi
     return {minuteAdded:true,quarterAdded:inputs.length===2};
   });
 }
-export function iexCoverage(records:readonly IexRecord[],calendar:MarketCalendar){
+export function iexCoverage(records:readonly IexRecord[],calendar:MarketCalendar,asOf=Date.now(),collectorActive=false){
   const minutes=new Set(records.filter(r=>r.kind==='minute'&&r.bar).map(r=>r.bar!.startUtc));
   const quarters=new Set(records.filter(r=>r.kind==='quarter'&&r.bar).map(r=>r.bar!.startUtc));
-  const days=new Set([...minutes].map(at=>newYorkBarParts(at).day));
-  let expected=0;for(const day of days){const session=calendar.get(day);if(session)expected+=session.close-session.open;}
-  return {minuteBars:minutes.size,quarterBars:quarters.size,expectedMinutes:expected,coverage:expected?minutes.size/expected:null};
+  const statuses=records.filter(r=>r.kind==='status').sort((a,b)=>Date.parse(a.receivedAtUtc)-Date.parse(b.receivedAtUtc));
+  const lastDurable=records.reduce((latest,row)=>Math.max(latest,Date.parse(row.receivedAtUtc)),0),windows:{start:number;end:number}[]=[];let opened:number|null=null;
+  for(const row of statuses){const at=Date.parse(row.receivedAtUtc);if(row.status==='SUBSCRIBED')opened=at;else if(row.status==='DISCONNECTED'&&opened!==null){if(at>opened)windows.push({start:opened,end:at});opened=null;}}
+  if(opened!==null){const end=collectorActive?asOf:lastDurable;if(end>opened)windows.push({start:opened,end});}
+  let expected=0,observed=0;
+  for(const [day] of calendar){const dayStart=Date.parse(`${day}T00:00:00Z`);for(let at=dayStart;at<dayStart+86_400_000;at+=MINUTE){if(newYorkBarParts(new Date(at).toISOString()).day!==day||!isCalendarBar(at,calendar))continue;if(windows.some(w=>at>=w.start&&at+MINUTE<=w.end)){expected++;if(minutes.has(new Date(at).toISOString()))observed++;}}}
+  const quarterCount=quarters.size;
+  return {minuteBars:minutes.size,quarterBars:quarterCount,expectedMinutes:expected,coverage:expected?observed/expected:null};
 }

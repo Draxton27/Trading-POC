@@ -2,7 +2,7 @@ import {afterEach,describe,expect,it,vi} from 'vitest';
 import {mkdtempSync,readFileSync,rmSync,writeFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
-import {appendIexMinute,iexCoverage,parseIexMinute,readIexLedger} from '../../trading_poc_001_bollinger/src/phase38-iex.ts';
+import {appendIexMinute,appendIexStatus,iexCoverage,parseIexMinute,readIexLedger} from '../../trading_poc_001_bollinger/src/phase38-iex.ts';
 import {connectIex,collectIex,type SocketLike} from '../../trading_poc_001_bollinger/src/phase38-iex-stream.ts';
 import {compareIexSip} from '../../trading_poc_001_bollinger/src/phase38-iex-compare.ts';
 import {appendSuccessfulCapture,readIngestion} from '../../trading_poc_001_bollinger/src/phase32-ingestion.ts';
@@ -16,7 +16,7 @@ import {acquireIexProcessLock,isIexProcessActive} from '../../trading_poc_001_bo
 const dirs:string[]=[];
 afterEach(()=>{for(const dir of dirs.splice(0))rmSync(dir,{recursive:true,force:true});});
 const paths=()=>{const dir=mkdtempSync(join(tmpdir(),'iex-test-'));dirs.push(dir);return {iex:join(dir,'iex','ledger.jsonl'),sip:join(dir,'sip.jsonl')};};
-const calendar:MarketCalendar=new Map([['2026-10-21',{open:570,close:960}],['2026-11-27',{open:570,close:780}],['2026-03-06',{open:570,close:960}],['2026-03-09',{open:570,close:960}]]);
+const calendar:MarketCalendar=new Map([['2026-10-20',{open:570,close:960}],['2026-10-21',{open:570,close:960}],['2026-11-27',{open:570,close:780}],['2026-03-06',{open:570,close:960}],['2026-03-09',{open:570,close:960}]]);
 const raw=(at:string,close=101,T:'b'|'u'='b')=>({T,S:'NVDA',t:at,o:100,h:102,l:99,c:close,v:10,n:2});
 
 class MockSocket implements SocketLike{
@@ -107,8 +107,43 @@ describe('Alpaca IEX aislado',()=>{
     }
     appendSuccessfulCapture(sip,{candles:[{timestamp:new Date(start).toISOString(),open:100,high:102,low:99,close:101,volume:500}],queryAtUtc:'2026-10-21T14:10:00.000Z',receivedAtUtc:'2026-10-21T14:10:01.000Z',responseSha256:'x',availability:'DELAYED',barAgeMs:1500000});
     const result=compareIexSip(readIexLedger(iex),readIngestion(sip),calendar);
-    expect(result).toMatchObject({matched:1,missingIex:25,missingSip:25,priceBasis:'IEX_RAW_VS_SIP_SPLIT_ADJUSTED',iexBars:1,sipBars:1});
+    expect(result).toMatchObject({matched:1,missingIex:null,missingSip:null,priceBasis:'IEX_RAW_VS_SIP_SPLIT_ADJUSTED',iexBars:1,sipBars:1,iexCoverage:null,monitoredPeriodCoverageIex:null});
     expect(result.meanTimeGainedMs).toBeGreaterThan(0);
+  });
+  it('does not count IEX absences before a late observation start',()=>{
+    const {iex,sip}=paths();
+    appendSuccessfulCapture(sip,{candles:[{timestamp:'2026-10-20T13:30:00.000Z',open:100,high:102,low:99,close:101,volume:500},{timestamp:'2026-10-21T13:30:00.000Z',open:100,high:102,low:99,close:101,volume:500}],queryAtUtc:'2026-10-22T00:00:00.000Z',receivedAtUtc:'2026-10-22T00:00:01.000Z',responseSha256:'x',availability:'DELAYED',barAgeMs:1_000});
+    appendIexStatus(iex,'OBSERVATION_STARTED','2026-10-21T13:44:00.000Z');appendIexStatus(iex,'SUBSCRIBED','2026-10-21T13:45:00.000Z');appendIexStatus(iex,'DISCONNECTED','2026-10-21T14:00:00.000Z');appendIexStatus(iex,'OBSERVATION_ENDED','2026-10-21T14:01:00.000Z');
+    const result=compareIexSip(readIexLedger(iex),readIngestion(sip),calendar,Date.parse('2026-10-22T00:00:00.000Z'));
+    expect(result).toMatchObject({fullSessionsObserved:0,partiallyMonitoredSessions:1,unmonitoredSessions:1,monitoredPeriodExpectedIntervals:1,monitoredPeriodCoverageIex:0,missingIex:1,missingSip:1,missingSessionsIex:0,observationStartedAtUtc:'2026-10-21T13:44:00.000Z',observationEndedAtUtc:'2026-10-21T14:01:00.000Z'});
+  });
+  it('uses first receipts for initial latency and reports later revisions separately',()=>{
+    const {iex,sip}=paths(),start=Date.parse('2026-10-21T13:30:00.000Z');
+    for(let index=0;index<15;index++){const received=new Date(start+(index+1)*60_000+5_000).toISOString();appendIexMinute(iex,parseIexMinute(raw(new Date(start+index*60_000).toISOString()),received,calendar),received,calendar);}
+    appendIexMinute(iex,parseIexMinute(raw(new Date(start+14*60_000).toISOString(),99,'u'),'2026-10-21T14:10:00.000Z',calendar),'2026-10-21T14:10:00.000Z',calendar);
+    const original={timestamp:new Date(start).toISOString(),open:100,high:102,low:99,close:101,volume:500};
+    appendSuccessfulCapture(sip,{candles:[original],queryAtUtc:'2026-10-21T14:10:00.000Z',receivedAtUtc:'2026-10-21T14:10:10.000Z',responseSha256:'a',availability:'DELAYED',barAgeMs:10});
+    appendSuccessfulCapture(sip,{candles:[{...original,close:99}],queryAtUtc:'2026-10-21T14:20:00.000Z',receivedAtUtc:'2026-10-21T14:20:10.000Z',responseSha256:'b',availability:'DELAYED',barAgeMs:10});
+    appendIexStatus(iex,'SUBSCRIBED','2026-10-21T13:30:00.000Z');appendIexStatus(iex,'DISCONNECTED','2026-10-21T14:21:00.000Z');
+    const result=compareIexSip(readIexLedger(iex),readIngestion(sip),calendar);
+    expect(result.iexRevisions).toBe(1);expect(result.sipRevisions).toBe(1);
+    expect(result.meanIexLatencyMs).toBe(5_000);expect(result.meanSipLatencyMs).toBe(25*60_000+10_000);
+    expect(result.meanIexCorrectionLatencyMs).toBe(25*60_000);expect(result.meanSipCorrectionLatencyMs).toBe(35*60_000+10_000);
+    expect(result.meanTimeGainedMs).toBe(25*60_000+5_000);
+  });
+  it('marks a silent connection during market hours without disconnecting and ignores quiet after close',async()=>{
+    vi.useFakeTimers();
+    try{
+      const time={now:Date.parse('2026-10-21T14:00:00Z')},socket=new MockSocket(),controller=new AbortController(),states:string[]=[];
+      const active=connectIex({apiKey:'x',secretKey:'y',calendar,clock:()=>time.now,silenceThresholdMs:180_000,socketFactory:()=>socket,signal:controller.signal,onState:value=>states.push(value)});
+      socket.emit('open',{});socket.message([{T:'success',msg:'connected'}]);socket.message([{T:'success',msg:'authenticated'}]);socket.message([{T:'subscription',bars:['NVDA'],updatedBars:['NVDA'],trades:[],quotes:[]}]);
+      for(let index=0;index<7;index++){await vi.advanceTimersByTimeAsync(30_000);time.now+=30_000;}
+      expect(states).toContain('QUIET_ACTIVE_SESSION');expect(states).not.toContain('DISCONNECTED');controller.abort();await active;
+      const closedSocket=new MockSocket(),closedController=new AbortController(),closedStates:string[]=[];time.now=Date.parse('2026-10-21T21:00:00Z');
+      const closed=connectIex({apiKey:'x',secretKey:'y',calendar,clock:()=>time.now,silenceThresholdMs:180_000,socketFactory:()=>closedSocket,signal:closedController.signal,onState:value=>closedStates.push(value)});
+      closedSocket.emit('open',{});closedSocket.message([{T:'success',msg:'connected'}]);closedSocket.message([{T:'success',msg:'authenticated'}]);closedSocket.message([{T:'subscription',bars:['NVDA'],updatedBars:['NVDA'],trades:[],quotes:[]}]);
+      time.now+=600_000;await vi.advanceTimersByTimeAsync(600_000);expect(closedStates).not.toContain('QUIET_ACTIVE_SESSION');closedController.abort();await closed;
+    }finally{vi.useRealTimers();}
   });
   it('API de solo lectura proyecta estado privado sin revelar rutas ni datos de modelo',()=>{
     const {iex,sip}=paths(),cal=`${iex}.calendar.json`;

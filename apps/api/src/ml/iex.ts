@@ -19,8 +19,8 @@ export function readIexFeedStatus(paths:{iexLog:string;calendar:string;sipLog:st
     const quarter=rows.filter(r=>r.kind==='quarter'&&r.bar).sort((a,b)=>Date.parse(a.bar!.endUtc)-Date.parse(b.bar!.endUtc)||a.revision!-b.revision!).at(-1);
     const latestStatus=rows.filter(r=>r.kind==='status').at(-1);
     const active=isIexProcessActive(paths.iexLog);
-    const coverage=iexCoverage(rows,calendar);
-    const comparison=existsSync(paths.sipLog)?compareIexSip(rows,readIngestion(paths.sipLog),calendar):null;
+    const coverage=iexCoverage(rows,calendar,clock(),active);
+    const comparison=existsSync(paths.sipLog)?compareIexSip(rows,readIngestion(paths.sipLog),calendar,clock(),active):null;
     const age=quarter?clock()-Date.parse(quarter.bar!.endUtc):null;
     return {status:quarter?(age!==null&&age<20*60_000?'READY':'STALE'):'NO_DATA',connection:active?latestStatus?.status??'CONNECTING':'DISCONNECTED',feed:'iex',adjustment:'raw',symbol:'NVDA',timeframe:'15m',lastBarStartUtc:quarter?.bar?.startUtc??null,lastBarEndUtc:quarter?.bar?.endUtc??null,receivedAtUtc:quarter?.receivedAtUtc??null,latencyMs:quarter?.latencyMs??null,revision:quarter?.revision??null,coverage,comparison,sip};
   }catch{return {...absent,status:'INVALID_DATA'};}

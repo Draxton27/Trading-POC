@@ -28,6 +28,7 @@ try{
   const prior=!probe&&readable(calendarPath)?loadMarketCalendar(calendarPath):new Map();
   const calendar=mergeMarketCalendars(prior,fresh);
   if(!probe)saveMarketCalendar(calendarPath,calendar);
+  if(!probe)appendIexStatus(ledger,'OBSERVATION_STARTED');
   let updating=false;
   const refresh=async()=>{
     if(updating||controller.signal.aborted)return;updating=true;
@@ -41,5 +42,5 @@ try{
     else if(probe&&state==='SUBSCRIBED')process.stdout.write('IEX NVDA: autenticación y suscripción bars/updatedBars correctas.\n');
   }});}finally{if(timer)clearInterval(timer);}
 }catch(error){process.stderr.write(`IEX: ${error instanceof Error?error.message:'Error controlado'}\n`);process.exitCode=1;}
-finally{release();}
+finally{if(!probe)appendIexStatus(ledger,'OBSERVATION_ENDED');release();}
 function readable(path:string){try{readFileSync(path,'utf8');return true;}catch{return false;}}
