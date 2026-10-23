@@ -90,3 +90,7 @@ El canal IEX se prueba con `npm.cmd run iex:probe -- --once` y se inicia por sep
 ## Histórico IEX y auditoría (Fase 38D)
 
 `npm.cmd run iex:history` descarga NVDA IEX `1Min` con ajuste `raw` a un directorio privado, permite reanudar ventanas y audita cobertura por sesión. La [guía de Fase 38D](docs/phase38d-iex-history.md) explica el comando Windows, las velas estrictas de 15 minutos y la comparación de cobertura con SIP.
+
+## Experimento Walk-Forward IEX (Fase 38E)
+
+`npm.cmd run ml:iex:prepare` construye observaciones históricas causales desde un histórico IEX verificado de Fase 38D. `npm.cmd run ml:iex:evaluate` entrena modelos experimentales separados por fold. Comandos, resultados locales y límites metodológicos: [guía de Fase 38E](docs/phase38e-iex-walk-forward.md).
