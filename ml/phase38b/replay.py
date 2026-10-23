@@ -73,7 +73,7 @@ def run(directory,minimum_train_sessions=252,test_sessions=252):
         counts=arrays(train)[1]
         majority=probabilities_majority(counts,1)[0].tolist()
         frequency=probabilities_frequency(counts,1)[0].tolist()
-        variants={}
+        variants={};fold_records=[]
         for scenario in ('ideal','delayed'):
             released=[]
             for index,row in enumerate(test):
@@ -84,9 +84,15 @@ def run(directory,minimum_train_sessions=252,test_sessions=252):
                 probabilities={'xgboost':model.predict_proba(x)[0].tolist(),'majority':majority,'frequency':frequency}
                 if any(len(value)!=3 or any(not np.isfinite(p) or p<0 or p>1 for p in value) or abs(sum(value)-1)>1e-6 for value in probabilities.values()): raise ValueError('Probabilidades inválidas en replay.')
                 released.append(probabilities)
-                # Outcomes are attached for later scoring; they never enter inference.
-                records.append({'mode':'HISTORICAL_REPLAY','scenario':scenario,'fold':number,'model_sha256':model_sha,'bar_start_utc':row['bar_start_utc'],'session_date_ny':row['session_date_ny'],'inference_at_utc':row[f'{scenario}_available_at_utc'],'features':features,'feature_sha256':row['feature_sha256'],'historical_received_at_utc':None,'next_entry_at_utc':row['next_entry_at_utc'],'before_next_entry':iso(row[f'{scenario}_available_at_utc'])<=iso(row['next_entry_at_utc']),'label':row['label'],'label_available_at_utc':row['label_available_at_utc'],'exclusion':row['exclusion'],**{f'prob_{name}':value for name,value in probabilities.items()}})
+                # The prediction event contains no future target or exclusion.
+                fold_records.append({'mode':'HISTORICAL_REPLAY','scenario':scenario,'fold':number,'model_sha256':model_sha,'bar_start_utc':row['bar_start_utc'],'session_date_ny':row['session_date_ny'],'inference_at_utc':row[f'{scenario}_available_at_utc'],'features':features,'feature_sha256':row['feature_sha256'],'historical_received_at_utc':None,'next_entry_at_utc':row['next_entry_at_utc'],'before_next_entry':iso(row[f'{scenario}_available_at_utc'])<=iso(row['next_entry_at_utc']),**{f'prob_{name}':value for name,value in probabilities.items()}})
             variants[scenario]={name:np.array([item[name] for item in released]) for name in ('xgboost','majority','frequency')}
+        # Join outcomes only after all inference events in this fold have been emitted.
+        outcomes={row['bar_start_utc']:row for row in test}
+        for record in fold_records:
+            outcome=outcomes[record['bar_start_utc']]
+            record.update(label=outcome['label'],label_available_at_utc=outcome['label_available_at_utc'],exclusion=outcome['exclusion'])
+        records.extend(fold_records)
         variant=variants['ideal']
         resolved=[i for i,row in enumerate(test) if row['label'] is not None]
         if not resolved: continue
