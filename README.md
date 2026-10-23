@@ -82,3 +82,7 @@ El canal IEX se prueba con `npm.cmd run iex:probe -- --once` y se inicia por sep
 ## Replay histórico XGBoost (Fase 38B)
 
 `npm.cmd run ml:replay:prepare` prepara observaciones causales con el histórico privado NVDA SIP y `npm.cmd run ml:replay:evaluate` entrena modelos experimentales por fold. Los dos relojes comparados son el cierre ideal y un retraso SIP **simulado** de 20 minutos; no se atribuyen horas de recepción reales. Las instrucciones completas y las limitaciones están en [la guía del replay](docs/phase38b-historical-replay.md).
+
+## Replay con objetivos posteriores a la decisión (Fase 38C)
+
+`npm.cmd run ml:replay:post:prepare` y `npm.cmd run ml:replay:post:evaluate` crean etiquetas y modelos independientes para cada disponibilidad simulada. La apertura de referencia se programa estrictamente después de la decisión y el horizonte comprende cuatro velas completas; los registros sin desenlace se conservan. Véanse los comandos, las métricas y los límites de interpretación en [la guía de Fase 38C](docs/phase38c-post-decision-replay.md).
