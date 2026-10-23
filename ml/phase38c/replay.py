@@ -200,8 +200,8 @@ def evaluate_scenario(rows,scenario,directory,minimum_train_sessions,test_sessio
         y=np.array([CLASSES.index(record['label']) for record in resolved])
         variants={name:np.array([record[f'prob_{name}'] for record in resolved])
                   for name in ('xgboost','majority','frequency','momentum','linear')}
-        by_session={day:{name:metrics(y[[i for i,row in enumerate(resolved) if row['session_date_ny']==day]],
-            values[[i for i,row in enumerate(resolved) if row['session_date_ny']==day]])
+        by_session={day:{name:report_scores(y[[i for i,row in enumerate(resolved) if row['session_date_ny']==day]],
+            values[[i for i,row in enumerate(resolved) if row['session_date_ny']==day]],name)
             for name,values in variants.items()} for day in sorted({row['session_date_ny'] for row in resolved})}
         fold_reports.append({'fold':number,'test_sessions':len({row['session_date_ny'] for row in test}),
             'first_test_session':first_day,'last_test_session':max(row['session_date_ny'] for row in test),

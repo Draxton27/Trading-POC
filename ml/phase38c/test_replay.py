@@ -86,16 +86,32 @@ class PostDecisionReplayTests(unittest.TestCase):
             directory=Path(folder);fixture_directory(directory,rows_fixture())
             load_run(directory)
             result=run(directory,3,3)
+            report_json=json.loads((directory/'report.json').read_text(encoding='utf8'))
             self.assertEqual(result['prediction_rows'],162)
             for scenario in ('ideal','delayed'):
                 report=result['scenarios'][scenario]
+                persisted=report_json['scenarios'][scenario]
                 self.assertEqual(len(report['folds']),3)
                 self.assertEqual(report['pooled']['rows'],81)
-                for fold in report['folds']:
+                self.assertEqual(persisted['pooled']['metrics']['xgboost']['macro_f1'],report['pooled']['metrics']['xgboost']['macro_f1'])
+                for fold_index,fold in enumerate(report['folds']):
+                    persisted_fold=persisted['folds'][fold_index]
                     self.assertLess(fold['max_training_label_available_at_utc'],fold['cutoff_utc'])
                     for name in ('majority','frequency','momentum','linear'):
                         self.assertEqual(fold['metrics'][name]['per_class']['BAJISTA']['support'],
                             fold['metrics']['xgboost']['per_class']['BAJISTA']['support'])
+                    for level in (persisted['pooled']['metrics'],persisted_fold['metrics'],
+                                  next(iter(persisted_fold['by_session'].values()))):
+                        for name in ('momentum','majority'):
+                            self.assertEqual(level[name]['probability_metrics_status'],
+                                'not_comparable_deterministic_classifier')
+                            for metric in ('log_loss','brier_multiclass','calibration','probability_mean'):
+                                self.assertIsNone(level[name][metric],(scenario,fold_index,name,metric))
+                        for name in ('xgboost','frequency','linear'):
+                            self.assertEqual(level[name]['probability_metrics_status'],
+                                'reported_for_probabilistic_estimator')
+                            for metric in ('log_loss','brier_multiclass','calibration','probability_mean'):
+                                self.assertIsNotNone(level[name][metric],(scenario,fold_index,name,metric))
             with tempfile.TemporaryDirectory() as another:
                 second=Path(another);fixture_directory(second,rows_fixture())
                 repeated=run(second,3,3)
