@@ -50,7 +50,9 @@ try{
     status=appended.alreadyPresent?'ALREADY_PRESENT':'RECORDED';
   }
 }catch(error){const message=error instanceof Error?error.message:'Error controlado';
-  if(message.includes('no se permite backfill'))status='MODEL_TOO_RECENT';
+  if(message.startsWith('STALE_LIVE_DATA'))status='STALE_LIVE_DATA';
+  else if(message.startsWith('NO_LIVE_DATA'))status='NO_LIVE_DATA';
+  else if(message.includes('no se permite backfill'))status='MODEL_TOO_RECENT';
   else if(/^(INDICATORS_INSUFFICIENT|HORIZON_INELIGIBLE)/.test(message))status=message.split(':')[0]!;
   else throw error;
 }

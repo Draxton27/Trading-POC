@@ -12,6 +12,7 @@ import {newYorkBarParts} from './strategy-validation.ts';
 import type {IexWarmup} from './phase38f-warmup.ts';
 
 const QUARTER=900_000;
+export const MAX_LIVE_AGE_MS=15*60_000;
 const sha=(value:string)=>createHash('sha256').update(value).digest('hex');
 const exact=(value:string)=>{const time=Date.parse(value);if(!Number.isFinite(time)||new Date(time).toISOString()!==value)throw new Error('Timestamp UTC inválido.');return time;};
 const minute=(slot:string)=>{const [h,m]=slot.split(':').map(Number);return h!*60+m!;};
@@ -58,8 +59,9 @@ export function prepareIexObservation(records:readonly IexRecord[],calendar:Mark
   const now=exact(nowUtc),rows=firstQuarters(records,now);
   if(model.schema!=='phase38f-frozen-v1'||model.feed!=='iex'||model.adjustment!=='raw'||
      JSON.stringify(model.features)!==JSON.stringify(PHASE31_FEATURES)||JSON.stringify(model.classes)!==JSON.stringify(['ALCISTA','BAJISTA','LATERAL']))throw new Error('Modelo IEX incompatible.');
-  if(!rows.length)throw new Error('No hay velas IEX Live completas.');
+  if(!rows.length)throw new Error('NO_LIVE_DATA: no hay velas IEX Live completas; no se emite predicción.');
   const candidate=rows.at(-1)!,bar=candidate.bar!,start=exact(bar.startUtc),end=exact(bar.endUtc);
+  if(now-exact(candidate.receivedAtUtc)>MAX_LIVE_AGE_MS)throw new Error('STALE_LIVE_DATA: last complete Live bar exceeded the 15-minute freshness window.');
   if(end-start!==QUARTER||end>now||exact(candidate.receivedAtUtc)<end)throw new Error('Vela IEX incompleta o recepción imposible.');
   if(exact(model.cutoffUtc)>=start||exact(model.frozenAtUtc)>=start)throw new Error('El modelo se congeló después de la vela; no se permite backfill.');
   const firstLive=rows[0]!.bar!.startUtc;
@@ -106,6 +108,7 @@ export function appendIexPrediction(path:string,input:Omit<IexPrediction,'schema
     const nowUtc=clock(),now=exact(nowUtc),bar=exact(input.barStartUtc),local=newYorkBarParts(input.barStartUtc),session=calendar.get(local.day);
     if(!session||exact(input.modelCutoffUtc)>=bar||exact(input.modelFrozenAtUtc)>=bar||input.source.feed!=='iex'||input.source.adjustment!=='raw'||input.source.symbol!=='NVDA'||input.source.timeframe!=='15m')throw new Error('Modelo, fuente o calendario incompatible.');
     if(now<exact(input.receivedAtUtc)||input.sourceBars.some(row=>exact(row.receivedAtUtc)>now||row.startUtc>input.barStartUtc))throw new Error('Datos posteriores al registro.');
+    if(now-exact(input.receivedAtUtc)>MAX_LIVE_AGE_MS)throw new Error('STALE_LIVE_DATA: Live data expired before append.');
     const schedule=scheduledPostDecisionEntry(input.barStartUtc,nowUtc,minute(local.slot),session);
     if(!schedule.entryAtUtc||!schedule.horizonEndUtc||now>=exact(schedule.horizonEndUtc))throw new Error('HORIZON_INELIGIBLE: decisión demasiado tardía.');
     const p=input.probabilities.xgboost,winner=['ALCISTA','BAJISTA','LATERAL'][p.indexOf(Math.max(...p))];

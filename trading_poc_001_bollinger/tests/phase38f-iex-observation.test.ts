@@ -26,7 +26,7 @@ function record(day:string,index:number,revision=1):IexRecord{
 function history(){return days.flatMap((day,i)=>Array.from({length:i===3?3:26},(_,j)=>record(day,j)));}
 
 test('IEX first versions preserve Fase 23 ten features and ignore late revisions',()=>{
-  const rows=history(),now='2026-10-22T14:16:00.000Z';
+  const rows=history(),now='2026-10-22T14:15:10.000Z';
   const prepared=prepareIexObservation(rows,calendar,model,now);
   assert.equal(prepared.sourceBars.length,81);
   const reference=calculatePhase23Features(rows.map(row=>({timestamp:row.bar!.startUtc,open:row.bar!.open,high:row.bar!.high,
@@ -40,12 +40,16 @@ test('IEX first versions preserve Fase 23 ten features and ignore late revisions
 });
 
 test('IEX does not backfill, skip gaps, or use a model frozen after the candle',()=>{
-  const rows=history(),now='2026-10-22T14:16:00.000Z';
+  const rows=history(),now='2026-10-22T14:15:10.000Z';
   assert.throws(()=>prepareIexObservation(rows,calendar,{...model,cutoffUtc:'2026-10-22T14:00:00.000Z'},now),/backfill/);
   assert.throws(()=>prepareIexObservation(rows,calendar,{...model,frozenAtUtc:'2026-10-22T14:00:00.000Z'},now),/backfill/);
   assert.throws(()=>prepareIexObservation(rows.filter(row=>row.bar?.startUtc!=='2026-10-21T17:30:00.000Z'),calendar,model,now),/INDICATORS_INSUFFICIENT/);
   assert.equal(prepareIexObservation(rows,calendar,model,'2026-10-22T14:14:00.000Z').candidate.bar!.startUtc,'2026-10-22T13:45:00.000Z');
-  assert.throws(()=>prepareIexObservation(rows,calendar,model,'2026-10-22T22:00:00.000Z'),/HORIZON_INELIGIBLE/);
+  assert.throws(()=>prepareIexObservation(rows,calendar,model,'2026-10-22T14:31:00.000Z'),/STALE_LIVE_DATA/);
+  const disconnected=rows.filter(row=>row.bar!.startUtc<'2026-10-22T13:30:00.000Z');
+  assert.throws(()=>prepareIexObservation(disconnected,calendar,model,now),/STALE_LIVE_DATA/);
+  const reconnected=[...disconnected,record('2026-10-22',0),record('2026-10-22',1),record('2026-10-22',2)];
+  assert.equal(prepareIexObservation(reconnected,calendar,model,now).candidate.bar!.startUtc,'2026-10-22T14:00:00.000Z');
 });
 
 test('verified REST snapshot registered before the candle warms EMA without producing a REST prediction',()=>{
@@ -54,11 +58,11 @@ test('verified REST snapshot registered before the candle warms EMA without prod
     open:row.bar!.open,high:row.bar!.high,low:row.bar!.low,close:row.bar!.close,volume:row.bar!.volume}));
   const warmup={candles:historical,calendar:new Map([...calendar].filter(([day])=>day<'2026-10-22')),
     registeredAtUtc:'2026-10-21T21:00:00.000Z',csvSha256:'b'.repeat(64)};
-  const prepared=prepareIexObservation(live,new Map([['2026-10-22',{open:570,close:960}]]),model,'2026-10-22T14:16:00.000Z',warmup);
+  const prepared=prepareIexObservation(live,new Map([['2026-10-22',{open:570,close:960}]]),model,'2026-10-22T14:15:10.000Z',warmup);
   assert.equal(prepared.candidate.kind,'quarter');
   assert.equal(prepared.sourceBars.filter(row=>row.origin==='REST_WARMUP').length,78);
   assert.equal(prepared.sourceBars.filter(row=>row.origin==='LIVE').length,3);
-  assert.throws(()=>prepareIexObservation(live,calendar,model,'2026-10-22T14:16:00.000Z',
+  assert.throws(()=>prepareIexObservation(live,calendar,model,'2026-10-22T14:15:10.000Z',
     {...warmup,registeredAtUtc:'2026-10-22T14:00:00.000Z'}),/backfill/);
 });
 
@@ -88,18 +92,22 @@ test('warmup registry verifies a synthetic Phase 38D snapshot and detects later 
 test('prospective predictions are append-only, idempotent and evaluated separately',()=>{
   const folder=mkdtempSync(join(tmpdir(),'iex-phase38f-')),path=join(folder,'observations.jsonl');
   try{
-    const prepared=prepareIexObservation(history(),calendar,model,'2026-10-22T14:16:00.000Z');
+    const prepared=prepareIexObservation(history(),calendar,model,'2026-10-22T14:15:10.000Z');
     const input={mode:'IEX_PROSPECTIVE_OBSERVATION' as const,modelSha256:model.modelSha256,modelCutoffUtc:model.cutoffUtc,modelFrozenAtUtc:model.frozenAtUtc,
       barStartUtc:prepared.candidate.bar!.startUtc,barEndUtc:prepared.candidate.bar!.endUtc,
       sourceBars:prepared.sourceBars,features:{spec:'nvda-15m-v1',hash:prepared.featureHash,values:prepared.features},
       probabilities:{xgboost:[.2,.6,.2],frequency:[.3,.3,.4],linear:[.2,.4,.4]},dominantClass:'BAJISTA',
       receivedAtUtc:prepared.candidate.receivedAtUtc,source:{symbol:'NVDA' as const,feed:'iex' as const,adjustment:'raw' as const,timeframe:'15m' as const},
       atr14PriceUnits:prepared.atr14PriceUnits,policy:{classification:'argmax' as const,abstention:null}};
-    const first=appendIexPrediction(path,input,calendar,()=> '2026-10-22T14:17:00.000Z');
+    const first=appendIexPrediction(path,input,calendar,()=> '2026-10-22T14:15:30.000Z');
     assert.equal(first.alreadyPresent,false);
     assert.equal(first.record.kind,'PREDICTION');
     if(first.record.kind!=='PREDICTION')throw new Error('Predicción ausente.');
     assert.equal(first.record.entryAtUtc,'2026-10-22T14:30:00.000Z');
+    const stalePath=join(folder,'stale.jsonl');
+    const staleInput={...input,barStartUtc:'2026-10-22T13:30:00.000Z',barEndUtc:'2026-10-22T13:45:00.000Z',
+      receivedAtUtc:'2026-10-22T13:45:05.000Z',sourceBars:input.sourceBars.filter(row=>row.startUtc<='2026-10-22T13:30:00.000Z')};
+    assert.throws(()=>appendIexPrediction(stalePath,staleInput,calendar,()=> '2026-10-22T14:15:30.000Z'),/STALE_LIVE_DATA/);
     assert.equal(appendIexPrediction(path,{...input,probabilities:{...input.probabilities,xgboost:[.8,.1,.1]},dominantClass:'ALCISTA'},calendar,()=> '2026-10-22T14:18:00.000Z').alreadyPresent,true);
     assert.equal(readIexObservations(path).length,1);
     const future=[...history(),...Array.from({length:4},(_,i)=>record('2026-10-22',4+i))];

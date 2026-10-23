@@ -35,6 +35,8 @@ $env:TRADING_POC_IEX_WARMUP_REGISTRY = (Resolve-Path private\ml-iex\phase38f-war
 
 La primera apertura programada estrictamente posterior al registro efectivo define la entrada de referencia. Cuatro velas posteriores deben caber en la sesión. La apertura OHLC es una referencia observada, **no** un fill. El registro append-only contiene modelo, hashes de las velas, recepciones, versión, variables, probabilidades de XGBoost, frecuencia y lineal, clase argmax, hora de decisión y horizonte. Otro registro inmutable incorpora luego desenlace o exclusión por barras ausentes. La evaluación original no cambia por correcciones tardías.
 
+El observador admite una vela candidata solo si su primera recepción Live ocurrió dentro de los **15 minutos** anteriores al instante de decisión. Repite esa comprobación inmediatamente antes de anexar la predicción, después de la inferencia. Si vence durante el cálculo, devuelve `STALE_LIVE_DATA` y no escribe. Si no hay velas Live completas devuelve `NO_LIVE_DATA`; la falta de actualizaciones nunca representa una señal.
+
 En `.env.local`, configurar `TRADING_POC_IEX_FROZEN_DIR` con la ruta absoluta del run congelado y, si se usa el snapshot, TRADING_POC_IEX_WARMUP_REGISTRY con la ruta absoluta del registro. Opcionalmente, `TRADING_POC_IEX_LEDGER`, `TRADING_POC_IEX_CALENDAR` y `TRADING_POC_IEX_OBSERVATION_LEDGER`. Por defecto, estas rutas privadas se resuelven bajo `%LOCALAPPDATA%\Trading-POC` en Windows, o bajo `private/` cuando se fija `TRADING_POC_PRIVATE_DIR` a esa carpeta. El proceso IEX Live se inicia por separado según Fase 38A; este observador no lo inicia ni agrega descargas.
 
 ```powershell
