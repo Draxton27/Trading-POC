@@ -44,7 +44,7 @@ npm.cmd ci
 Get-ScheduledTaskInfo -TaskName 'Trading-POC Daily Research' | Select-Object LastRunTime, LastTaskResult, NextRunTime
 ```
 
-`install` actualiza la tarea con el mismo nombre; no instala una segunda ni detiene un recolector IEX manual. La tarea carga `.env.local` tras reiniciar Windows. Para comprobar el estado, consulte `GET /api/v1/ml/iex-automation` en la API local o la sección IEX de Predicciones. El archivo completo queda en `TRADING_POC_IEX_AUTOMATION_STATUS` o en la carpeta privada `ml-iex/daily-status.json`. `npm.cmd run daily:run -- --once` ejecuta una comprobación puntual sin iniciar un proceso IEX permanente. Para quitar la tarea, use `.\scripts\windows\daily-task.ps1 uninstall`.
+`install` actualiza la tarea con el mismo nombre; no instala una segunda ni detiene un recolector IEX manual. La tarea carga `.env.local` tras reiniciar Windows. Para comprobar el estado sin iniciar servicios, consulte `GET /api/v1/ml/iex-automation` en la API local o la sección IEX de Predicciones. El archivo completo queda en `TRADING_POC_IEX_AUTOMATION_STATUS` o en la carpeta privada `ml-iex/daily-status.json`. `npm.cmd run daily:run -- --once` ejecuta el ciclo diario completo cuando corresponde; el argumento es el modo del lanzador de la tarea y no una prueba puntual. Para quitar la tarea, use `.\scripts\windows\daily-task.ps1 uninstall`.
 
 ## Teardown E2E en Windows
 
