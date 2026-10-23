@@ -7,6 +7,12 @@ test('Predicciones muestra modelo ausente y el aviso estadístico en DEMO',async
   await expect(page.getByText('Modelo experimental. Evaluación retrospectiva no independiente. Probabilidades no calibradas para uso operativo. No constituye recomendación CALL o PUT.')).toBeVisible();
   await expect(page.getByRole('table',{name:'Predicciones históricas'})).toHaveCount(0);
 });
+test('Feeds experimentales distinguen IEX de SIP sin fabricar datos en DEMO',async({page})=>{
+  await page.goto('/');await page.getByRole('button',{name:'Predicciones'}).click();
+  await expect(page.getByRole('heading',{name:'Feeds bursátiles · experimental'})).toBeVisible();
+  await expect(page.getByText('IEX Live cubre una sola bolsa',{exact:false})).toBeVisible();
+  await expect(page.getByText('NO_DATA · DISCONNECTED')).toBeVisible();
+});
 test('Predicciones muestra estado del recolector sin presentar una señal operativa',async({page})=>{
   await page.route('**/api/v1/ml/collector?*',route=>route.fulfill({json:{state:'RECORDED',active:false,updatedAtUtc:'2026-10-20T15:40:00.000Z',lastSuccessfulIngestionAtUtc:'2026-10-20T15:36:00.000Z',lastBarEndUtc:'2026-10-20T15:15:00.000Z',lastObservationAtUtc:'2026-10-20T15:40:00.000Z',nextQueryAtUtc:'2026-10-20T15:50:00.000Z',lastError:null,newObservations:1}}));
   await page.goto('/');await page.getByRole('button',{name:'Predicciones'}).click();

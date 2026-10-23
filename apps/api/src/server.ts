@@ -19,6 +19,7 @@ import {registerOptionRoutes} from './options/routes.ts';
 import {registerAcademyRoutes} from './academy/routes.ts';
 import {registerAssistantRoutes} from './assistant/routes.ts';
 import {registerMlRoutes} from './ml/routes.ts';
+import {registerIexRoutes} from './ml/iex.ts';
 import {registerNewsRoutes} from './news/routes.ts';
 import {newsPaths,resolveNewsDir,resolvePrivateDir} from './news/paths.ts';
 
@@ -141,6 +142,7 @@ export async function createApp(options:Options={}){
   registerAcademyRoutes(app,db.sqlite);
   registerAssistantRoutes(app,{mode,hub,sqlite:db.sqlite,barsFor,offlineAvailable,offlineMetadata,calendarFor:s=>mode==='DEMO'?null:offlineCalendar(s),transport:options.assistantFetch,timeoutMs:options.assistantTimeoutMs});
   registerMlRoutes(app,options.mlRunDir===undefined?process.env.TRADING_POC_ML_RUN_DIR:options.mlRunDir??undefined,options.mlInferenceLog===undefined?process.env.TRADING_POC_ML_INFERENCE_LOG??resolve(privateDir,'ml-inference','records.jsonl'):options.mlInferenceLog??undefined,options.mlIngestionLog===undefined?process.env.TRADING_POC_ALPACA_INGESTION_LOG??resolve(privateDir,'alpaca-ingestion','ledger.jsonl'):options.mlIngestionLog??undefined,options.mlForwardObservationLog===undefined?process.env.TRADING_POC_ML_FORWARD_OBSERVATION_LOG??resolve(privateDir,'ml-forward-observation','records.jsonl'):options.mlForwardObservationLog??undefined,options.mlCollectorStatus===undefined?process.env.TRADING_POC_ML_COLLECTOR_STATUS??resolve(repoRoot,'private','ml-collector','status.json'):options.mlCollectorStatus??undefined,options.mlEvaluationLog===undefined?process.env.TRADING_POC_ML_EVALUATION_LOG??resolve(privateDir,'ml-evaluation','records.jsonl'):options.mlEvaluationLog??undefined,options.mlEvaluationStatus===undefined?process.env.TRADING_POC_ML_EVALUATION_STATUS??resolve(privateDir,'ml-evaluation','status.json'):options.mlEvaluationStatus??undefined,process.env.TRADING_POC_ML_NEWS_CONTEXT_DIR??resolve(privateDir,'ml-news-context'));
+  registerIexRoutes(app,privateDir,repoRoot);
   const newsDir=resolveNewsDir({repoRoot,privateDir,newsDir:options.newsDir,env:process.env});
   registerNewsRoutes(app,newsPaths({repoRoot,privateDir,newsDir,env:process.env}));
   app.get('/api/v1/options/quotes',async()=>({items:mode==='DEMO'?demoOptions():[],source:mode==='DEMO'?'DEMO sintético':'Consulte /options/contracts para suscribirse a contratos visibles'}));
