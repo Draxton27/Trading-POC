@@ -78,3 +78,7 @@ La documentación detalla los límites pendientes. Ningún resultado de investig
 ## IEX Live experimental (Fase 38A)
 
 El canal IEX se prueba con `npm.cmd run iex:probe -- --once` y se inicia por separado con `npm.cmd run iex:collect -- --continuous`. Su ledger es privado y no alimenta el XGBoost SIP congelado ni la tarea diaria. Consulte [la guía IEX](docs/phase38a-iex-live.md) para procedencia, límites y comparación con SIP.
+
+## Replay histórico XGBoost (Fase 38B)
+
+`npm.cmd run ml:replay:prepare` prepara observaciones causales con el histórico privado NVDA SIP y `npm.cmd run ml:replay:evaluate` entrena modelos experimentales por fold. Los dos relojes comparados son el cierre ideal y un retraso SIP **simulado** de 20 minutos; no se atribuyen horas de recepción reales. Las instrucciones completas y las limitaciones están en [la guía del replay](docs/phase38b-historical-replay.md).
