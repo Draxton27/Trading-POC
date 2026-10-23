@@ -32,6 +32,8 @@
     "ml:collect": "node scripts/ml-collect.mjs",
     "daily:run": "node --experimental-strip-types scripts/daily-orchestrator.ts",
     "ml:evaluate": "node scripts/ml-evaluate.mjs",
+    "ml:replay:prepare": "tsx trading_poc_001_bollinger/src/phase38b-cli.ts",
+    "ml:replay:evaluate": "node scripts/ml-replay.mjs",
     "news:collect": "tsx apps/api/src/news/cli.ts collect",
     "news:analyze": "tsx apps/api/src/news/cli.ts analyze",
     "ml:news-context": "tsx apps/api/src/ml/news-context-cli.ts",
