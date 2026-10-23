@@ -1,5 +1,6 @@
 import {describe,expect,it} from 'vitest';
-import {mkdtempSync,readFileSync,rmSync} from 'node:fs';
+import {mkdtempSync,readFileSync,rmSync,writeFileSync} from 'node:fs';
+import {createHash} from 'node:crypto';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {auditIex,downloadIexHistory,fetchIexWindow,type IexMinute} from '../../trading_poc_001_bollinger/src/phase38d-iex-history.ts';
@@ -40,6 +41,26 @@ describe('Histórico IEX de un minuto',()=>{
     expect(audit.summary).toMatchObject({expectedMinutes:45,observedMinutes:45,missingMinutes:0,strict15m:3});
     expect(audit.strict15m.at(-1)!.timestamp).toBe('2026-03-09T13:30:00.000Z');
   });
+  it('excluye la fecha final inclusiva de calendario cuando su sesión queda fuera de [start,end)',()=>{
+    const calendar:MarketCalendar=new Map([['2026-10-21',{open:570,close:960}],['2026-10-22',{open:570,close:960}]]);
+    const bars=Array.from({length:390},(_,i)=>minute(new Date(Date.parse('2026-10-21T13:30:00Z')+i*60_000).toISOString(),i));
+    const audit=auditIex(bars,calendar,{start:Date.parse('2026-10-21T00:00:00Z'),end:Date.parse('2026-10-22T00:00:00Z')});
+    expect(audit.summary).toMatchObject({sessionsComplete:1,sessionsPartial:0,sessionsOutsidePeriod:1,expectedMinutes:390,observedMinutes:390,missingMinutes:0,strict15m:26});
+    expect(audit.sessions.find(session=>session.date==='2026-10-22')).toMatchObject({status:'OUTSIDE_PERIOD',missingMinutes:0});
+  });
+  it('cuenta solo minutos dentro del rango parcial y no llama ausencias a lo excluido',()=>{
+    const calendar:MarketCalendar=new Map([['2026-10-21',{open:570,close:960}]]);
+    const bars=Array.from({length:30},(_,i)=>minute(new Date(Date.parse('2026-10-21T13:30:00Z')+i*60_000).toISOString(),i));
+    const audit=auditIex(bars,calendar,{start:Date.parse('2026-10-21T13:30:00Z'),end:Date.parse('2026-10-21T14:00:00Z')});
+    expect(audit.summary).toMatchObject({sessionsComplete:0,sessionsPartial:1,expectedMinutes:30,observedMinutes:30,missingMinutes:0,strict15m:2});
+  });
+  it('no crea ausencias al terminar el rango en fin de semana o festivo',()=>{
+    const calendar:MarketCalendar=new Map([['2026-10-23',{open:570,close:960}],['2026-10-26',{open:570,close:960}]]);
+    const bars=Array.from({length:390},(_,i)=>minute(new Date(Date.parse('2026-10-23T13:30:00Z')+i*60_000).toISOString(),i));
+    const audit=auditIex(bars,calendar,{start:Date.parse('2026-10-23T00:00:00Z'),end:Date.parse('2026-10-25T00:00:00Z')});
+    expect(audit.sessions).toMatchObject([{date:'2026-10-23',status:'COMPLETE',expectedMinutes:390,missingMinutes:0},{date:'2026-10-26',status:'OUTSIDE_PERIOD',expectedMinutes:0,missingMinutes:0}]);
+    expect(audit.summary).toMatchObject({sessionsComplete:1,sessionsPartial:0,sessionsOutsidePeriod:1,expectedMinutes:390,observedMinutes:390,missingMinutes:0});
+  });
   it('reanuda partes completas sin volver a solicitarlas y mantiene salida privada',async()=>{
     const out=mkdtempSync(join(tmpdir(),'iex-history-'));
     try{
@@ -50,6 +71,16 @@ describe('Histórico IEX de un minuto',()=>{
       expect(calls).toBe(1);expect(second.summary).toEqual(first.summary);
       expect(readFileSync(join(out,'minutes.csv'),'utf8')).toContain('trade_count');
       expect(readFileSync(join(out,'report.json'),'utf8')).toContain('UNAVAILABLE_ADJUSTMENT');
+      const sums=readFileSync(join(out,'SHA256SUMS'),'utf8').trim().split(/\r?\n/);
+      for(const line of sums){const [digest,name]=line.split('  ',2);expect(createHash('sha256').update(readFileSync(join(out,name!),'utf8')).digest('hex')).toBe(digest);}
+      expect(sums.some(line=>line.endsWith('calendar.json'))).toBe(true);
+      const originalReport=readFileSync(join(out,'report.json'),'utf8');
+      writeFileSync(join(out,'report.json'),'tampered');
+      await expect(downloadIexHistory(options)).rejects.toThrow('Artefacto final o SHA-256 alterado');
+      expect(readFileSync(join(out,'report.json'),'utf8')).toBe('tampered');
+      writeFileSync(join(out,'report.json'),originalReport);
+      const alteredCalendar=async()=>Response.json([{date:'2026-10-20',open:'09:30',close:'10:15'}]);
+      await expect(downloadIexHistory({...options,calendarGet:alteredCalendar})).rejects.toThrow('calendario oficial cambió');
     }finally{rmSync(out,{recursive:true,force:true});}
   });
 });

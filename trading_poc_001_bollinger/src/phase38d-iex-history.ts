@@ -2,7 +2,7 @@ import {createHash} from 'node:crypto';
 import {existsSync,mkdirSync,readFileSync,renameSync,writeFileSync} from 'node:fs';
 import {join} from 'node:path';
 import type {Candle} from './domain.ts';
-import {fetchAlpacaCalendar,isCalendarBar,saveMarketCalendar,type MarketCalendar} from './alpaca-calendar.ts';
+import {fetchAlpacaCalendar,isCalendarBar,loadMarketCalendar,saveMarketCalendar,type MarketCalendar} from './alpaca-calendar.ts';
 import {calculatePhase23Features} from './phase23-dataset.ts';
 import {newYorkBarParts} from './strategy-validation.ts';
 import {loadMetadata} from './data-contract.ts';
@@ -12,6 +12,14 @@ export type IexMinute=Candle&{tradeCount:number};
 export type IexHttp=(url:URL,headers:Record<string,string>)=>Promise<Response>;
 const minuteMs=60_000,dayMs=86_400_000,sha=(value:string)=>createHash('sha256').update(value).digest('hex');
 const stamp=(time:number)=>new Date(time).toISOString();
+function marketMinuteUtc(date:string,minute:number){
+  const [year,month,day]=date.split('-').map(Number),hour=Math.floor(minute/60),mins=minute%60;
+  const target=Date.UTC(year!,month!-1,day!,hour,mins);let candidate=target;
+  const fmt=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
+  for(let i=0;i<3;i++){const p=Object.fromEntries(fmt.formatToParts(new Date(candidate)).map(x=>[x.type,x.value]));
+    const asUtc=Date.UTC(Number(p.year),Number(p.month)-1,Number(p.day),Number(p.hour),Number(p.minute));candidate+=target-asUtc;}
+  return candidate;
+}
 function assertMinute(value:unknown):IexMinute {
   if(typeof value!=='object'||value===null||Array.isArray(value))throw new Error('Barra IEX inválida.');
   const v=value as Record<string,unknown>,time=Date.parse(String(v.t));
@@ -63,7 +71,7 @@ export async function fetchIexWindow(options:{start:number;end:number;apiKey:str
   }while(token);
   return bars;
 }
-export function auditIex(minutes:readonly IexMinute[],calendar:MarketCalendar){
+export function auditIex(minutes:readonly IexMinute[],calendar:MarketCalendar,range?:{start:number;end:number}){
   const observed=new Map(minutes.map(bar=>[bar.timestamp,bar]));
   if(observed.size!==minutes.length)throw new Error('Minutos IEX duplicados.');
   for(let i=0;i<minutes.length;i++){
@@ -73,29 +81,34 @@ export function auditIex(minutes:readonly IexMinute[],calendar:MarketCalendar){
   }
   const byDay=new Map<string,IexMinute[]>();
   for(const bar of minutes){const day=newYorkBarParts(bar.timestamp).day;const group=byDay.get(day)??[];group.push(bar);byDay.set(day,group);}
-  const sessions=[] as Array<{date:string;expectedMinutes:number;observedMinutes:number;missingMinutes:number;coverage:number;volume:number;transactions:number;strict15m:number}>;
+  const sessions=[] as Array<{date:string;status:'COMPLETE'|'PARTIAL'|'OUTSIDE_PERIOD';expectedMinutes:number;observedMinutes:number;missingMinutes:number;coverage:number;volume:number;transactions:number;strict15m:number}>;
   const strict:Candle[]=[];
   for(const [date,hours] of [...calendar].sort(([a],[b])=>a.localeCompare(b))){
-    const dayBars=byDay.get(date)??[];
+    const open=marketMinuteUtc(date,hours.open),close=marketMinuteUtc(date,hours.close);
+    const from=range?Math.max(open,Math.ceil(range.start/minuteMs)*minuteMs):open;
+    const until=range?Math.min(close,Math.ceil(range.end/minuteMs)*minuteMs):close;
+    const status=until<=from?'OUTSIDE_PERIOD':from===open&&until===close?'COMPLETE':'PARTIAL';
+    const dayBars=(byDay.get(date)??[]).filter(bar=>Date.parse(bar.timestamp)>=from&&Date.parse(bar.timestamp)<until);
     const byMinute=new Map(dayBars.map(bar=>[Date.parse(bar.timestamp),bar]));
-    const expected=(hours.close-hours.open),first=dayBars[0];
-    // Locate the official open in UTC using an observed bar or the NY time zone conversion.
-    const anchor=first?Date.parse(first.timestamp)-(Number(newYorkBarParts(first.timestamp).slot.slice(0,2))*60+Number(newYorkBarParts(first.timestamp).slot.slice(3))-hours.open)*minuteMs:null;
+    const expected=status==='OUTSIDE_PERIOD'?0:(until-from)/minuteMs,anchor=open;
     let complete=0;
-    if(anchor!==null)for(let slot=0;slot+15<=expected;slot+=15){
-      const group=Array.from({length:15},(_,offset)=>byMinute.get(anchor+(slot+offset)*minuteMs));
+    if(status!=='OUTSIDE_PERIOD')for(let slot=0;slot+15<=hours.close-hours.open;slot+=15){
+      const start=anchor+slot*minuteMs;if(start<from||start+15*minuteMs>until)continue;
+      const group=Array.from({length:15},(_,offset)=>byMinute.get(start+offset*minuteMs));
       if(group.some(bar=>!bar))continue;
-      const bars=group as IexMinute[];strict.push({timestamp:stamp(anchor+slot*minuteMs),open:bars[0]!.open,
+      const bars=group as IexMinute[];strict.push({timestamp:stamp(start),open:bars[0]!.open,
         high:Math.max(...bars.map(bar=>bar.high)),low:Math.min(...bars.map(bar=>bar.low)),
         close:bars[14]!.close,volume:bars.reduce((sum,bar)=>sum+bar.volume,0)});complete++;
     }
-    sessions.push({date,expectedMinutes:expected,observedMinutes:dayBars.length,missingMinutes:expected-dayBars.length,
-      coverage:dayBars.length/expected,volume:dayBars.reduce((sum,bar)=>sum+bar.volume,0),
+    sessions.push({date,status,expectedMinutes:expected,observedMinutes:dayBars.length,missingMinutes:Math.max(0,expected-dayBars.length),
+      coverage:expected?dayBars.length/expected:0,volume:dayBars.reduce((sum,bar)=>sum+bar.volume,0),
       transactions:dayBars.reduce((sum,bar)=>sum+bar.tradeCount,0),strict15m:complete});
   }
   const eligible=calculatePhase23Features(strict,calendar).filter(Boolean).length;
-  return {sessions,strict15m:strict,featureEligible15m:eligible,summary:{expectedMinutes:sessions.reduce((n,s)=>n+s.expectedMinutes,0),
-    observedMinutes:minutes.length,missingMinutes:sessions.reduce((n,s)=>n+s.missingMinutes,0),
+  return {sessions,strict15m:strict,featureEligible15m:eligible,summary:{sessionsComplete:sessions.filter(s=>s.status==='COMPLETE').length,
+    sessionsPartial:sessions.filter(s=>s.status==='PARTIAL').length,sessionsOutsidePeriod:sessions.filter(s=>s.status==='OUTSIDE_PERIOD').length,
+    expectedMinutes:sessions.reduce((n,s)=>n+s.expectedMinutes,0),
+    observedMinutes:sessions.reduce((n,s)=>n+s.observedMinutes,0),missingMinutes:sessions.reduce((n,s)=>n+s.missingMinutes,0),
     strict15m:strict.length,featureEligible15m:eligible}};
 }
 export async function downloadIexHistory(options:{out:string;start:string;end:string;apiKey:string;secretKey:string;
@@ -109,7 +122,25 @@ export async function downloadIexHistory(options:{out:string;start:string;end:st
   if(existsSync(settingsPath)){if(readFileSync(settingsPath,'utf8')!==settingsText)throw new Error('Parámetros distintos en descarga existente.');}
   else writeFileSync(settingsPath,settingsText,{flag:'wx'});
   const calendar=await fetchAlpacaCalendar({apiKey:options.apiKey,secretKey:options.secretKey,start:stamp(start),end:stamp(end),httpGet:options.calendarGet});
-  saveMarketCalendar(join(out,'calendar.json'),calendar);
+  const calendarPath=join(out,'calendar.json');
+  if(existsSync(calendarPath)){
+    const calendarHashPath=`${calendarPath}.sha256`;
+    if(!existsSync(calendarHashPath)||readFileSync(calendarHashPath,'utf8').trim()!==sha(readFileSync(calendarPath,'utf8')))
+      throw new Error('Hash del calendario ausente o inválido; iniciar una ejecución versionada nueva.');
+    const saved=loadMarketCalendar(calendarPath);
+    if(JSON.stringify([...saved].sort(([a],[b])=>a.localeCompare(b)))!==JSON.stringify([...calendar].sort(([a],[b])=>a.localeCompare(b))))
+      throw new Error('El calendario oficial cambió; iniciar una ejecución versionada nueva.');
+  }else{
+    saveMarketCalendar(calendarPath,calendar);
+    writeFileSync(`${calendarPath}.sha256`,sha(readFileSync(calendarPath,'utf8'))+'\n',{flag:'wx'});
+  }
+  const completion=join(out,'SHA256SUMS');
+  if(existsSync(completion)){
+    const entries=readFileSync(completion,'utf8').trim().split(/\r?\n/).map(line=>line.split('  ',2));
+    for(const [digest,name] of entries){if(!digest||!name||!existsSync(join(out,name))||sha(readFileSync(join(out,name),'utf8'))!==digest)throw new Error('Artefacto final o SHA-256 alterado; detener sin modificar la ejecución.');}
+    if(!existsSync(join(out,'report.json')))throw new Error('Marcador completo sin reporte.');
+  }else if(['minutes.csv','strict-15m.csv','report.json'].some(name=>existsSync(join(out,name))))
+    throw new Error('Salida final parcial sin marcador SHA256SUMS; iniciar una ejecución versionada nueva.');
   const all:IexMinute[]=[],partHashes:Record<string,string>={};
   for(let from=start;from<end;from+=30*dayMs){const until=Math.min(from+30*dayMs,end),name=`${stamp(from).slice(0,10)}_${stamp(until).slice(0,10)}.json`,path=join(parts,name),checksumPath=`${path}.sha256`;
     const data=existsSync(path)?readFileSync(path,'utf8'):JSON.stringify(await fetchIexWindow({...options,start:from,end:until}))+'\n';
@@ -121,7 +152,7 @@ export async function downloadIexHistory(options:{out:string;start:string;end:st
     partHashes[name]=sha(data);all.push(...bars);
   }
   const regular=all.filter(bar=>isCalendarBar(Date.parse(bar.timestamp),calendar));
-  const audit=auditIex(regular,calendar);
+  const audit=auditIex(regular,calendar,{start,end});
   const csv=['timestamp,open,high,low,close,volume,trade_count',...regular.map(b=>[b.timestamp,b.open,b.high,b.low,b.close,b.volume,b.tradeCount].join(','))].join('\n')+'\n';
   const strictCsv=['timestamp,open,high,low,close,volume',...audit.strict15m.map(b=>[b.timestamp,b.open,b.high,b.low,b.close,b.volume].join(','))].join('\n')+'\n';
   let sipComparison:Record<string,unknown>={status:'UNAVAILABLE_ADJUSTMENT',reason:'IEX raw y SIP split no son precios comparables sin ajuste corporativo verificado; no se comparan precios.'};
@@ -147,11 +178,21 @@ export async function downloadIexHistory(options:{out:string;start:string;end:st
     summary:{...audit.summary,invalidRowsRejected:0},sessions:audit.sessions,viability:{status:audit.featureEligible15m>=1000?'RESEARCH_POSSIBLE':'INSUFFICIENT_CONTINUITY',
       note:'Cobertura IEX, selección de días y clases deben auditarse antes de entrenar. No se entrena un modelo aquí.'},
     sipComparison};
-  for(const [name,value] of Object.entries({'minutes.csv':csv,'strict-15m.csv':strictCsv,'report.json':JSON.stringify(report,null,2)+'\n'})){
-    const path=join(out,name);if(existsSync(path)){if(readFileSync(path,'utf8')!==value)throw new Error(`Archivo previo diferente: ${name}.`);}else writeFileSync(path,value,{flag:'wx'});
+  const finalFiles={'minutes.csv':csv,'strict-15m.csv':strictCsv,'report.json':JSON.stringify(report,null,2)+'\n'};
+  const values:Record<string,string>={'query.json':settingsText,'calendar.json':readFileSync(calendarPath,'utf8'),
+    'calendar.json.sha256':readFileSync(`${calendarPath}.sha256`,'utf8'),...finalFiles};
+  for(const name of [...Object.keys(partHashes).map(name=>`parts/${name}`),...Object.keys(partHashes).map(name=>`parts/${name}.sha256`)])
+    values[name]=readFileSync(join(out,name),'utf8');
+  const hashes=Object.entries(values).map(([name,value])=>`${sha(value)}  ${name}`).join('\n')+'\n';
+  if(existsSync(completion)){if(readFileSync(completion,'utf8')!==hashes)throw new Error('Hashes finales incompatibles.');}
+  else{
+    const pending:Array<[string,string]> = [];
+    for(const [name,value] of Object.entries(finalFiles)){
+      const path=join(out,name);if(existsSync(path)){if(readFileSync(path,'utf8')!==value)throw new Error(`Archivo previo diferente: ${name}.`);}
+      else{const temp=`${path}.${process.pid}.tmp`;writeFileSync(temp,value,{flag:'wx'});pending.push([temp,path]);}
+    }
+    for(const [temp,path] of pending)renameSync(temp,path);
+    const temp=`${completion}.${process.pid}.tmp`;writeFileSync(temp,hashes,{flag:'wx'});renameSync(temp,completion);
   }
-  const hashes=['query.json','calendar.json','minutes.csv','strict-15m.csv','report.json'].map(name=>`${sha(readFileSync(join(out,name),'utf8'))}  ${name}`).join('\n')+'\n';
-  const sums=join(out,'SHA256SUMS');if(existsSync(sums)){if(readFileSync(sums,'utf8')!==hashes)throw new Error('Hashes finales incompatibles.');}
-  else writeFileSync(sums,hashes,{flag:'wx'});
   return report;
 }
