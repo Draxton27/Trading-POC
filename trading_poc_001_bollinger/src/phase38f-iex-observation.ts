@@ -9,6 +9,7 @@ import {phase23ContinuousSuffix,calculatePhase23Features,DATASET_SPEC,classifyMo
 import {PHASE31_FEATURES,type Phase31Feature} from './phase31-inference.ts';
 import {scheduledPostDecisionEntry} from './phase38c-replay.ts';
 import {newYorkBarParts} from './strategy-validation.ts';
+import type {IexWarmup} from './phase38f-warmup.ts';
 
 const QUARTER=900_000;
 const sha=(value:string)=>createHash('sha256').update(value).digest('hex');
@@ -18,7 +19,7 @@ const stamp=(time:number)=>new Date(time).toISOString();
 export type IexFrozen={schema:'phase38f-frozen-v1';modelSha256:string;cutoffUtc:string;frozenAtUtc:string;features:string[];classes:string[];feed:'iex';adjustment:'raw';frequency:number[]};
 export type IexPrediction={schema:'phase38f-observation-v1';kind:'PREDICTION';id:string;previousHash:string|null;recordHash:string;
   mode:'IEX_PROSPECTIVE_OBSERVATION';modelSha256:string;modelCutoffUtc:string;modelFrozenAtUtc:string;barStartUtc:string;barEndUtc:string;
-  sourceBars:{startUtc:string;receivedAtUtc:string;recordHash:string;revision:number}[];
+  sourceBars:{startUtc:string;receivedAtUtc:string;recordHash:string;revision:number;origin:'LIVE'|'REST_WARMUP'}[];
   features:{spec:string;hash:string;values:Record<Phase31Feature,number>};
   probabilities:{xgboost:number[];frequency:number[];linear:number[]};dominantClass:string;
   receivedAtUtc:string;registeredAtUtc:string;entryAtUtc:string;outcomeAtUtc:string;
@@ -53,7 +54,7 @@ function firstQuarters(records:readonly IexRecord[],at:number){
   return [...first.values()].sort((a,b)=>a.bar!.startUtc.localeCompare(b.bar!.startUtc));
 }
 function candle(row:IexRecord):Candle{const b=row.bar!;return {timestamp:b.startUtc,open:b.open,high:b.high,low:b.low,close:b.close,volume:b.volume};}
-export function prepareIexObservation(records:readonly IexRecord[],calendar:MarketCalendar,model:IexFrozen,nowUtc:string){
+export function prepareIexObservation(records:readonly IexRecord[],calendar:MarketCalendar,model:IexFrozen,nowUtc:string,warmup?:IexWarmup){
   const now=exact(nowUtc),rows=firstQuarters(records,now);
   if(model.schema!=='phase38f-frozen-v1'||model.feed!=='iex'||model.adjustment!=='raw'||
      JSON.stringify(model.features)!==JSON.stringify(PHASE31_FEATURES)||JSON.stringify(model.classes)!==JSON.stringify(['ALCISTA','BAJISTA','LATERAL']))throw new Error('Modelo IEX incompatible.');
@@ -61,13 +62,25 @@ export function prepareIexObservation(records:readonly IexRecord[],calendar:Mark
   const candidate=rows.at(-1)!,bar=candidate.bar!,start=exact(bar.startUtc),end=exact(bar.endUtc);
   if(end-start!==QUARTER||end>now||exact(candidate.receivedAtUtc)<end)throw new Error('Vela IEX incompleta o recepción imposible.');
   if(exact(model.cutoffUtc)>=start||exact(model.frozenAtUtc)>=start)throw new Error('El modelo se congeló después de la vela; no se permite backfill.');
-  const all=rows.map(candle),continuous=phase23ContinuousSuffix(all,calendar);
+  const firstLive=rows[0]!.bar!.startUtc;
+  const mergedCalendar=new Map(calendar);
+  let historical:Candle[]=[];
+  if(warmup){
+    const registered=exact(warmup.registeredAtUtc);
+    if(registered>=start)throw new Error('Snapshot REST registrado después de la vela; no se permite backfill.');
+    for(const [day,hours] of warmup.calendar){const present=mergedCalendar.get(day);
+      if(present&&(present.open!==hours.open||present.close!==hours.close))throw new Error('Calendarios oficiales IEX contradictorios.');
+      mergedCalendar.set(day,hours);}
+    historical=warmup.candles.filter(bar=>bar.timestamp<firstLive&&exact(bar.timestamp)+QUARTER<=registered);
+    if(warmup.candles.some(bar=>bar.timestamp<firstLive&&exact(bar.timestamp)+QUARTER>registered))throw new Error('Snapshot REST contiene velas aún no cerradas al registrarse.');
+  }
+  const all=[...historical,...rows.map(candle)],continuous=phase23ContinuousSuffix(all,mergedCalendar);
   if(continuous.length<21)throw new Error('INDICATORS_INSUFFICIENT: calentamiento causal IEX menor de 21 velas.');
-  const selected=rows.slice(rows.length-continuous.length);
-  for(const row of selected){if(!row.bar||exact(row.receivedAtUtc)>now||row.bar.endUtc>nowUtc)throw new Error('Fuente IEX posterior a la decisión.');}
-  const calculated=calculatePhase23Features(continuous,calendar).at(-1);
+  const selectedLive=rows.filter(row=>row.bar!.startUtc>=continuous[0]!.timestamp);
+  for(const row of selectedLive){if(!row.bar||exact(row.receivedAtUtc)>now||row.bar.endUtc>nowUtc)throw new Error('Fuente IEX posterior a la decisión.');}
+  const calculated=calculatePhase23Features(continuous,mergedCalendar).at(-1);
   if(!calculated)throw new Error('INDICATORS_INSUFFICIENT: indicadores IEX incompletos.');
-  const local=newYorkBarParts(bar.startUtc),session=calendar.get(local.day);
+  const local=newYorkBarParts(bar.startUtc),session=mergedCalendar.get(local.day);
   if(!session)throw new Error('Calendario Alpaca insuficiente.');
   const values={return_1:calculated.return_1,return_4:calculated.return_4,distance_ema9:calculated.distance_ema9,
     distance_sma20:calculated.distance_sma20,bollinger_position:calculated.bollinger_position,
@@ -76,7 +89,9 @@ export function prepareIexObservation(records:readonly IexRecord[],calendar:Mark
   if(PHASE31_FEATURES.some(name=>!Number.isFinite(values[name])))throw new Error('Indicadores IEX no finitos.');
   const schedule=scheduledPostDecisionEntry(bar.startUtc,nowUtc,minute(local.slot),session);
   if(!schedule.entryAtUtc||!schedule.horizonEndUtc||now>=exact(schedule.horizonEndUtc))throw new Error('HORIZON_INELIGIBLE: no caben cuatro velas posteriores a la decisión.');
-  const sourceBars=selected.map(row=>({startUtc:row.bar!.startUtc,receivedAtUtc:row.receivedAtUtc,recordHash:row.recordHash,revision:row.revision!}));
+  const sourceBars=[...continuous.filter(bar=>bar.timestamp<firstLive).map(bar=>({startUtc:bar.timestamp,
+    receivedAtUtc:warmup!.registeredAtUtc,recordHash:sha(JSON.stringify({csv:warmup!.csvSha256,bar})),revision:0,origin:'REST_WARMUP' as const})),
+    ...selectedLive.map(row=>({startUtc:row.bar!.startUtc,receivedAtUtc:row.receivedAtUtc,recordHash:row.recordHash,revision:row.revision!,origin:'LIVE' as const}))];
   return {candidate,sourceBars,features:values,featureHash:sha(JSON.stringify({spec:DATASET_SPEC,names:PHASE31_FEATURES,values})),
     atr14PriceUnits:calculated.atr14PriceUnits,schedule};
 }

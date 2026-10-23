@@ -9,6 +9,7 @@ import {resolvePrivateDir} from '../../apps/api/src/news/paths.ts';
 import {loadMarketCalendar} from './alpaca-calendar.ts';
 import {readIexLedger} from './phase38-iex.ts';
 import {prepareIexObservation,appendIexPrediction,evaluateIexPredictions,readIexObservations,type IexFrozen} from './phase38f-iex-observation.ts';
+import {loadIexWarmup} from './phase38f-warmup.ts';
 
 const root=fileURLToPath(new URL('../../',import.meta.url));
 loadEnv({path:resolve(root,'.env.local'),override:false,quiet:true});
@@ -24,10 +25,11 @@ const frozen=JSON.parse(readFileSync(join(modelDir,'freeze.json'),'utf8')) as Ie
 const hash=createHash('sha256').update(readFileSync(join(modelDir,'model.json'))).digest('hex');
 if(hash!==frozen.modelSha256)throw new Error('SHA-256 del modelo IEX incompatible.');
 const calendar=loadMarketCalendar(calendarPath),records=readIexLedger(ledger);
+const warmup=process.env.TRADING_POC_IEX_WARMUP_REGISTRY?loadIexWarmup(process.env.TRADING_POC_IEX_WARMUP_REGISTRY):undefined;
 const evaluations=evaluateIexPredictions(output,records);
 let status='NO_NEW_OBSERVATION';
 try{
-  const nowUtc=new Date().toISOString(),prepared=prepareIexObservation(records,calendar,frozen,nowUtc);
+  const nowUtc=new Date().toISOString(),prepared=prepareIexObservation(records,calendar,frozen,nowUtc,warmup);
   const already=readIexObservations(output).some(row=>row.kind==='PREDICTION'&&row.modelSha256===hash&&row.barStartUtc===prepared.candidate.bar!.startUtc);
   if(!already){
     const python=process.env.PYTHON??(process.platform==='win32'?'py':'python3');

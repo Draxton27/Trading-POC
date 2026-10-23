@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {mkdtempSync,readFileSync,rmSync} from 'node:fs';
+import {mkdtempSync,mkdirSync,readFileSync,rmSync,writeFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import test from 'node:test';
@@ -7,6 +7,8 @@ import type {IexRecord} from '../src/phase38-iex.ts';
 import {appendIexPrediction,evaluateIexPredictions,prepareIexObservation,readIexObservations,type IexFrozen} from '../src/phase38f-iex-observation.ts';
 import {PHASE31_FEATURES} from '../src/phase31-inference.ts';
 import {calculatePhase23Features} from '../src/phase23-dataset.ts';
+import {createHash} from 'node:crypto';
+import {loadIexWarmup,registerIexWarmup} from '../src/phase38f-warmup.ts';
 
 const days=['2026-10-19','2026-10-20','2026-10-21','2026-10-22'];
 const calendar=new Map(days.map(day=>[day,{open:570,close:960}] as const));
@@ -44,6 +46,43 @@ test('IEX does not backfill, skip gaps, or use a model frozen after the candle',
   assert.throws(()=>prepareIexObservation(rows.filter(row=>row.bar?.startUtc!=='2026-10-21T17:30:00.000Z'),calendar,model,now),/INDICATORS_INSUFFICIENT/);
   assert.equal(prepareIexObservation(rows,calendar,model,'2026-10-22T14:14:00.000Z').candidate.bar!.startUtc,'2026-10-22T13:45:00.000Z');
   assert.throws(()=>prepareIexObservation(rows,calendar,model,'2026-10-22T22:00:00.000Z'),/HORIZON_INELIGIBLE/);
+});
+
+test('verified REST snapshot registered before the candle warms EMA without producing a REST prediction',()=>{
+  const rows=history(),live=rows.filter(row=>row.bar!.startUtc.startsWith('2026-10-22'));
+  const historical=rows.filter(row=>!row.bar!.startUtc.startsWith('2026-10-22')).map(row=>({timestamp:row.bar!.startUtc,
+    open:row.bar!.open,high:row.bar!.high,low:row.bar!.low,close:row.bar!.close,volume:row.bar!.volume}));
+  const warmup={candles:historical,calendar:new Map([...calendar].filter(([day])=>day<'2026-10-22')),
+    registeredAtUtc:'2026-10-21T21:00:00.000Z',csvSha256:'b'.repeat(64)};
+  const prepared=prepareIexObservation(live,new Map([['2026-10-22',{open:570,close:960}]]),model,'2026-10-22T14:16:00.000Z',warmup);
+  assert.equal(prepared.candidate.kind,'quarter');
+  assert.equal(prepared.sourceBars.filter(row=>row.origin==='REST_WARMUP').length,78);
+  assert.equal(prepared.sourceBars.filter(row=>row.origin==='LIVE').length,3);
+  assert.throws(()=>prepareIexObservation(live,calendar,model,'2026-10-22T14:16:00.000Z',
+    {...warmup,registeredAtUtc:'2026-10-22T14:00:00.000Z'}),/backfill/);
+});
+
+test('warmup registry verifies a synthetic Phase 38D snapshot and detects later changes',()=>{
+  const folder=mkdtempSync(join(tmpdir(),'iex-warmup-')),source=join(folder,'source'),registry=join(folder,'registry.json');
+  try{
+    mkdirSync(source);
+    const query={schema:'phase38d-v1',symbol:'NVDA',feed:'iex',timeframe:'1Min',adjustment:'raw'};
+    const csv='timestamp,open,high,low,close,volume\n2026-10-20T13:30:00.000Z,100,101,99,100.5,1000\n';
+    const calendarFile=JSON.stringify({provider:'Alpaca Market Calendar',sessions:[{date:'2026-10-20',open:570,close:960}]});
+    const sha=(text:string)=>createHash('sha256').update(text).digest('hex');
+    const report={schema:'phase38d-report-v1',source:query,sha256:{strict15mCsv:sha(csv),calendar:sha(calendarFile)},summary:{strict15m:1}};
+    for(const [name,content] of [['query.json',JSON.stringify(query)],['calendar.json',calendarFile],
+      ['strict-15m.csv',csv],['report.json',JSON.stringify(report)]] as const)writeFileSync(join(source,name),content);
+    writeFileSync(join(source,'SHA256SUMS'),['query.json','calendar.json','strict-15m.csv','report.json']
+      .map(name=>`${sha(readFileSync(join(source,name),'utf8'))}  ${name}\n`).join(''));
+    assert.throws(()=>registerIexWarmup(source,registry,()=> '2026-10-20T13:40:00.000Z'),/posteriores/);
+    const result=registerIexWarmup(source,registry,()=> '2026-10-20T14:00:00.000Z');
+    assert.equal(result.rows,1);
+    assert.equal(loadIexWarmup(registry).candles.length,1);
+    assert.throws(()=>registerIexWarmup(source,registry,()=> '2026-10-20T14:01:00.000Z'));
+    writeFileSync(join(source,'strict-15m.csv'),csv+'2026-10-20T13:45:00.000Z,100,101,99,100.5,1000\n');
+    assert.throws(()=>loadIexWarmup(registry),/modificado/);
+  }finally{rmSync(folder,{recursive:true,force:true});}
 });
 
 test('prospective predictions are append-only, idempotent and evaluated separately',()=>{
