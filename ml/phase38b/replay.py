@@ -14,6 +14,18 @@ def load_run(path):
     path=Path(path);manifest=json.loads((path/'manifest.json').read_text(encoding='utf8'))
     if manifest.get('schema')!='phase38b-v1' or manifest.get('source',{}).get('feed')!='sip' or manifest['source'].get('symbol')!='NVDA': raise ValueError('Manifiesto de replay incompatible.')
     if sha(path/'observations.json')!=manifest['observationsSha256']: raise ValueError('Hash de observaciones incorrecto.')
+    declared={}
+    for line in (path/'SHA256SUMS').read_text(encoding='utf8').splitlines():
+        parts=line.split('  ',1)
+        if len(parts)!=2 or parts[1] in declared: raise ValueError('SHA256SUMS inválido.')
+        declared[parts[1]]=parts[0]
+    for name in ('observations.json','manifest.json'):
+        if declared.get(name)!=sha(path/name): raise ValueError('SHA256SUMS no coincide con el replay.')
+    root=Path(__file__).resolve().parents[2]
+    source_files=('trading_poc_001_bollinger/src/phase23-dataset.ts','trading_poc_001_bollinger/src/phase31-inference.ts',
+                  'trading_poc_001_bollinger/src/phase38b-replay.ts','ml/phase28/train.py','ml/phase38b/replay.py')
+    code=manifest.get('codeSha256')
+    if not isinstance(code,dict) or set(code)!=set(source_files) or any(code[name]!=sha(root/name) for name in source_files): raise ValueError('Código de preparación o evaluación distinto del manifiesto.')
     rows=json.loads((path/'observations.json').read_text(encoding='utf8'))
     if len(rows)!=manifest['rows']: raise ValueError('Conteo de observaciones incorrecto.')
     previous=None
@@ -41,6 +53,28 @@ INFERENCE_FIELDS=('bar_start_utc','session_date_ny','ideal_available_at_utc','de
 def inference_events(rows):
     """The inference loop receives no outcome, exclusion, or future label timestamp."""
     return [{key:row[key] for key in INFERENCE_FIELDS} for row in rows]
+
+
+def session_intervals(rows,y,probabilities,iterations=300,seed=7):
+    """Percentile intervals resample complete sessions, never independent bars."""
+    groups={}
+    for index,row in enumerate(rows): groups.setdefault(row['session_date_ny'],[]).append(index)
+    days=sorted(groups)
+    if len(days)<2: return {'status':'insufficient_sessions','sessions':len(days)}
+    rng=np.random.default_rng(seed)
+    keys=('macro_f1','balanced_accuracy','log_loss','brier_multiclass')
+    values={key:[] for key in keys}
+    for label in CLASSES:
+        values[f'{label}_precision']=[];values[f'{label}_recall']=[]
+    for _ in range(iterations):
+        indexes=np.concatenate([groups[day] for day in rng.choice(days,len(days),replace=True)])
+        scored=metrics(y[indexes],probabilities[indexes])
+        for key in keys:values[key].append(scored[key])
+        for label in CLASSES:
+            values[f'{label}_precision'].append(scored['per_class'][label]['precision'])
+            values[f'{label}_recall'].append(scored['per_class'][label]['recall'])
+    return {'status':'ok','method':'bootstrap por sesiones completas','sessions':len(days),'iterations':iterations,'seed':seed,
+        'interval_95pct':{key:[float(np.quantile(samples,.025)),float(np.quantile(samples,.975))] for key,samples in values.items()}}
 
 def training_before(rows,cutoff,first_test_day):
     return [dict(row['features'],session_date_ny=row['session_date_ny'],bar_start_utc=row['bar_start_utc'],
@@ -114,6 +148,7 @@ def run(directory,minimum_train_sessions=252,test_sessions=252):
     pooled_y=np.array([CLASSES.index(record['label']) for record in pooled])
     pooled_prob={name:np.array([record[f'prob_{name}'] for record in pooled]) for name in ('xgboost','majority','frequency')}
     pooled_metrics={name:metrics(pooled_y,prob) for name,prob in pooled_prob.items()}
+    for name,prob in pooled_prob.items(): pooled_metrics[name]['uncertainty']=session_intervals(pooled,pooled_y,prob)
     pooled_metrics['paired_xgboost_vs_frequency']=paired_bootstrap(pooled,pooled_y,pooled_prob['xgboost'],pooled_prob['frequency'],iterations=400)
     pooled_metrics['paired_xgboost_vs_majority']=paired_bootstrap(pooled,pooled_y,pooled_prob['xgboost'],pooled_prob['majority'],iterations=400)
     report={'schema':'phase38b-report-v1','warning':'Replay retrospectivo previamente examinado; no evidencia prospectiva ni precio ejecutable.','source_sha256':manifest['source']['sha256'],'code_sha256':manifest.get('codeSha256'),'runtime':{'python':sys.version.split()[0],'numpy':np.__version__,'xgboost':xgboost.__version__},'fold_policy':{'minimum_train_sessions':minimum_train_sessions,'test_sessions':test_sessions,'basis':'observed sessions; independent of later completeness'},'features':list(FEATURES),'classes':list(CLASSES),'scenarios':{'ideal':'cierre de t','delayed':'cierre de t + 20 minutos; no es recepción verificada'},'folds':fold_reports,'pooled':{'rows':len(pooled),'metrics':pooled_metrics},'predictions':len(records),'excluded_outcomes':sum(record['label'] is None for record in records)//2,'model_hashes':model_hashes}
