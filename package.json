@@ -42,6 +42,7 @@
     "alpaca:ingest": "tsx trading_poc_001_bollinger/src/phase32-cli.ts",
     "iex:probe": "tsx trading_poc_001_bollinger/src/phase38-iex-cli.ts --probe",
     "iex:collect": "tsx trading_poc_001_bollinger/src/phase38-iex-cli.ts",
+    "iex:history": "tsx trading_poc_001_bollinger/src/phase38d-cli.ts",
     "test:ml": "python -m unittest ml.phase28.test_train",
     "test:ml-inference": "python -m unittest ml.phase31.test_infer"
   },
