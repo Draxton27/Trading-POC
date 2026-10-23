@@ -10,6 +10,8 @@ La etiqueta usa el `open` de la vela de referencia y el `close` de la cuarta vel
 
 Cada escenario entrena su propio XGBoost experimental por fold, con las sesiones observadas de prueba del protocolo de Fase 38B: un mínimo inicial de 252 sesiones y bloques posteriores de hasta 252. El entrenamiento exige que las etiquetas se hayan conocido estrictamente antes del corte y antes de la primera sesión de prueba. Un bloque interno anterior al test fija la cantidad de árboles por early stopping; luego se entrena con todas las filas causales disponibles. No se seleccionan hiperparámetros con los folds externos. Mayoría, frecuencias y regresión logística regularizada usan las mismas filas de entrenamiento; momentum aplica el signo fijo de `return_1(t)`.
 
+Accuracy, balanced accuracy, Macro F1, precision y recall se reportan para todos los clasificadores. Log loss, Brier y calibración se reportan solo para XGBoost, `frequency` y `linear`, que producen estimaciones probabilísticas. Para `momentum` y `majority`, esos campos quedan `null` con el estado `not_comparable_deterministic_classifier`; sus vectores one-hot solo codifican una decisión de clase y no son probabilidades calibradas. No se aplicó calibración a estos baselines.
+
 ## Ejecución local en Windows
 
 Desde la raíz del repositorio, con Python 3.12, NumPy 2.1.3, XGBoost 2.1.4 y scikit-learn 1.6.1 del entorno existente:
@@ -27,6 +29,8 @@ La salida contiene `observations.json`, `manifest.json`, modelos independientes 
 ## Interpretación
 
 La disponibilidad es **simulada**; el histórico no acredita cuándo se recibió cada vela en su fecha original. La resolución de 15 minutos deja sin observar el precio entre aperturas. Una apertura OHLC de referencia tampoco acredita liquidez, acceso a ese precio ni ejecución de una orden. Los resultados históricos ya explorados no son validación prospectiva independiente. Este estudio mide calidad de clasificación y precedencia temporal, sin P&L, opciones ni señales operativas. Un futuro estudio con IEX de un minuto y recepción verificada podría reducir la limitación de resolución; no forma parte de esta fase.
+
+Los intervalos bootstrap remuestrean sesiones completas y mantienen emparejados los modelos, pero asumen que las sesiones remuestreadas informan la incertidumbre. No capturan necesariamente dependencias entre jornadas, autocorrelación de largo plazo ni cambios de régimen prolongados; por ello pueden ser demasiado estrechos y deben leerse como descriptivos.
 
 ## Comprobación local del 22-10-2026
 

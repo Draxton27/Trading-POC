@@ -118,6 +118,17 @@ def fast_scores(y,probabilities):
         values[f'{label}_precision']=float(precision[index]);values[f'{label}_recall']=float(recall[index])
     return values
 
+def report_scores(y,probabilities,name):
+    """Keep hard-class scores for every estimator; score probability quality only for estimators that estimate probabilities."""
+    values=metrics(y,probabilities)
+    if name in ('momentum','majority'):
+        for key in ('log_loss','brier_multiclass','probability_mean','calibration'):
+            values[key]=None
+        values['probability_metrics_status']='not_comparable_deterministic_classifier'
+    else:
+        values['probability_metrics_status']='reported_for_probabilistic_estimator'
+    return values
+
 def bootstrap(rows,y,predictions,comparators,iterations=250,seed=7):
     groups={}
     for index,row in enumerate(rows):groups.setdefault(row['session_date_ny'],[]).append(index)
@@ -125,6 +136,7 @@ def bootstrap(rows,y,predictions,comparators,iterations=250,seed=7):
     if len(days)<2:return {'status':'insufficient_sessions','sessions':len(days)}
     rng=np.random.default_rng(seed)
     keys=tuple(fast_scores(y,predictions).keys())
+    classification_keys=tuple(key for key in keys if key not in ('log_loss','brier_multiclass'))
     absolute={key:[] for key in keys};differences={name:{key:[] for key in keys} for name in comparators}
     for _ in range(iterations):
         selected=np.concatenate([groups[day] for day in rng.choice(days,len(days),replace=True)])
@@ -132,11 +144,12 @@ def bootstrap(rows,y,predictions,comparators,iterations=250,seed=7):
         for key in keys:absolute[key].append(left[key])
         for name,probabilities in comparators.items():
             right=fast_scores(y[selected],probabilities[selected])
-            for key in keys:differences[name][key].append(left[key]-right[key])
+            comparable=keys if name in ('frequency','linear') else classification_keys
+            for key in comparable:differences[name][key].append(left[key]-right[key])
     interval=lambda numbers:[float(np.quantile(numbers,.025)),float(np.quantile(numbers,.975))]
     return {'status':'ok','method':'bootstrap pareado por sesiones completas','sessions':len(days),
         'iterations':iterations,'seed':seed,'xgboost_interval_95pct':{key:interval(values) for key,values in absolute.items()},
-        'xgboost_minus_baseline_95pct':{name:{key:interval(values) for key,values in comparison.items()}
+        'xgboost_minus_baseline_95pct':{name:{key:(interval(values) if values else None) for key,values in comparison.items()}
             for name,comparison in differences.items()}}
 
 def evaluate_scenario(rows,scenario,directory,minimum_train_sessions,test_sessions):
@@ -195,7 +208,7 @@ def evaluate_scenario(rows,scenario,directory,minimum_train_sessions,test_sessio
             'cutoff_utc':cutoff,'training_rows':len(train),'max_training_label_available_at_utc':max(row['label_available_at_utc'] for row in train),
             'early_stop_rows':len(early),'selection_rows':len(core),'selected_trees':selection['n_estimators'],
             'model':training,'model_sha256':model_hash,'test_rows':len(test),'resolved_rows':len(resolved),
-            'metrics':{name:metrics(y,values) for name,values in variants.items()},
+            'metrics':{name:report_scores(y,values,name) for name,values in variants.items()},
             'uncertainty':bootstrap(resolved,y,variants['xgboost'],
                 {name:values for name,values in variants.items() if name!='xgboost'},iterations=150),
             'by_session':by_session})
@@ -203,7 +216,7 @@ def evaluate_scenario(rows,scenario,directory,minimum_train_sessions,test_sessio
     if not resolved:raise ValueError(f'Sin desenlaces evaluables en {scenario}.')
     y=np.array([CLASSES.index(row['label']) for row in resolved]);names=('xgboost','majority','frequency','momentum','linear')
     variants={name:np.array([row[f'prob_{name}'] for row in resolved]) for name in names}
-    pooled={name:metrics(y,p) for name,p in variants.items()}
+    pooled={name:report_scores(y,p,name) for name,p in variants.items()}
     pooled['uncertainty']=bootstrap(resolved,y,variants['xgboost'],{name:p for name,p in variants.items() if name!='xgboost'})
     exclusions=dict(Counter(row['exclusion'] or 'NONE' for row in predictions))
     entries=[row['minutes_until_reference_entry'] for row in predictions if row['reference_entry_at_utc'] is not None]

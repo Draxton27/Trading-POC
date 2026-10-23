@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 from ml.phase28.train import FEATURES
 from ml.phase38c.replay import (CODE_FILES, bootstrap, inference_events, load_run,
-    run, training_before, visible_features)
+    report_scores, run, training_before, visible_features)
 
 def instant(value):return value.isoformat(timespec='milliseconds').replace('+00:00','Z')
 
@@ -63,9 +63,23 @@ class PostDecisionReplayTests(unittest.TestCase):
         rows=[{'session_date_ny':day} for day in ('2024-01-02','2024-01-02','2024-01-03','2024-01-03')]
         y=np.array([0,1,1,2]);left=np.array([[.8,.1,.1],[.1,.8,.1],[.1,.8,.1],[.1,.1,.8]])
         right=np.tile([1/3,1/3,1/3],(4,1))
-        first=bootstrap(rows,y,left,{'frequency':right},iterations=30)
-        self.assertEqual(first,bootstrap(rows,y,left,{'frequency':right},iterations=30))
+        first=bootstrap(rows,y,left,{'frequency':right,'momentum':left},iterations=30)
+        self.assertEqual(first,bootstrap(rows,y,left,{'frequency':right,'momentum':left},iterations=30))
         self.assertIn('brier_multiclass',first['xgboost_minus_baseline_95pct']['frequency'])
+        self.assertIsNone(first['xgboost_minus_baseline_95pct']['momentum']['log_loss'])
+
+    def test_deterministic_baselines_keep_classification_but_hide_probability_scores(self):
+        y=np.array([0,1,2,1])
+        deterministic=np.eye(3)[np.array([0,0,2,1])]
+        reported=report_scores(y,deterministic,'momentum')
+        self.assertEqual(reported['accuracy'],.75)
+        self.assertEqual(reported['per_class']['BAJISTA']['recall'],.5)
+        self.assertEqual(reported['probability_metrics_status'],'not_comparable_deterministic_classifier')
+        for key in ('log_loss','brier_multiclass','probability_mean','calibration'):
+            self.assertIsNone(reported[key])
+        probabilistic=report_scores(y,np.tile([.2,.5,.3],(4,1)),'frequency')
+        self.assertIsNotNone(probabilistic['log_loss'])
+        self.assertEqual(probabilistic['probability_metrics_status'],'reported_for_probabilistic_estimator')
 
     def test_scenario_models_three_folds_same_rows_and_reproducible(self):
         with tempfile.TemporaryDirectory() as folder:
