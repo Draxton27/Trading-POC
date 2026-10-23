@@ -10,4 +10,4 @@ $scheduledAction = New-ScheduledTaskAction -Execute $node -Argument ('--experime
 $trigger = New-ScheduledTaskTrigger -Daily -At '06:00'
 $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 18) -MultipleInstances IgnoreNew
 Register-ScheduledTask -TaskName $taskName -Action $scheduledAction -Trigger $trigger -Settings $settings -Description 'Trading-POC: investigación diaria local de solo lectura' -Force | Out-Null
-Write-Output 'Tarea instalada. Consulte su estado con .\scripts\windows\daily-task.ps1 status.'
+Write-Output 'Tarea instalada o actualizada. Consulte su estado con .\scripts\windows\daily-task.ps1 status.'

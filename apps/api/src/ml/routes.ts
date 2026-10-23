@@ -6,6 +6,7 @@ import {readAlpacaIngestionStatus} from './ingestion.ts';
 import {readForwardObservation} from './forward-observation.ts';
 import {readMlCollectorStatus} from './collector.ts';
 import {readDailyAutomation} from './daily.ts';
+import {readIexAutomationStatus} from './iex-daily.ts';
 import {evaluationStatus,evaluationMetrics,evaluationClasses,evaluationHistory} from './evaluation.ts';
 import {readNewsContextSummary} from './news-context.ts';
 import {join} from 'node:path';
@@ -24,6 +25,7 @@ export function registerMlRoutes(app:FastifyInstance,configuredDirectory:string|
   app.get('/api/v1/ml/ingestion',(req,reply)=>{if(!query.safeParse(req.query).success)return reply.code(400).send({error:'Solo NVDA de 15 minutos.'});return readAlpacaIngestionStatus(ingestionLog);});
   app.get('/api/v1/ml/collector',(req,reply)=>{if(!query.safeParse(req.query).success)return reply.code(400).send({error:'Solo NVDA de 15 minutos.'});return readMlCollectorStatus(collectorStatusPath);});
   app.get('/api/v1/ml/daily-automation',()=>readDailyAutomation());
+  app.get('/api/v1/ml/iex-automation',()=>readIexAutomationStatus());
   app.get('/api/v1/ml/news-context',(req,reply)=>{if(!query.safeParse(req.query).success)return reply.code(400).send({error:'Solo NVDA de 15 minutos.'});return newsContextDir?readNewsContextSummary(join(newsContextDir,'summary.json'),run.status==='READY'?run.modelSha256:undefined):{status:run.status==='READY'?'NO_DATA':'NO_MODEL',reason:'Dataset de contexto informativo no configurado.'};});
   app.get('/api/v1/ml/evaluation/status',(req,reply)=>{if(!query.safeParse(req.query).success)return reply.code(400).send({error:'Solo NVDA de 15 minutos.'});return evaluationStatus(evalPaths);});
   app.get('/api/v1/ml/evaluation/metrics',(req,reply)=>{if(!query.safeParse(req.query).success)return reply.code(400).send({error:'Solo NVDA de 15 minutos.'});return evaluationMetrics(evalPaths);});

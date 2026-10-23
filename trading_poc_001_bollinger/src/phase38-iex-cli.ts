@@ -21,6 +21,11 @@ const key=process.env.APCA_API_KEY_ID??'',secret=process.env.APCA_API_SECRET_KEY
 const release=acquireIexProcessLock(ledger);
 const controller=new AbortController();
 process.once('SIGINT',()=>controller.abort());process.once('SIGTERM',()=>controller.abort());
+// The daily task owns this direct child through its stdin pipe. EOF also stops it
+// after an unexpected parent exit; a manual collector keeps its original lifecycle.
+if(process.env.TRADING_POC_IEX_MANAGED==='1'){
+  process.stdin.once('end',()=>controller.abort());process.stdin.resume();
+}
 try{
   if(!key||!secret)throw new Error('Configurar APCA_API_KEY_ID y APCA_API_SECRET_KEY en .env.local.');
   const fetchCalendar=()=>{const today=new Date(),end=new Date(today.getTime()+7*24*60*60_000);return fetchAlpacaCalendar({apiKey:key,secretKey:secret,start:today.toISOString(),end:end.toISOString()});};

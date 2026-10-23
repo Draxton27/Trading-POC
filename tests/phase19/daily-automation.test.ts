@@ -50,6 +50,18 @@ describe('orquestación diaria',()=>{
     expect(news.length).toBeGreaterThan(1);expect(news[0]!.at).toBe(Date.parse('2026-10-21T13:50:00Z'));
     expect(ml.length).toBe(2);expect(ml[0]!.at).toBe(Date.parse('2026-10-21T14:05:00Z'));
   });
+  it('un fallo IEX no bloquea la consulta SIP ni la recopilación de noticias',async()=>{
+    const dir=temporary(),env={...process.env,TRADING_POC_PRIVATE_DIR:dir,TRADING_POC_DAILY_STATUS:join(dir,'daily.json'),
+      TRADING_POC_ML_COLLECTOR_STATUS:join(dir,'collector.json'),APCA_API_KEY_ID:'fixture',APCA_API_SECRET_KEY:'fixture'};
+    const calls:string[]=[];
+    const run=async(_program:string,args:string[])=>{calls.push(args.join(' '));return {code:0,output:''};};
+    const iex={tick:async()=>{throw new Error('Fallo IEX simulado');},stop:async()=>{}};
+    const result=await runDay({env,now:()=>Date.parse('2026-10-21T21:30:00Z'),calendar:(async()=>new Map([['2026-10-21',{open:570,close:960}]])) as never,
+      run,once:true,recover:async()=>{},iex:iex as never});
+    expect(result.pendingErrors).toContain('IEX_AUTOMATION_FAILED');
+    expect(calls.some(value=>value.includes('ml-collect.mjs'))).toBe(true);
+    expect(calls.some(value=>value.includes('news')&&value.includes('collect'))).toBe(true);
+  });
   it('detecta sesiones incompletas de viernes a lunes y varios días sin conexión',()=>{
     const ledger=join(temporary(),'ledger.jsonl');
     appendSuccessfulCapture(ledger,{candles:[{timestamp:'2026-10-15T13:30:00.000Z',open:1,high:2,low:1,close:2,volume:10}],queryAtUtc:'2026-10-15T14:05:00.000Z',receivedAtUtc:'2026-10-15T14:05:00.000Z',responseSha256:'a'.repeat(64),availability:'DELAYED',barAgeMs:20*60_000});

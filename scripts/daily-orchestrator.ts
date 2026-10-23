@@ -12,6 +12,7 @@ import {captureOnce} from '../trading_poc_001_bollinger/src/phase32-capture-once
 import {readForwardObservations} from '../trading_poc_001_bollinger/src/phase34-forward-observation.ts';
 import {newsPaths} from '../apps/api/src/news/paths.ts';
 import {readNews,readNewsAnalyses} from '../apps/api/src/news/store.ts';
+import {createIexDaily,iexCollectorAllowed,iexEvaluationFinalAt,IEX_POLL_MS} from './iex-daily.ts';
 
 const root=fileURLToPath(new URL('../',import.meta.url));
 export type DailyState={schema:'daily-automation-v1';updatedAtUtc:string;lastRunAtUtc:string|null;lastSessionNy:string|null;nextSessionNy:string|null;pendingErrors:string[];barsReceived:number;newPredictions:number;evaluationsCompleted:number;newsCollected:number;classifications:number};
@@ -63,7 +64,7 @@ export function runChild(program:string,args:string[],timeoutMs=180_000):Promise
 });}
 function count(path:string,reader:(path:string)=>unknown[]){return existsSync(path)?reader(path).length:0;}
 function waitUntil(at:number){return new Promise<void>(done=>setTimeout(done,Math.max(0,Math.min(at-Date.now(),2_147_000_000))));}
-export async function runDay(options:{now?:()=>number;calendar?:typeof fetchAlpacaCalendar;run?:typeof runChild;wait?:typeof waitUntil;env?:NodeJS.ProcessEnv;once?:boolean;recover?:()=>Promise<void>}={}){
+export async function runDay(options:{now?:()=>number;calendar?:typeof fetchAlpacaCalendar;run?:typeof runChild;wait?:typeof waitUntil;env?:NodeJS.ProcessEnv;once?:boolean;recover?:()=>Promise<void>;iex?:ReturnType<typeof createIexDaily>}={}){
   const env=options.env??process.env,now=options.now??Date.now,run=options.run??runChild,wait=options.wait??waitUntil;
   const statusPath=dailyStatePath(env),collectorPath=env.TRADING_POC_ML_COLLECTOR_STATUS??resolve(root,'private','ml-collector','status.json');
   const unlock=acquireDailyLock(statusPath);
@@ -73,6 +74,8 @@ export async function runDay(options:{now?:()=>number;calendar?:typeof fetchAlpa
   const observations=env.TRADING_POC_ML_FORWARD_OBSERVATION_LOG??resolve(root,'private','ml-forward-observation','records.jsonl');
   const evaluations=env.TRADING_POC_ML_EVALUATION_LOG??resolve(root,'private','ml-evaluation','records.jsonl');
   const news=newsPaths({repoRoot:root,env});let row=readDailyState(statusPath)??state(new Date(now()).toISOString());
+  const iex=options.iex??createIexDaily({env,clock:now,run:mode=>run(process.execPath,
+    ['--experimental-strip-types',resolve(root,'trading_poc_001_bollinger/src/phase38f-cli.ts'),mode],45_000)});
   const errors:string[]=[];const counts=()=>({bars:count(ledger,p=>readIngestion(p).filter(r=>r.kind==='bar')),predictions:count(observations,readForwardObservations),evaluations:count(evaluations,p=>readEvaluations(p).filter(r=>r.kind==='EVALUATED')),news:count(news.newsLog,readNews),classifications:count(news.analysisLog,readNewsAnalyses)});
   const before=counts();
   let newsCollection:Promise<void>|null=null,classification:Promise<void>|null=null;
@@ -81,11 +84,22 @@ export async function runDay(options:{now?:()=>number;calendar?:typeof fetchAlpa
     if(!classification)classification=run(process.execPath,['--experimental-strip-types',resolve(root,'apps/api/src/news/cli.ts'),'analyze','--once']).then(result=>{if(result.code!==0)errors.push('NEWS_CLASSIFICATION_PENDING');}).finally(()=>{classification=null;});
   };
   newsTick();const newsTimer=options.once?null:setInterval(newsTick,15*60_000);
+  let iexTask:Promise<void>|null=null,iexTimer:ReturnType<typeof setInterval>|null=null;
+  const iexTick=(allowCollector:boolean,nextCheckAt:number|null)=>{
+    if(!iexTask)iexTask=iex.tick(allowCollector,nextCheckAt).then(()=>{},()=>{errors.push('IEX_AUTOMATION_FAILED');}).finally(()=>{iexTask=null;});
+    return iexTask;
+  };
+  // Ledger evaluations do not require fresh Alpaca credentials or a current session.
+  void iexTick(false,options.once?null:now()+IEX_POLL_MS);
   try{
     const key=env.APCA_API_KEY_ID,secret=env.APCA_API_SECRET_KEY;
     if(!key||!secret)throw new Error('ALPACA_CREDENTIALS_MISSING');
     const calendar=await (options.calendar??fetchAlpacaCalendar)({apiKey:key,secretKey:secret,start:new Date(now()-30*86_400_000).toISOString(),end:new Date(now()+14*86_400_000).toISOString()});
     let plan=sessionPlan(calendar,now());row={...row,nextSessionNy:plan.next};saveDailyState(statusPath,row);
+    const hours=plan.current?calendar.get(plan.current):undefined;
+    const allowIex=()=>!options.once&&options.run===undefined&&iexCollectorAllowed(hours,plan.lastDue,now());
+    if(allowIex())void iexTick(true,now()+IEX_POLL_MS);
+    if(!options.once)iexTimer=setInterval(()=>{void iexTick(allowIex(),now()+IEX_POLL_MS);},IEX_POLL_MS);
     const earliest=[...calendar.keys()].sort()[0];
     if(row.lastSessionNy&&earliest&&row.lastSessionNy<earliest)errors.push('ML_CATCHUP_RANGE_EXCEEDED');
     const recover=options.recover??(async()=>{for(const window of missingSessionWindows(calendar,ledger,now()))await captureOnce({ledgerPath:ledger,calendarPath:env.TRADING_POC_ALPACA_INGESTION_CALENDAR??`${ledger}.calendar.json`,apiKey:key,secretKey:secret,delayMinutes:20,calendar:new Map([[window.date,calendar.get(window.date)!]]),historicalWindow:window});});
@@ -100,6 +114,7 @@ export async function runDay(options:{now?:()=>number;calendar?:typeof fetchAlpa
       // Schedule every delayed 15-minute close. On a resumed computer, process only
       // current eligible bars; the existing collector refuses historical backfill.
       let previous=0;
+      const finalAt=iexEvaluationFinalAt(plan.lastDue??now()); // close + 30 minutes.
       while(true){
         const current=now(),schedule=collectorSchedule(new Map([[plan.current,calendar.get(plan.current)!]]),current);
         if(schedule.latestDue!==null&&schedule.latestDue>previous){
@@ -115,8 +130,8 @@ export async function runDay(options:{now?:()=>number;calendar?:typeof fetchAlpa
           }else errors.push('ML_COLLECT_ALREADY_ACTIVE');
           previous=schedule.latestDue;
         }
-        if(options.once||plan.lastDue===null||now()>=plan.lastDue)break;
-        await wait(schedule.next??plan.lastDue);
+        if(options.once||plan.lastDue===null||now()>=finalAt)break;
+        await wait(Math.min(schedule.next??finalAt,finalAt));
         newsTick();
       }
       // Recovery after suspend: ingest permitted delayed history for evaluation
@@ -129,6 +144,11 @@ export async function runDay(options:{now?:()=>number;calendar?:typeof fetchAlpa
       row.lastSessionNy=plan.current;
     }
   }catch{errors.push('CALENDAR_OR_CONFIGURATION_FAILED');}
+  if(iexTimer)clearInterval(iexTimer);
+  if(iexTask)await iexTask;
+  // An evaluation may have become due during the final wait even without a new Live bar.
+  if(!options.once)await iexTick(false,null);
+  try{await iex.stop();}catch{errors.push('IEX_AUTOMATION_FAILED');}
   if(newsTimer)clearInterval(newsTimer);
   await Promise.all([newsCollection,classification]);
   const after=counts();row={...row,updatedAtUtc:new Date(now()).toISOString(),lastRunAtUtc:new Date(now()).toISOString(),pendingErrors:errors,barsReceived:Math.max(0,after.bars-before.bars),newPredictions:Math.max(0,after.predictions-before.predictions),evaluationsCompleted:Math.max(0,after.evaluations-before.evaluations),newsCollected:Math.max(0,after.news-before.news),classifications:Math.max(0,after.classifications-before.classifications)};

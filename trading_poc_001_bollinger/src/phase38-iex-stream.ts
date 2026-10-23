@@ -55,14 +55,22 @@ export function connectIex(options:StreamOptions):Promise<void>{
   });
 }
 export async function collectIex(options:StreamOptions & {pause?:(ms:number)=>Promise<void>;maxReconnects?:number}):Promise<void>{
-  let attempts=0;const pause=options.pause??(ms=>new Promise<void>(resolve=>setTimeout(resolve,ms)));
+  let attempts=0;
+  const pauseOrAbort=(ms:number)=>new Promise<void>((resolve,reject)=>{
+    if(options.signal?.aborted){resolve();return;}
+    let settled=false,timer:ReturnType<typeof setTimeout>|undefined;
+    const finish=(error?:unknown)=>{if(settled)return;settled=true;if(timer)clearTimeout(timer);options.signal?.removeEventListener('abort',abort);if(error)reject(error);else resolve();};
+    const abort=()=>finish();options.signal?.addEventListener('abort',abort,{once:true});
+    if(options.pause)options.pause(ms).then(()=>finish(),error=>finish(error));
+    else timer=setTimeout(()=>finish(),ms);
+  });
   while(!options.signal?.aborted){
     try{await connectIex(options);if(options.probe)return;}
     catch(error){
       if(error instanceof IexStreamError&&['AUTH_FAILED','CONNECTION_LIMIT','SUBSCRIPTION_FAILED','INVALID_MESSAGE'].includes(error.state))throw error;
       if(options.signal?.aborted)return;
       if(attempts++>=(options.maxReconnects??10))throw error;
-      await pause(Math.min(1000*2**Math.min(attempts-1,5),30_000));
+      await pauseOrAbort(Math.min(1000*2**Math.min(attempts-1,5),30_000));
     }
   }
 }
