@@ -25,6 +25,8 @@ on:
       - 'trading_poc_001_bollinger/src/phase38-*.ts'
       - 'trading_poc_001_bollinger/src/phase38b-*.ts'
       - 'trading_poc_001_bollinger/src/phase38c-*.ts'
+      - 'trading_poc_001_bollinger/src/phase38d-*.ts'
+      - 'tests/phase19/iex-history.test.ts'
       - 'tests/phase19/ml-historical-replay.test.ts'
       - 'tests/phase19/ml-post-decision-replay.test.ts'
       - 'scripts/ml-replay.mjs'

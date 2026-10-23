@@ -86,3 +86,7 @@ El canal IEX se prueba con `npm.cmd run iex:probe -- --once` y se inicia por sep
 ## Replay con objetivos posteriores a la decisión (Fase 38C)
 
 `npm.cmd run ml:replay:post:prepare` y `npm.cmd run ml:replay:post:evaluate` crean etiquetas y modelos independientes para cada disponibilidad simulada. La apertura de referencia se programa estrictamente después de la decisión y el horizonte comprende cuatro velas completas; los registros sin desenlace se conservan. Véanse los comandos, las métricas y los límites de interpretación en [la guía de Fase 38C](docs/phase38c-post-decision-replay.md).
+
+## Histórico IEX y auditoría (Fase 38D)
+
+`npm.cmd run iex:history` descarga NVDA IEX `1Min` con ajuste `raw` a un directorio privado, permite reanudar ventanas y audita cobertura por sesión. La [guía de Fase 38D](docs/phase38d-iex-history.md) explica el comando Windows, las velas estrictas de 15 minutos y la comparación de cobertura con SIP.
