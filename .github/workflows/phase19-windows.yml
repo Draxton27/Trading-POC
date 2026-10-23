@@ -27,10 +27,13 @@ on:
       - 'trading_poc_001_bollinger/src/phase38c-*.ts'
       - 'trading_poc_001_bollinger/src/phase38d-*.ts'
       - 'trading_poc_001_bollinger/src/phase38e-*.ts'
+      - 'trading_poc_001_bollinger/src/phase38f-*.ts'
       - 'ml/phase38e/**'
+      - 'ml/phase38f/**'
       - 'scripts/ml-iex-replay.mjs'
       - 'tests/phase19/iex-history.test.ts'
       - 'tests/phase19/iex-walk-forward.test.ts'
+      - 'trading_poc_001_bollinger/tests/phase38f-*.test.ts'
       - 'tests/phase19/ml-historical-replay.test.ts'
       - 'tests/phase19/ml-post-decision-replay.test.ts'
       - 'scripts/ml-replay.mjs'
@@ -80,3 +83,4 @@ jobs:
       - run: python -m unittest ml.phase38b.test_replay
       - run: python -m unittest ml.phase38c.test_replay
       - run: python -m unittest ml.phase38e.test_replay
+      - run: python -m unittest ml.phase38f.test_phase38f
