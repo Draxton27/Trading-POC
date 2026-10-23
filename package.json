@@ -34,6 +34,8 @@
     "ml:evaluate": "node scripts/ml-evaluate.mjs",
     "ml:replay:prepare": "tsx trading_poc_001_bollinger/src/phase38b-cli.ts",
     "ml:replay:evaluate": "node scripts/ml-replay.mjs",
+    "ml:replay:post:prepare": "tsx trading_poc_001_bollinger/src/phase38c-cli.ts",
+    "ml:replay:post:evaluate": "node scripts/ml-post-replay.mjs",
     "news:collect": "tsx apps/api/src/news/cli.ts collect",
     "news:analyze": "tsx apps/api/src/news/cli.ts analyze",
     "ml:news-context": "tsx apps/api/src/ml/news-context-cli.ts",
