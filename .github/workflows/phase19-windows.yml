@@ -7,6 +7,7 @@ on:
       - 'scripts/windows/**'
       - 'scripts/daily-orchestrator.ts'
       - 'scripts/iex-daily.ts'
+      - 'docs/daily-automation.md'
       - 'scripts/dev.mjs'
       - 'scripts/ml-train.mjs'
       - 'scripts/ml-infer.mjs'
