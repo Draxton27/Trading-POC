@@ -21,9 +21,12 @@ import {registerAssistantRoutes} from './assistant/routes.ts';
 import {registerMlRoutes} from './ml/routes.ts';
 import {registerIexRoutes} from './ml/iex.ts';
 import {registerNewsRoutes} from './news/routes.ts';
+import {registerRadarRoutes} from './radar/routes.ts';
+import {buildRadar} from './radar/service.ts';
+import {marketEvidence,quoteEvidence} from './assistant/routes.ts';
 import {newsPaths,resolveNewsDir,resolvePrivateDir} from './news/paths.ts';
 
-type Options={mode?:'DEMO'|'OFFLINE'|'PAPER';privateDir?:string;newsDir?:string;phase17Private?:string;phase16Ledger?:string;dbPath?:string;agentSecret?:string;assistantFetch?:typeof fetch;assistantTimeoutMs?:number;mlRunDir?:string|null;mlInferenceLog?:string|null;mlIngestionLog?:string|null;mlForwardObservationLog?:string|null;mlCollectorStatus?:string|null;mlEvaluationLog?:string|null;mlEvaluationStatus?:string|null};
+type Options={mode?:'DEMO'|'OFFLINE'|'PAPER';privateDir?:string;newsDir?:string;phase17Private?:string;phase16Ledger?:string;dbPath?:string;agentSecret?:string;assistantFetch?:typeof fetch;assistantTimeoutMs?:number;mlRunDir?:string|null;mlInferenceLog?:string|null;mlIngestionLog?:string|null;mlForwardObservationLog?:string|null;mlCollectorStatus?:string|null;mlEvaluationLog?:string|null;mlEvaluationStatus?:string|null;radarFrozenDir?:string|null;radarObservationLog?:string|null};
 const repoRoot=fileURLToPath(new URL('../../../',import.meta.url));
 // Commands can be launched from a workspace directory, so never resolve local
 // configuration relative to process.cwd(). Existing process variables win.
@@ -140,11 +143,16 @@ export async function createApp(options:Options={}){
   });
   registerOptionRoutes(app,hub,mode,demoOptions,db.sqlite);
   registerAcademyRoutes(app,db.sqlite);
-  registerAssistantRoutes(app,{mode,hub,sqlite:db.sqlite,barsFor,offlineAvailable,offlineMetadata,calendarFor:s=>mode==='DEMO'?null:offlineCalendar(s),transport:options.assistantFetch,timeoutMs:options.assistantTimeoutMs});
+  const assistantDeps={mode,hub,sqlite:db.sqlite,barsFor,offlineAvailable,offlineMetadata,calendarFor:(s:Symbol)=>mode==='DEMO'?null:offlineCalendar(s),transport:options.assistantFetch,timeoutMs:options.assistantTimeoutMs};
+  const newsDir=resolveNewsDir({repoRoot,privateDir,newsDir:options.newsDir,env:process.env});
+  const radarDeps={snapshot:(s:Symbol,now:number)=>marketEvidence(assistantDeps,s,now),quote:(s:Symbol,now:number)=>quoteEvidence(assistantDeps,s,now),sqlite:db.sqlite,
+    paths:{observationLog:options.radarObservationLog===undefined?process.env.TRADING_POC_IEX_OBSERVATION_LEDGER??resolve(privateDir,'ml-iex','observations.jsonl'):options.radarObservationLog??resolve(privateDir,'ml-iex','observations.jsonl'),
+      frozenDir:options.radarFrozenDir===undefined?process.env.TRADING_POC_IEX_FROZEN_DIR:options.radarFrozenDir??undefined,news:newsPaths({repoRoot,privateDir,newsDir,env:process.env})}};
+  registerAssistantRoutes(app,{...assistantDeps,radar:(symbols)=>buildRadar(radarDeps,symbols)});
   registerMlRoutes(app,options.mlRunDir===undefined?process.env.TRADING_POC_ML_RUN_DIR:options.mlRunDir??undefined,options.mlInferenceLog===undefined?process.env.TRADING_POC_ML_INFERENCE_LOG??resolve(privateDir,'ml-inference','records.jsonl'):options.mlInferenceLog??undefined,options.mlIngestionLog===undefined?process.env.TRADING_POC_ALPACA_INGESTION_LOG??resolve(privateDir,'alpaca-ingestion','ledger.jsonl'):options.mlIngestionLog??undefined,options.mlForwardObservationLog===undefined?process.env.TRADING_POC_ML_FORWARD_OBSERVATION_LOG??resolve(privateDir,'ml-forward-observation','records.jsonl'):options.mlForwardObservationLog??undefined,options.mlCollectorStatus===undefined?process.env.TRADING_POC_ML_COLLECTOR_STATUS??resolve(repoRoot,'private','ml-collector','status.json'):options.mlCollectorStatus??undefined,options.mlEvaluationLog===undefined?process.env.TRADING_POC_ML_EVALUATION_LOG??resolve(privateDir,'ml-evaluation','records.jsonl'):options.mlEvaluationLog??undefined,options.mlEvaluationStatus===undefined?process.env.TRADING_POC_ML_EVALUATION_STATUS??resolve(privateDir,'ml-evaluation','status.json'):options.mlEvaluationStatus??undefined,process.env.TRADING_POC_ML_NEWS_CONTEXT_DIR??resolve(privateDir,'ml-news-context'));
   registerIexRoutes(app,privateDir,repoRoot);
-  const newsDir=resolveNewsDir({repoRoot,privateDir,newsDir:options.newsDir,env:process.env});
   registerNewsRoutes(app,newsPaths({repoRoot,privateDir,newsDir,env:process.env}));
+  registerRadarRoutes(app,radarDeps);
   app.get('/api/v1/options/quotes',async()=>({items:mode==='DEMO'?demoOptions():[],source:mode==='DEMO'?'DEMO sintético':'Consulte /options/contracts para suscribirse a contratos visibles'}));
   app.get('/api/v1/positions',async()=>{if(mode!=='PAPER'||!hub.status().connected)return {items:[],source:'IBKR desconectado'};
     const m=await hub.request('broker.positions.request',{});return {items:m.kind==='broker.positions.snapshot'?m.payload.items:[],source:hub.status().simulation?'Agente simulado':'IBKR Paper'};});

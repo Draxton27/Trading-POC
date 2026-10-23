@@ -9,7 +9,7 @@ test('asistente muestra carga, fuentes, estado y conserva historial al navegar',
   await expect(page.getByText('Datos observados',{exact:true})).toBeVisible();await expect(page.getByText('Interpretación técnica',{exact:true})).toBeVisible();await expect(page.getByText('SINTÉTICO · DISPONIBLE')).toBeVisible();
   await page.getByText('Métricas, período y disponibilidad',{exact:true}).click();await expect(page.getByText('Retorno 60 min',{exact:true})).toBeVisible();await expect(page.getByText('4 intervalos consecutivos de 15 minutos',{exact:true})).toBeVisible();
   await expect(page.getByText('Fecha UTC: 2026-10-16T20:00:00.000Z')).toBeVisible();
-  await page.getByRole('button',{name:'Mercado'}).click();await page.getByRole('button',{name:'Asistente'}).click();await expect(page.getByText('Histórico de NVDA')).toBeVisible();
+  await page.getByRole('button',{name:'Mercado',exact:true}).click();await page.getByRole('button',{name:'Asistente'}).click();await expect(page.getByText('Histórico de NVDA')).toBeVisible();
 });
 
 test('asistente comunica error controlado si Ollama no está disponible',async({page})=>{
