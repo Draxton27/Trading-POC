@@ -32,8 +32,15 @@ def visible(row,clock,scenario):
     """Reveal features and targets independently; target is unavailable until t+4 closes."""
     at=iso(clock);available=iso(row[f'{scenario}_available_at_utc'])
     if at<available: return None,None
-    target=row['label'] if row['label_available_at_utc'] and iso(row['label_available_at_utc'])<=at else None
+    label_at=row.get('label_available_at_utc')
+    target=row.get('label') if label_at and iso(label_at)<=at else None
     return row['features'],target
+
+
+INFERENCE_FIELDS=('bar_start_utc','session_date_ny','ideal_available_at_utc','delayed_available_at_utc','next_entry_at_utc','features','feature_sha256')
+def inference_events(rows):
+    """The inference loop receives no outcome, exclusion, or future label timestamp."""
+    return [{key:row[key] for key in INFERENCE_FIELDS} for row in rows]
 
 def training_before(rows,cutoff,first_test_day):
     return [dict(row['features'],session_date_ny=row['session_date_ny'],bar_start_utc=row['bar_start_utc'],
@@ -73,10 +80,10 @@ def run(directory,minimum_train_sessions=252,test_sessions=252):
         counts=arrays(train)[1]
         majority=probabilities_majority(counts,1)[0].tolist()
         frequency=probabilities_frequency(counts,1)[0].tolist()
-        variants={};fold_records=[]
+        variants={};fold_records=[];events=inference_events(test)
         for scenario in ('ideal','delayed'):
             released=[]
-            for index,row in enumerate(test):
+            for index,row in enumerate(events):
                 features,_=visible(row,row[f'{scenario}_available_at_utc'],scenario)
                 if features is None: raise AssertionError('Feature aún no disponible.')
                 # Only this observation's released features are passed to the model.

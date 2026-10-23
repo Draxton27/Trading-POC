@@ -3,7 +3,7 @@ import hashlib, json, tempfile, unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from ml.phase28.train import FEATURES
-from ml.phase38b.replay import load_run, run, training_before, visible
+from ml.phase38b.replay import inference_events, load_run, run, training_before, visible
 
 
 def instant(value): return value.isoformat(timespec='milliseconds').replace('+00:00','Z')
@@ -30,6 +30,11 @@ def fixtures():
 class ReplayTests(unittest.TestCase):
     def test_clock_hides_features_and_outcome(self):
         row=fixtures()[0]
+        event=inference_events([row])[0]
+        self.assertNotIn('label',event)
+        self.assertNotIn('exclusion',event)
+        self.assertNotIn('label_available_at_utc',event)
+        self.assertEqual(visible(event,row['label_available_at_utc'],'delayed')[1],None)
         self.assertEqual(visible(row,row['bar_start_utc'],'ideal'),(None,None))
         self.assertEqual(visible(row,row['ideal_available_at_utc'],'ideal')[1],None)
         self.assertEqual(visible(row,row['delayed_available_at_utc'],'delayed')[1],None)
