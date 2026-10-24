@@ -1,0 +1,2 @@
+-r ../phase28/requirements.txt
+lightgbm==4.7.0
