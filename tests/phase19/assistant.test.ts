@@ -19,7 +19,7 @@ async function mockOllama(handler:(body:any)=>unknown|Promise<unknown>){
   return {transport,received};
 }
 async function fixture(transport?:typeof fetch,mode:'DEMO'|'OFFLINE'|'PAPER'='DEMO',timeoutMs?:number){const dir=mkdtempSync(join(tmpdir(),'assistant-'));
-  const result=await createApp({mode,privateDir:dir,phase17Private:join(dir,'p17'),phase16Ledger:join(dir,'p16'),dbPath:join(dir,'db.sqlite'),assistantFetch:transport,assistantTimeoutMs:timeoutMs});
+  const result=await createApp({mode,privateDir:dir,phase17Private:join(dir,'p17'),phase16Ledger:join(dir,'p16'),dbPath:join(dir,'db.sqlite'),assistantFetch:transport,assistantTimeoutMs:timeoutMs,radarFrozenDir:null,radarObservationLog:join(dir,'iex-observations.jsonl')});
   cleanup.push(async()=>{await result.app.close();rmSync(dir,{recursive:true,force:true});});return result;
 }
 const message=(tools:unknown[],content='')=>({message:{content,tool_calls:tools}});
@@ -172,10 +172,11 @@ describe('asistente local de solo lectura',()=>{
     }
     expect(mock.received).toHaveLength(3);
   });
-  it('rechaza activos no admitidos y más de dos activos antes de consultar Ollama',async()=>{
+  it('rechaza activos no admitidos y usa el radar para tres activos explícitos',async()=>{
     const mock=await mockOllama(()=>{throw new Error('No debe consultar Ollama');});const {app,token}=await fixture(mock.transport);
     let response=await invoke(app,token,{message:'Analizá NVDA y TSLA.'});expect(response.statusCode).toBe(422);expect(response.json().error).toContain('TSLA');
-    response=await invoke(app,token,{message:'Compará NVDA, QQQ y SMH.'});expect(response.statusCode).toBe(422);expect(response.json().error).toContain('hasta dos');
+    response=await invoke(app,token,{message:'Compará NVDA, QQQ y SMH.'});expect(response.statusCode).toBe(200);
+    expect(response.json().sections[0].title).toBe('Radar de Mercado');
     expect(mock.received).toHaveLength(0);
   });
   it('no envía contenido documental al modelo ni sigue inyecciones recuperadas',async()=>{

@@ -50,7 +50,7 @@ test('inicio DEMO muestra series, estado y gráfico funcional',async({page})=>{
   expect(errors).toEqual([]);
 });
 test('mercado cambia símbolo y temporalidad sin acceso a TWS',async({page})=>{
-  await page.goto('/');await page.getByRole('button',{name:'Mercado'}).click();
+  await page.goto('/');await page.getByRole('button',{name:'Mercado',exact:true}).click();
   await page.locator('.chart-controls button',{hasText:'QQQ'}).click();
   await expect(page.locator('.chart-heading h2')).toContainText('QQQ');
   await page.locator('.chart-controls button',{hasText:'1h'}).click();
