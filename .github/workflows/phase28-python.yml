@@ -5,6 +5,8 @@ on:
     paths:
       - 'ml/phase28/**'
       - 'ml/phase31/**'
+      - 'ml/phase41b/**'
+      - 'trading_poc_001_bollinger/src/phase41b-*.ts'
       - 'scripts/ml-train.mjs'
       - 'scripts/ml-infer.mjs'
       - 'trading_poc_001_bollinger/src/phase31-*.ts'
@@ -23,4 +25,4 @@ jobs:
       - name: Install prebuilt wheels only
         run: 'python -m pip install --only-binary=:all: -r ml/phase28/requirements.txt'
       - name: Run synthetic XGBoost tests
-        run: python -m unittest ml.phase28.test_train ml.phase31.test_infer
+        run: python -m unittest ml.phase28.test_train ml.phase31.test_infer ml.phase41b.test_bear_audit
