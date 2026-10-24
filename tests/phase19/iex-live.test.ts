@@ -50,6 +50,16 @@ describe('Alpaca IEX aislado',()=>{
     sockets[0]!.emit('close',{});await tick();expect(pauses).toEqual([1000]);
     controller.abort();await expect(run).resolves.toBeUndefined();
   });
+  it('cancela la espera de reconexión al cerrar el recolector administrado',async()=>{
+    vi.useFakeTimers();
+    try{
+      const socket=new MockSocket(),controller=new AbortController();let attempts=0;
+      const run=collectIex({apiKey:'x',secretKey:'y',calendar,signal:controller.signal,socketFactory:()=>{attempts++;return socket;}});
+      socket.emit('close',{});await vi.advanceTimersByTimeAsync(0);
+      controller.abort();await expect(run).resolves.toBeUndefined();
+      expect(attempts).toBe(1);expect(vi.getTimerCount()).toBe(0);
+    }finally{vi.useRealTimers();}
+  });
   it('no desconecta una suscripción sana al vencer el timeout de autenticación',async()=>{
     vi.useFakeTimers();
     try{

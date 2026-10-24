@@ -14,24 +14,30 @@ import {loadIexWarmup} from './phase38f-warmup.ts';
 const root=fileURLToPath(new URL('../../',import.meta.url));
 loadEnv({path:resolve(root,'.env.local'),override:false,quiet:true});
 loadEnv({path:resolve(root,'.env'),override:false,quiet:true});
-if(process.argv.slice(2).some(arg=>arg!=='--once'))throw new Error('Uso: npm run ml:iex:observe -- --once');
+const args=process.argv.slice(2);
+if(args.length!==1||!['--once','--evaluate-only'].includes(args[0]!))throw new Error('Uso: npm run ml:iex:observe -- --once|--evaluate-only');
 const base=resolvePrivateDir({repoRoot:root});
 const ledger=process.env.TRADING_POC_IEX_LEDGER??resolve(base,'iex','ledger.jsonl');
 const calendarPath=process.env.TRADING_POC_IEX_CALENDAR??resolve(base,'iex','calendar.json');
 const output=process.env.TRADING_POC_IEX_OBSERVATION_LEDGER??resolve(base,'ml-iex','observations.jsonl');
+const records=readIexLedger(ledger);
+const evaluations=evaluateIexPredictions(output,records);
+if(args[0]==='--evaluate-only'){
+  process.stdout.write(JSON.stringify({status:'EVALUATION_ONLY',evaluations:evaluations.length})+'\n');
+}else{
 const modelDir=process.env.TRADING_POC_IEX_FROZEN_DIR;
 if(!modelDir)throw new Error('Configurar TRADING_POC_IEX_FROZEN_DIR con el modelo IEX congelado.');
 const frozen=JSON.parse(readFileSync(join(modelDir,'freeze.json'),'utf8')) as IexFrozen;
 const hash=createHash('sha256').update(readFileSync(join(modelDir,'model.json'))).digest('hex');
 if(hash!==frozen.modelSha256)throw new Error('SHA-256 del modelo IEX incompatible.');
-const calendar=loadMarketCalendar(calendarPath),records=readIexLedger(ledger);
-const evaluations=evaluateIexPredictions(output,records);
+const calendar=loadMarketCalendar(calendarPath);
 let status='NO_NEW_OBSERVATION';
 try{
   const warmup=process.env.TRADING_POC_IEX_WARMUP_REGISTRY?loadIexWarmup(process.env.TRADING_POC_IEX_WARMUP_REGISTRY):undefined;
   const nowUtc=new Date().toISOString(),prepared=prepareIexObservation(records,calendar,frozen,nowUtc,warmup);
   const already=readIexObservations(output).some(row=>row.kind==='PREDICTION'&&row.modelSha256===hash&&row.barStartUtc===prepared.candidate.bar!.startUtc);
-  if(!already){
+  if(already)status='ALREADY_PRESENT';
+  else{
     const python=process.env.PYTHON??(process.platform==='win32'?'py':'python3');
     const args=process.platform==='win32'&&/^(?:py|py\.exe)$/i.test(python)?['-3.12']:[];
     const result=spawnSync(python,[...args,'-m','ml.phase38f.frozen','predict','--model-dir',modelDir],{
@@ -57,3 +63,4 @@ try{
   else throw error;
 }
 process.stdout.write(JSON.stringify({status,evaluations:evaluations.length})+'\n');
+}
