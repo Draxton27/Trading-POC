@@ -22,6 +22,7 @@ import {registerMlRoutes} from './ml/routes.ts';
 import {registerIexRoutes} from './ml/iex.ts';
 import {registerNewsRoutes} from './news/routes.ts';
 import {registerRadarRoutes} from './radar/routes.ts';
+import {registerTechnicalContextRoutes,technicalContextFor} from './technical-context/routes.ts';
 import {buildRadar} from './radar/service.ts';
 import {marketEvidence,quoteEvidence} from './assistant/routes.ts';
 import {newsPaths,resolveNewsDir,resolvePrivateDir} from './news/paths.ts';
@@ -144,11 +145,13 @@ export async function createApp(options:Options={}){
   registerOptionRoutes(app,hub,mode,demoOptions,db.sqlite);
   registerAcademyRoutes(app,db.sqlite);
   const assistantDeps={mode,hub,sqlite:db.sqlite,barsFor,offlineAvailable,offlineMetadata,calendarFor:(s:Symbol)=>mode==='DEMO'?null:offlineCalendar(s),transport:options.assistantFetch,timeoutMs:options.assistantTimeoutMs};
+  const technicalDeps={mode,barsFor:(s:Symbol)=>barsFor(s,'15m'),metadataFor:offlineMetadata,calendarFor:(s:Symbol)=>mode==='DEMO'?null:offlineCalendar(s)};
+  registerTechnicalContextRoutes(app,technicalDeps);
   const newsDir=resolveNewsDir({repoRoot,privateDir,newsDir:options.newsDir,env:process.env});
   const radarDeps={snapshot:(s:Symbol,now:number)=>marketEvidence(assistantDeps,s,now),quote:(s:Symbol,now:number)=>quoteEvidence(assistantDeps,s,now),sqlite:db.sqlite,
     paths:{observationLog:options.radarObservationLog===undefined?process.env.TRADING_POC_IEX_OBSERVATION_LEDGER??resolve(privateDir,'ml-iex','observations.jsonl'):options.radarObservationLog??resolve(privateDir,'ml-iex','observations.jsonl'),
       frozenDir:options.radarFrozenDir===undefined?process.env.TRADING_POC_IEX_FROZEN_DIR:options.radarFrozenDir??undefined,news:newsPaths({repoRoot,privateDir,newsDir,env:process.env})}};
-  registerAssistantRoutes(app,{...assistantDeps,radar:(symbols)=>buildRadar(radarDeps,symbols)});
+  registerAssistantRoutes(app,{...assistantDeps,radar:(symbols)=>buildRadar(radarDeps,symbols),technicalContext:(s,asOfUtc)=>technicalContextFor(technicalDeps,s,asOfUtc)});
   registerMlRoutes(app,options.mlRunDir===undefined?process.env.TRADING_POC_ML_RUN_DIR:options.mlRunDir??undefined,options.mlInferenceLog===undefined?process.env.TRADING_POC_ML_INFERENCE_LOG??resolve(privateDir,'ml-inference','records.jsonl'):options.mlInferenceLog??undefined,options.mlIngestionLog===undefined?process.env.TRADING_POC_ALPACA_INGESTION_LOG??resolve(privateDir,'alpaca-ingestion','ledger.jsonl'):options.mlIngestionLog??undefined,options.mlForwardObservationLog===undefined?process.env.TRADING_POC_ML_FORWARD_OBSERVATION_LOG??resolve(privateDir,'ml-forward-observation','records.jsonl'):options.mlForwardObservationLog??undefined,options.mlCollectorStatus===undefined?process.env.TRADING_POC_ML_COLLECTOR_STATUS??resolve(repoRoot,'private','ml-collector','status.json'):options.mlCollectorStatus??undefined,options.mlEvaluationLog===undefined?process.env.TRADING_POC_ML_EVALUATION_LOG??resolve(privateDir,'ml-evaluation','records.jsonl'):options.mlEvaluationLog??undefined,options.mlEvaluationStatus===undefined?process.env.TRADING_POC_ML_EVALUATION_STATUS??resolve(privateDir,'ml-evaluation','status.json'):options.mlEvaluationStatus??undefined,process.env.TRADING_POC_ML_NEWS_CONTEXT_DIR??resolve(privateDir,'ml-news-context'));
   registerIexRoutes(app,privateDir,repoRoot);
   registerNewsRoutes(app,newsPaths({repoRoot,privateDir,newsDir,env:process.env}));

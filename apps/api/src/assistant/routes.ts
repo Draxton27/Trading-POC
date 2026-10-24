@@ -1,7 +1,7 @@
 import type {FastifyInstance} from 'fastify';
 import type Database from 'better-sqlite3';
 import {z} from 'zod';
-import {MarketQuote,symbol,type MarketBar,type RadarResponse} from '@trading-poc/contracts';
+import {MarketQuote,symbol,type MarketBar,type RadarResponse,type TechnicalContext} from '@trading-poc/contracts';
 import type {Symbol,Timeframe} from '@trading-poc/research-adapter';
 import type {DataMetadata} from '../../../../trading_poc_001_bollinger/src/data-contract.ts';
 import type {MarketCalendar} from '../../../../trading_poc_001_bollinger/src/alpaca-calendar.ts';
@@ -11,7 +11,7 @@ import {analyzeAtCommonTimestamp,analyzeMarketBars,compareMarketAnalyses,explain
 import {localOllamaFetch} from './local-ollama-transport.ts';
 
 type Mode='DEMO'|'OFFLINE'|'PAPER';
-export type Dependencies={mode:Mode;hub:AgentHub;sqlite:Database.Database;barsFor:(symbol:Symbol,frame:Timeframe)=>MarketBar[];offlineAvailable:()=>boolean;offlineMetadata:(symbol:Symbol)=>DataMetadata;calendarFor?:(symbol:Symbol)=>MarketCalendar|null;transport?:typeof fetch;timeoutMs?:number;radar?:(symbols:Symbol[])=>RadarResponse};
+export type Dependencies={mode:Mode;hub:AgentHub;sqlite:Database.Database;barsFor:(symbol:Symbol,frame:Timeframe)=>MarketBar[];offlineAvailable:()=>boolean;offlineMetadata:(symbol:Symbol)=>DataMetadata;calendarFor?:(symbol:Symbol)=>MarketCalendar|null;transport?:typeof fetch;timeoutMs?:number;radar?:(symbols:Symbol[])=>RadarResponse;technicalContext?:(symbol:Symbol,asOfUtc:string)=>TechnicalContext};
 export type Evidence={source:string;asset:Symbol|null;dateUtc:string|null;documentDate?:string|null;dataType:'SYNTHETIC'|'HISTORICAL'|'LIVE'|'DELAYED'|'FROZEN'|'DELAYED_FROZEN'|'UNKNOWN'|'DOCUMENT'|'SYSTEM'|'PREDICTION';availability:'AVAILABLE'|'STALE'|'UNAVAILABLE'|'HISTORICAL_ONLY'|'CONFLICT';summary:string;values:Record<string,unknown>};
 type Section={title:string;items:string[]};
 const ENDPOINT='http://127.0.0.1:11434/api/chat';
@@ -22,7 +22,9 @@ const academyArgs=z.object({symbol,asOf:z.string().date().optional(),right:z.enu
 const systemArgs=z.object({}).strict();
 const educationArgs=z.object({indicators:z.array(z.enum(['SMA20','SMA40','SMA100','SMA200','BOLLINGER','MOMENTUM','RVOL'])).min(1).max(7).refine(v=>new Set(v).size===v.length)}).strict();
 const radarArgs=z.object({symbols:z.array(symbol).min(1).max(3).refine(v=>new Set(v).size===v.length)}).strict();
+const technicalArgs=z.object({symbols:z.array(symbol).min(1).max(2).refine(v=>new Set(v).size===v.length),asOfUtc:z.iso.datetime({offset:true}).optional()}).strict();
 type ToolAction=
+  |{name:'get_technical_context';args:z.infer<typeof technicalArgs>}
   |{name:'get_market_radar';args:z.infer<typeof radarArgs>}
   |{name:'get_market_snapshot';args:z.infer<typeof marketArgs>}
   |{name:'get_academy_reference';args:z.infer<typeof academyArgs>}
@@ -32,19 +34,21 @@ type DeterministicSelection={kind:'actions';actions:ToolAction[]}|{kind:'rejecte
 const callSchema=z.object({function:z.object({name:z.string().max(64),arguments:z.unknown()}).passthrough()}).passthrough();
 const ollamaSchema=z.object({message:z.object({content:z.string().max(4000).optional(),tool_calls:z.array(callSchema).max(3).optional()}).passthrough()}).passthrough();
 const toolDefinitions=[
+  {type:'function',function:{name:'get_technical_context',description:'Estructura técnica descriptiva SMA20/40/100/200, niveles y retesteos de hasta dos activos. Solo velas históricas cerradas.',parameters:{type:'object',properties:{symbols:{type:'array',items:{type:'string',enum:['NVDA','QQQ','SMH']},minItems:1,maxItems:2,uniqueItems:true},asOfUtc:{type:'string',description:'Instante ISO UTC opcional'}},required:['symbols'],additionalProperties:false}}},
   {type:'function',function:{name:'get_market_radar',description:'Panorama descriptivo de NVDA, QQQ y SMH, con probabilidades IEX ya registradas. No genera predicciones ni órdenes.',parameters:{type:'object',properties:{symbols:{type:'array',items:{type:'string',enum:['NVDA','QQQ','SMH']},minItems:1,maxItems:3,uniqueItems:true}},required:['symbols'],additionalProperties:false}}},
   {type:'function',function:{name:'get_market_snapshot',description:'Último cierre histórico e indicadores, y cotización IBKR ya existente si está disponible. Nunca crea suscripciones.',parameters:{type:'object',properties:{symbols:{type:'array',items:{type:'string',enum:['NVDA','QQQ','SMH']},minItems:1,maxItems:2,uniqueItems:true}},required:['symbols'],additionalProperties:false}}},
   {type:'function',function:{name:'get_academy_reference',description:'Referencia documental para un activo y fecha; no es recomendación.',parameters:{type:'object',properties:{symbol:{type:'string',enum:['NVDA','QQQ','SMH']},asOf:{type:'string',description:'Fecha YYYY-MM-DD opcional'},right:{type:'string',enum:['CALL','PUT']}},required:['symbol'],additionalProperties:false}}},
   {type:'function',function:{name:'get_system_status',description:'Estado local, modo y conexión IBKR.',parameters:{type:'object',properties:{},additionalProperties:false}}},
   {type:'function',function:{name:'get_indicator_guide',description:'Educational guide for indicator definitions; no financial data or recommendations.',parameters:{type:'object',properties:{indicators:{type:'array',items:{type:'string',enum:['SMA20','SMA40','SMA100','SMA200','BOLLINGER','MOMENTUM','RVOL']},minItems:1,maxItems:7,uniqueItems:true}},required:['indicators'],additionalProperties:false}}},
 ];
-const systemPrompt='Eres un selector de herramientas para Trading-POC. Usa get_market_radar para panoramas o probabilidades ya registradas de hasta tres activos, get_market_snapshot para análisis de uno o dos activos y get_indicator_guide para educación general. No inventes argumentos, fechas ni símbolos. No generes órdenes ni herramientas externas. El backend calcula y redacta las afirmaciones financieras.';
+const systemPrompt='Eres un selector de herramientas para Trading-POC. Usa get_technical_context para estructura SMA, niveles y retesteos; get_market_radar para panoramas o probabilidades ya registradas de hasta tres activos, get_market_snapshot para análisis de uno o dos activos y get_indicator_guide para educación general. No inventes argumentos, fechas ni símbolos. No generes órdenes ni herramientas externas. El backend calcula y redacta las afirmaciones financieras.';
 const display=(value:number|null|undefined)=>value==null||!Number.isFinite(value)?'N/D':value.toFixed(2);
 const knownSymbols=['NVDA','QQQ','SMH'] as const;
 const nonTickerWords=new Set(['SMA','RVOL','IBKR','CALL','PUT','ASK','USD','API','OLLAMA','DEMO','PAPER','OFFLINE']);
 const tradeOrAdversarial=/\b(compr\w*|vend\w*|orden\w*|oper\w*|trade\w*|call|put|contrato\w*|ignora\w*|olvida\w*|instruccion\w*|system\s*prompt|bypass|jailbreak)\b/i;
 const marketIntent=/\b(analiz\w*|historico\w*|historial\w*|compar\w*|fortaleza\w*|media\w*|bollinger|retorno\w*|volumen\w*|rvol|cotizacion\w*)\b/i;
 const radarIntent=/\b(radar|panorama|probabilidad\w*|prediccion\w*|fortaleza tecnica|analisis tecnico y (?:la )?prediccion)\b/i;
+const technicalIntent=/\b(estructura tecnica|soportes? (?:y |o )?resistencias?|resistencias?|retesteos?|sma\s*20\s*(?:\/|y)\s*40|sma\s*100\s*(?:\/|y)\s*200|pendientes? (?:de )?(?:las )?sma)\b/i;
 const educationIntent=/\b(explic\w*|que es|como funciona|significa\w*|definicion\w*|guia\w*)\b/i;
 const academyIntent=/\brango\s+optimo\b|\brango\s+de\s+(?:la\s+)?academia\b|\breferencia\s+documental\b|\blimites?\s+recomendados?\s+(?:por|segun)\s+la\s+academia\b|\b(?:academia|documentacion)\b.{0,48}\b(?:rango|referencia|limites?)\b/i;
 const spanishMonths:Record<string,number>={enero:1,febrero:2,marzo:3,abril:4,mayo:5,junio:6,julio:7,agosto:8,septiembre:9,setiembre:9,octubre:10,noviembre:11,diciembre:12};
@@ -118,6 +122,11 @@ export function selectDeterministicAssistantActions(message:string):Deterministi
     if(date.kind==='invalid')return {kind:'rejected',error:`No se pudo identificar la fecha documental: ${date.reason}`};
     const args=academyArgs.parse({symbol:symbols[0],...(date.kind==='date'?{asOf:date.value}:{})});
     return {kind:'actions',actions:[{name:'get_academy_reference',args}]};
+  }
+  if(technicalIntent.test(normalized)){
+    if(unknown.length)return {kind:'rejected',error:`Activo no admitido: ${unknown.join(', ')}.`};
+    if(symbols.length>2)return {kind:'rejected',error:'El contexto técnico admite hasta dos activos.'};
+    if(symbols.length)return {kind:'actions',actions:[{name:'get_technical_context',args:{symbols}}]};
   }
   if(radarIntent.test(normalized)){
     if(unknown.length)return {kind:'rejected',error:`Activo no admitido: ${unknown.join(', ')}.`};
@@ -229,6 +238,10 @@ function reportToolValidation(app:FastifyInstance,model:string,name:string,args:
     'Assistant tool validation failed');
 }
 function parseToolAction(app:FastifyInstance,model:string,name:string,args:unknown):{action:ToolAction}|{error:string}{
+  if(name==='get_technical_context'){
+    const parsed=technicalArgs.safeParse(args);if(!parsed.success){reportToolValidation(app,model,name,args,parsed.error);return {error:'Ollama solicitó argumentos técnicos inválidos.'};}
+    return {action:{name,args:parsed.data}};
+  }
   if(name==='get_market_radar'){
     const parsed=radarArgs.safeParse(args);if(!parsed.success){reportToolValidation(app,model,name,args,parsed.error);return {error:'Ollama solicitó argumentos de radar inválidos.'};}
     return {action:{name,args:parsed.data}};
@@ -259,6 +272,20 @@ export function registerAssistantRoutes(app:FastifyInstance,deps:Dependencies){
     const executeActions=(actions:ReadonlyArray<ToolAction>)=>{
       const now=Date.now(),evidence:Evidence[]=[statusEvidence(deps,now)],sections:Section[]=[],snapshots:MarketSnapshot[]=[],seenAssets=new Set<Symbol>();
       for(const action of actions){
+        if(action.name==='get_technical_context'){
+          if(!deps.technicalContext)throw new Error('Contexto técnico no configurado');
+          for(const s of action.args.symbols){
+            const context=deps.technicalContext(s,action.args.asOfUtc??new Date(now).toISOString());
+            const lines=(['15m','1h','1d'] as const).map(frame=>{const item=context.timeframes[frame];return `${frame}: 20/40 ${item.shortPair}, 100/200 ${item.longPair}; pendientes 20 ${item.smas[20].slope}, 40 ${item.smas[40].slope}, 100 ${item.smas[100].slope}, 200 ${item.smas[200].slope}; última vela completa ${item.lastCompleteBarUtc??'N/D'}.`;});
+            lines.push(`Compatibilidad: ${context.alignment}. Niveles potenciales ${context.levels.length}; eventos observados ${context.events.filter(e=>e.status==='OBSERVED').length}.`);
+            lines.push(`Fuente ${context.source}; última vela ${context.lastCompleteBarUtc??'N/D'}; estado ${context.dataStatus}. Referencias descriptivas, no señales ni recomendaciones.`);
+            if(context.limitations.length)lines.push(...context.limitations);
+            sections.push({title:`${s} · Estructura técnica`,items:lines});
+            evidence.push({source:context.source,asset:s,dateUtc:context.lastCompleteBarUtc,dataType:context.historicalOrSynthetic,availability:context.dataStatus==='STALE'?'STALE':context.dataStatus==='UNAVAILABLE'?'UNAVAILABLE':'HISTORICAL_ONLY',
+              summary:lines.join(' '),values:{asOfUtc:context.asOfUtc,timeframes:context.timeframes,alignment:context.alignment,levels:context.levels,events:context.events,limitations:context.limitations}});
+          }
+          continue;
+        }
         if(action.name==='get_market_radar'){
           if(!deps.radar)throw new Error('Radar no configurado');
           const radar=deps.radar(action.args.symbols);
@@ -333,7 +360,7 @@ export function registerAssistantRoutes(app:FastifyInstance,deps:Dependencies){
           if(recovery?.kind==='rejected')return reply.code(422).send({error:recovery.error});
           return reply.code(422).send({error:action.error});
         }
-        if(action.action.name==='get_market_snapshot'||action.action.name==='get_market_radar')action.action.args.symbols.forEach(item=>assets.add(item));
+        if(action.action.name==='get_market_snapshot'||action.action.name==='get_market_radar'||action.action.name==='get_technical_context')action.action.args.symbols.forEach(item=>assets.add(item));
         if(action.action.name==='get_academy_reference')assets.add(action.action.args.symbol);
         actions.push(action.action);
       }
