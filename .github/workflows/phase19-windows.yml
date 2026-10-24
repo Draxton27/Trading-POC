@@ -89,3 +89,4 @@ jobs:
       - run: python -m unittest ml.phase38c.test_replay
       - run: python -m unittest ml.phase38e.test_replay
       - run: python -m unittest ml.phase38f.test_phase38f
+      - run: python -m unittest ml.phase40a.test_bear_audit
