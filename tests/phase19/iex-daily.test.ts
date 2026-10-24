@@ -5,7 +5,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {afterEach,describe,expect,it} from 'vitest';
 import {readIexAutomationStatus} from '../../apps/api/src/ml/iex-daily.ts';
-import {createIexDaily,iexCollectorAllowed,iexEvaluationFinalAt,latestFirstIexQuarter,pendingIexEvaluations,readIexDailyState} from '../../scripts/iex-daily.ts';
+import {createIexDaily,iexCollectorAllowed,iexEvaluationFinalAt,latestFirstIexQuarter,pendingIexEvaluations,readIexDailyState,classifyIexStateFailure} from '../../scripts/iex-daily.ts';
 import {prepareIexObservation,type IexFrozen,type IexObservationRecord} from '../../trading_poc_001_bollinger/src/phase38f-iex-observation.ts';
 import {PHASE31_FEATURES} from '../../trading_poc_001_bollinger/src/phase31-inference.ts';
 import type {IexRecord} from '../../trading_poc_001_bollinger/src/phase38-iex.ts';
@@ -27,6 +27,14 @@ function friday(){return Array.from({length:24},(_,i)=>quarter(new Date(Date.par
   new Date(Date.parse('2026-10-23T14:15:05.000Z')+i*900_000).toISOString()));}
 
 describe('Fase 38G: automatización IEX',()=>{
+  it('distingue estado privado ausente de un error de lectura y de un recolector detenido',()=>{
+    const folder=temporary(),path=join(folder,'state.json');
+    expect(readIexAutomationStatus(path)).toMatchObject({stateFile:'ABSENT',observationStatus:'STATE_ABSENT',lastErrorCode:null});
+    writeFileSync(path,'{');
+    expect(readIexAutomationStatus(path)).toMatchObject({stateFile:'INVALID',observationStatus:'ERROR',lastErrorCode:'IEX_AUTOMATION_STATE_INVALID'});
+    expect(classifyIexStateFailure(Object.assign(new Error('sin permiso'),{code:'EACCES'}))).toBe('READ_ERROR');
+    expect(classifyIexStateFailure(new SyntaxError('json'))).toBe('INVALID');
+  });
   it('usa las 24 velas completas del viernes y la primera del lunes sin perder continuidad causal',()=>{
     const rows=[...friday(),quarter('2026-10-26T13:30:00.000Z','2026-10-26T13:45:05.000Z')];
     const calendar=new Map([['2026-10-23',{open:570,close:960}],['2026-10-26',{open:570,close:960}]]);
