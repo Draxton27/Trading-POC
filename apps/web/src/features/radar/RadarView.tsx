@@ -3,6 +3,7 @@ import {useQuery} from '@tanstack/react-query';
 import type {RadarResponse} from '@trading-poc/contracts';
 import {api,dateTime} from '../../lib/api.ts';
 import {Badge,Card,SectionTitle} from '../../components/ui.tsx';
+import TechnicalStructure from './TechnicalStructure.tsx';
 
 const price=(value:number|null)=>value===null?'N/D':`$${value.toFixed(2)}`;
 const percent=(value:number|null)=>value===null?'N/D':`${value.toFixed(2)} %`;
@@ -37,6 +38,7 @@ export default function RadarView(){
         {a.academy&&<><h4>Referencia documental</h4><p>Estado {a.academy.status}; fecha {a.academy.referenceDate??'N/D'}; vigencia {a.academy.validFrom??'N/D'} a {a.academy.validTo??'N/D'}.</p>
           <p>Rango óptimo ASK {cents(a.academy.minAskCents)} a {cents(a.academy.maxAskCents)}; límites adicionales {cents(a.academy.outerMinCents)} a {cents(a.academy.outerMaxCents)}; ASK LIVE {cents(a.academy.liveAskCents)}.</p><p>{a.academy.reason}</p></>}
         <h4>Riesgos y datos faltantes</h4><ul>{a.risks.map((item,i)=><li key={i}>{item}</li>)}</ul></Card>)}
+      <TechnicalStructure/>
       <Card role="note">{radar.data.note} El movimiento del subyacente no representa rentabilidad de una opción.</Card>
     </>}
   </div>;
