@@ -81,16 +81,17 @@ export function detectSmaEvents(points:readonly SmaPoint[],frame:TechnicalFrame)
       const emit=(kind:TechnicalEventKind,direction:'ABOVE'|'BELOW',status:TechnicalEvent['status'],breakAtUtc:string|null,description:string)=>
         events.push({timeframe:frame,kind,period,atUtc,barStartUtc,direction,status,breakAtUtc,description});
       if(pending){
-        if(i-pending.breakIndex>4){emit('RETEST',pending.direction,'EXPIRED',pending.breakAtUtc,'Sin retesteo confirmado en cuatro velas cerradas.');pending=null;}
-        else{
-          const side=pending.direction==='ABOVE'?point.candle.close>value:point.candle.close<value;
-          const touches=point.candle.low<=value&&point.candle.high>=value;
-          if(!side){emit('RECOVERY',pending.direction,'FAILED',pending.breakAtUtc,'La ruptura regresó al lado anterior.');pending=null;}
-          else if(touches){
-            pending.retested=true;
-            emit('RETEST',pending.direction,'OBSERVED',pending.breakAtUtc,'Regreso al nivel y cierre del lado de la ruptura.');
-            pending=null;
-          }
+        const barsAfterBreak=i-pending.breakIndex;
+        const side=pending.direction==='ABOVE'?point.candle.close>value:point.candle.close<value;
+        const touches=point.candle.low<=value&&point.candle.high>=value;
+        if(!side){emit('RECOVERY',pending.direction,'FAILED',pending.breakAtUtc,'La ruptura regresó al lado anterior.');pending=null;}
+        else if(touches){
+          pending.retested=true;
+          emit('RETEST',pending.direction,'OBSERVED',pending.breakAtUtc,'Regreso al nivel y cierre del lado de la ruptura.');
+          pending=null;
+        }else if(barsAfterBreak>=4){
+          emit('RETEST',pending.direction,'EXPIRED',pending.breakAtUtc,'Sin retesteo confirmado en las cuatro velas cerradas siguientes.');
+          pending=null;
         }
       }
       if(interaction.includes('CROSSED_ABOVE')||interaction.includes('CROSSED_BELOW')){
@@ -98,12 +99,16 @@ export function detectSmaEvents(points:readonly SmaPoint[],frame:TechnicalFrame)
         emit('CROSS',direction,'OBSERVED',null,'Cruce de cierres respecto a las SMA vigentes.');
         pending={direction,breakIndex:i,breakAtUtc:atUtc,retested:false};
       }
-      if(interaction.includes('FULL_CANDLE_BREAK_ABOVE'))emit('FULL_CANDLE_BREAK','ABOVE','OBSERVED',null,'Vela entera sobre la SMA.');
-      if(interaction.includes('FULL_CANDLE_BREAK_BELOW'))emit('FULL_CANDLE_BREAK','BELOW','OBSERVED',null,'Vela entera bajo la SMA.');
+      // Keep the per-candle geometric interaction, but emit a break event only
+      // when the candle first enters that state. Continued residence is not a new break.
+      const previousWasFullAbove=prior.candle.low>previousValue;
+      const previousWasFullBelow=prior.candle.high<previousValue;
+      if(interaction.includes('FULL_CANDLE_BREAK_ABOVE')&&!previousWasFullAbove)emit('FULL_CANDLE_BREAK','ABOVE','OBSERVED',null,'Primera vela entera sobre la SMA tras no estarlo en la vela anterior.');
+      if(interaction.includes('FULL_CANDLE_BREAK_BELOW')&&!previousWasFullBelow)emit('FULL_CANDLE_BREAK','BELOW','OBSERVED',null,'Primera vela entera bajo la SMA tras no estarlo en la vela anterior.');
       if(interaction.includes('REJECTED_ABOVE'))emit('REJECTION','ABOVE','OBSERVED',null,'Toque y cierre sobre la SMA.');
       if(interaction.includes('REJECTED_BELOW'))emit('REJECTION','BELOW','OBSERVED',null,'Toque y cierre bajo la SMA.');
     }
-    if(pending&&points.length-1-pending.breakIndex<=4){const p=points.at(-1)!;events.push({timeframe:frame,kind:'RETEST',period,atUtc:p.candle.availableAt,barStartUtc:p.candle.timestamp,direction:pending.direction,status:'PENDING',breakAtUtc:pending.breakAtUtc,description:'Ruptura observada; retesteo aún no confirmado.'});}
+    if(pending&&points.length-1-pending.breakIndex<4){const p=points.at(-1)!;events.push({timeframe:frame,kind:'RETEST',period,atUtc:p.candle.availableAt,barStartUtc:p.candle.timestamp,direction:pending.direction,status:'PENDING',breakAtUtc:pending.breakAtUtc,description:'Ruptura observada; retesteo aún no confirmado dentro de las cuatro velas siguientes.'});}
   }
   return events;
 }

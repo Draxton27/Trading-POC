@@ -100,9 +100,38 @@ describe('secuencias sin anticipar desenlaces',()=>{
   it('rompimiento pendiente sin retesteo confirmado',()=>{
     expect(detectSmaEvents(points([101,99]),'15m')).toEqual(expect.arrayContaining([expect.objectContaining({kind:'RETEST',status:'PENDING'})]));
   });
-  it('vencimiento de retesteo después de cuatro velas',()=>{
-    const sequence=points([101,98,98,98,98,98,98]);sequence.forEach(p=>{p.candle.high=p.candle.close+.1;p.candle.low=p.candle.close-.1;});
-    expect(detectSmaEvents(sequence,'15m').some(e=>e.kind==='RETEST'&&e.status==='EXPIRED')).toBe(true);
+  it.each([[3,false],[4,true],[5,true]] as const)('el retesteo vence al cierre de la cuarta vela posterior (observadas: %i)',(barsAfterBreak,expired)=>{
+    const sequence=points([101,...Array.from({length:barsAfterBreak+1},()=>98)]);
+    sequence.forEach(p=>{p.candle.high=p.candle.close+.1;p.candle.low=p.candle.close-.1;});
+    const events=detectSmaEvents(sequence,'15m').filter(e=>e.kind==='RETEST');
+    expect(events.some(e=>e.status==='EXPIRED')).toBe(expired);
+    if(!expired)expect(events.at(-1)?.status).toBe('PENDING');
+    else{
+      expect(events.filter(e=>e.status==='EXPIRED')).toHaveLength(1);
+      expect(events.find(e=>e.status==='EXPIRED')?.barStartUtc).toBe(sequence[5]!.candle.timestamp);
+    }
+  });
+  it('acepta un retesteo observado exactamente en la cuarta vela posterior',()=>{
+    const sequence=points([101,99,98,98,98,99]);
+    sequence.forEach(p=>{p.candle.high=p.candle.close+.1;p.candle.low=p.candle.close-.1;});
+    sequence[5]!.candle.low=99.9;sequence[5]!.candle.high=100.1;
+    const events=detectSmaEvents(sequence,'15m').filter(e=>e.kind==='RETEST');
+    expect(events.some(e=>e.status==='OBSERVED'&&e.barStartUtc===sequence[5]!.candle.timestamp)).toBe(true);
+    expect(events.some(e=>e.status==='EXPIRED')).toBe(false);
+  });
+  it.each(['ABOVE','BELOW'] as const)('emite una sola ruptura geométrica durante permanencia sostenida %s',direction=>{
+    const side=direction==='ABOVE'?101:99,opposite=direction==='ABOVE'?99:101,sequence=points([opposite,...Array.from({length:5},()=>side)]);
+    sequence.forEach(p=>{p.candle.high=p.candle.close+.1;p.candle.low=p.candle.close-.1;});
+    const events=detectSmaEvents(sequence,'15m').filter(e=>e.kind==='FULL_CANDLE_BREAK'&&e.direction===direction);
+    expect(events).toHaveLength(1);
+    const geometry=direction==='ABOVE'?'FULL_CANDLE_BREAK_ABOVE':'FULL_CANDLE_BREAK_BELOW';
+    expect(sequence.slice(1).every(p=>classifySmaInteraction(null,p.candle,100,100).includes(geometry))).toBe(true);
+  });
+  it('emite un nuevo evento solo cuando la vela entra desde el lado opuesto',()=>{
+    const sequence=points([99,101,102,103,99]);
+    sequence.forEach(p=>{p.candle.high=p.candle.close+.1;p.candle.low=p.candle.close-.1;});
+    const events=detectSmaEvents(sequence,'15m').filter(e=>e.kind==='FULL_CANDLE_BREAK');
+    expect(events.map(e=>e.direction)).toEqual(['ABOVE','BELOW']);
   });
 });
 
