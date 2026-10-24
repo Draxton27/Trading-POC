@@ -45,7 +45,7 @@ El reporte privado distingue verificaciones de integridad (`VERIFIED`), asociaci
 
 ## Auditoría local verificada (24 de octubre de 2026)
 
-Se ejecutó el pipeline con los archivos locales indicados y el resultado final quedó en `private/ml-iex/phase41b-sip-investep-v9/`. Sus `SHA256SUMS` originales se verificaron; se detectó deriva de hash en dos capturas de código de 38E, que queda registrada en el manifiesto y no altera las predicciones verificadas. El período compartido de predicciones y contexto SIP va de **2025-06-25 13:30 UTC a 2026-10-16 19:30 UTC** para `delayed`. El histórico IEX continúa después del cierre del archivo SIP, por lo que esas filas quedan fuera de cobertura.
+Se ejecutó el pipeline con los archivos locales indicados y el resultado actualizado quedó en `private/ml-iex/phase41b-sip-investep-v10/`. La auditoría previa `v9` y sus `SHA256SUMS` se conservaron sin cambios. En `v10` se verificaron hashes de entradas y salidas; se detectó deriva de hash en dos capturas de código de 38E, que queda registrada en el manifiesto y no altera las predicciones verificadas. El período compartido de predicciones y contexto SIP va de **2025-06-25 13:30 UTC a 2026-10-16 19:30 UTC** para `delayed`. El histórico IEX continúa después del cierre del archivo SIP, por lo que esas filas quedan fuera de cobertura.
 
 | Escenario | Retraso SIP | IEX evaluables originales | Contexto SIP completo y evaluable | BAJISTA utilizables | BAJISTA→LATERAL utilizables |
 |---|---:|---:|---:|---:|---:|
@@ -56,7 +56,19 @@ Se ejecutó el pipeline con los archivos locales indicados y el resultado final 
 
 En `delayed`, la confusión original conserva sus **1.705 BAJISTA reales, 61 aciertos BAJISTA, 1.425 BAJISTA→LATERAL y 219 BAJISTA→ALCISTA**. De las 61 observaciones evaluables sin contexto completo, 18 son BAJISTA; el resto son 31 LATERAL y 12 ALCISTA. Esta exclusión es pequeña, pero su distribución debe considerarse al comparar grupos. La cobertura completa de las tres temporalidades equivale a 6.158/6.219 observaciones evaluables; 84 de las 8.187 consultas `delayed` quedan fuera del rango SIP, incluidas consultas sin etiqueta evaluable. Los tres retrasos conservan el mismo total comparable, aunque algunas estructuras locales cambian entre 15 y 30 minutos.
 
-En `delayed` con SIP +15 minutos, el orden bajista corto de 15m aparece en 2.903 observaciones, con 802 BAJISTA reales y 689 confusiones con LATERAL. Dentro de ese mismo orden, una SMA20 descendente aparece en 2.171 observaciones (590 BAJISTA; 527 confundidos con LATERAL) y una SMA20 ascendente en 732 (212 BAJISTA; 162 confundidos). **Pendiente y orden no son la misma propiedad**, pero estas diferencias no prueban una mejora ni permiten escoger una regla: el recall cambia considerablemente entre folds.
+En `delayed` con SIP +15 minutos, el orden bajista corto de 15m aparece en 2.903 observaciones, con 802 BAJISTA reales y 689 confusiones con LATERAL. La tabla anterior `shortPairSlope` agrupaba el orden BAJISTA con la pendiente de SMA20 solamente; sus 2.171 casos descendentes y 732 ascendentes **no describen la pendiente conjunta de SMA20/40**. `v10` elimina esa denominación ambigua. Ahora reporta por separado el orden de medias, cada pendiente individual y un estado calculado a partir de las etiquetas de pendiente de Fase 41A para las parejas SMA20/40 y SMA100/200.
+
+| Temporalidad / pareja | Pendientes de la pareja | Observaciones | Sesiones | BAJISTA reales | BAJISTA→LATERAL | Recall BAJISTA |
+|---|---|---:|---:|---:|---:|---:|
+| 15m SMA20/40 | Ambas ascendentes | 2.542 | 214 | 686 | 556 | 5,39 % |
+| 15m SMA20/40 | Ambas descendentes | 2.157 | 189 | 623 | 548 | 1,77 % |
+| 15m SMA20/40 | Opuestas | 1.459 | 190 | 378 | 306 | 3,44 % |
+| 15m SMA100/200 | Ambas ascendentes | 2.610 | 185 | 768 | 614 | 5,21 % |
+| 15m SMA100/200 | Ambas descendentes | 2.059 | 140 | 536 | 474 | 2,05 % |
+| 15m SMA100/200 | Opuestas | 1.488 | 150 | 383 | 322 | 2,61 % |
+| 15m SMA100/200 | Al menos una plana | 1 | 1 | 0 | 0 | N/D |
+
+`FLAT` significa que al menos una pendiente disponible de la pareja es plana; las pendientes individuales permiten distinguir el otro componente. `UNAVAILABLE` se informa como categoría independiente cuando falta alguna pendiente. No hubo observaciones `FLAT` para SMA20/40 ni `UNAVAILABLE` para las parejas de 15m en esta población evaluable. El JSON privado contiene los mismos agrupamientos para 1h y 1d, además de pliegues e intervalos. Estas frecuencias son descriptivas, con comparaciones múltiples y periodos ya examinados; no validan una regla ni una mejora del modelo.
 
 El patrón amplio de **diario alcista y 15m bajista, con 1h alcista o mixto** aparece en 717 observaciones, 192 BAJISTA reales y 163 BAJISTA→LATERAL, repartidas en 60 sesiones. El estado más estricto `SHORT_TERM_PULLBACK` de Fase 41A cubre solo 89 observaciones y nueve sesiones; es insuficiente para concluir. No apareció el estado de continuación bajista estricta simultánea en las tres temporalidades. El caso diario alcista/1h bajista/15m bajista cubre 168 observaciones y 15 sesiones; también es insuficiente.
 
@@ -68,4 +80,4 @@ Una ruptura por debajo del mínimo de las 20 sesiones previas aparece en 142 obs
 | 2 | 2.432 | 673 | 611 | 3,27 % |
 | 3 | 1.483 | 423 | 339 | 6,38 % |
 
-En el grupo amplio de retroceso bajista dentro de diario alcista, el recall por fold fue **0 %, 3,23 % y 10,42 %**. Esta variación impide tratar la asociación como estable. Los intervalos de bootstrap están en `bear-regime-audit.json`, agrupados por sesión; no corrigen selección múltiple ni dependencia entre sesiones. La hipótesis razonable para un trabajo posterior sería **congelar un contraste entre orden corto y pendiente SMA20 dentro de la misma población causal**, y evaluarlo con datos temporalmente nuevos. Esta fase no incorpora esas variables al modelo ni afirma que mejoren su rendimiento.
+En el grupo amplio de retroceso bajista dentro de diario alcista, el recall por fold fue **0 %, 3,23 % y 10,42 %**. Esta variación impide tratar la asociación como estable. Los intervalos de bootstrap están en `bear-regime-audit.json`, agrupados por sesión; no corrigen selección múltiple ni dependencia entre sesiones. La investigación posterior requeriría congelar una hipótesis sobre **orden y pendientes de ambas medias** y evaluarla con datos temporalmente nuevos. Esta fase no incorpora esas variables al modelo ni afirma que mejoren su rendimiento.

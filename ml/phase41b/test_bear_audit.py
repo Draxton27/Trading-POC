@@ -6,7 +6,7 @@ from pathlib import Path
 
 from ml.phase40a.bear_audit import declared_hashes, sha
 from ml.phase41b.bear_audit import (
-    audit, bootstrap_bear, condition_groups, coverage, group_metrics,
+    audit, bootstrap_bear, condition_groups, coverage, group_metrics, pair_slope_state,
     joined_contexts, safe_output, verify_context_source, ROOT,
 )
 
@@ -104,8 +104,19 @@ class BearAuditTests(unittest.TestCase):
         self.assertIn('alignment:SHORT_TERM_PULLBACK', groups)
         self.assertIn('15m:shortPair:BEARISH_ALIGNMENT', groups)
         self.assertIn('15m:sma20:slope:FALLING', groups)
-        self.assertIn('15m:shortPairSlope:BEARISH_ALIGNMENT:FALLING', groups)
+        self.assertIn('15m:sma20_40_slope_pair:BOTH_FALLING', groups)
+        self.assertIn('15m:sma100_200_slope_pair:BOTH_FALLING', groups)
+        self.assertNotIn('15m:shortPairSlope:BEARISH_ALIGNMENT:FALLING', groups)
         self.assertIn('prior20:breakBelowLow:True', groups)
+        frame = sample['context']['frames']['15m']
+        frame['sma']['40']['slope'] = 'RISING'
+        frame['sma']['100']['slope'] = 'FLAT'
+        frame['sma']['200']['slope'] = 'FALLING'
+        groups = condition_groups(sample)
+        self.assertIn('15m:sma20_40_slope_pair:OPPOSING', groups)
+        self.assertIn('15m:sma100_200_slope_pair:FLAT', groups)
+        frame['sma']['200']['slope'] = 'UNAVAILABLE'
+        self.assertIn('15m:sma100_200_slope_pair:UNAVAILABLE', condition_groups(sample))
         sample['context']['frames']['15m']['events'] = [
             {'kind': 'RETEST', 'period': 20, 'direction': 'BELOW', 'status': 'PENDING'}]
         self.assertIn('15m:event:RETEST:BELOW:PENDING', condition_groups(sample))
@@ -116,13 +127,32 @@ class BearAuditTests(unittest.TestCase):
         sample['context']['reason'] = 'SOURCE_OUT_OF_RANGE'
         self.assertFalse(condition_groups(sample))
 
+    def test_pair_slope_states_are_exhaustive_and_use_phase41a_labels(self):
+        cases = [
+            ('RISING', 'RISING', 'BOTH_RISING'),
+            ('FALLING', 'FALLING', 'BOTH_FALLING'),
+            ('RISING', 'FALLING', 'OPPOSING'),
+            ('FALLING', 'RISING', 'OPPOSING'),
+            ('FLAT', 'FLAT', 'FLAT'),
+            ('FLAT', 'RISING', 'FLAT'),
+            ('FALLING', 'FLAT', 'FLAT'),
+            ('UNAVAILABLE', 'RISING', 'UNAVAILABLE'),
+            ('FLAT', 'UNAVAILABLE', 'UNAVAILABLE'),
+        ]
+        for first, second, expected in cases:
+            with self.subTest(first=first, second=second):
+                self.assertEqual(pair_slope_state(first, second), expected)
+
     def test_full_audit_preserves_univariate_and_joint_strata(self):
         rows = [row('BAJISTA', [0.2, 0.3, 0.5], f'2026-01-{i+1:02d}') for i in range(30)]
         result = audit(rows)['delayed']['15']
         self.assertEqual(result['original_evaluable']['observations'], 30)
         self.assertEqual(result['comparable']['observations'], 30)
         self.assertEqual(result['bear_distance_to_prior_low_by_original_prediction']['20']['LATERAL']['n'], 30)
-        self.assertIn('15m:shortPairSlope:BEARISH_ALIGNMENT:FALLING', result['groups'])
+        self.assertIn('15m:sma20_40_slope_pair:BOTH_FALLING', result['groups'])
+        self.assertIn('15m:sma100_200_slope_pair:BOTH_FALLING', result['groups'])
+        self.assertIn('15m:sma20_40_slope_pair:UNAVAILABLE', result['key_group_bootstrap'])
+        self.assertIn('15m:sma100_200_slope_pair:UNAVAILABLE', result['by_fold']['1']['groups'])
         outside = row('BAJISTA', [0.2, 0.3, 0.5], '2026-02-02', 'SOURCE_OUT_OF_RANGE')
         result = audit([outside])['delayed']['15']
         self.assertEqual(result['original_evaluable']['observations'], 1)

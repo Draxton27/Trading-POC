@@ -32,13 +32,16 @@ SEED = 41
 STATUSES = ('SOURCE_OUT_OF_RANGE', 'INSUFFICIENT_SIP_HISTORY',
             'INCOMPLETE_SESSION', 'SIMULATED_DELAY_NOT_MET',
             'TECHNICAL_CONTEXT_AVAILABLE')
+PAIR_SLOPE_STATES = ('BOTH_RISING', 'BOTH_FALLING', 'OPPOSING', 'FLAT', 'UNAVAILABLE')
+SMA_SLOPE_PAIRS = {'sma20_40_slope_pair': ('20', '40'),
+                   'sma100_200_slope_pair': ('100', '200')}
 KEY_GROUPS = ('alignment:ALIGNED_BEARISH', 'alignment:SHORT_TERM_PULLBACK',
               'regime:bear_continuation', 'regime:bull_trend_pullback',
               'regime:bull_daily_bear_hour',
               '15m:shortPair:BEARISH_ALIGNMENT', '1h:shortPair:BEARISH_ALIGNMENT',
               '1d:shortPair:BEARISH_ALIGNMENT',
-              '15m:shortPairSlope:BEARISH_ALIGNMENT:FALLING',
-              '15m:shortPairSlope:BEARISH_ALIGNMENT:RISING',
+              *(f'{frame}:{pair}:{state}' for frame in ('15m', '1h', '1d')
+                for pair in SMA_SLOPE_PAIRS for state in PAIR_SLOPE_STATES),
               'prior20:breakBelowLow:True')
 
 
@@ -137,6 +140,25 @@ def predicted_label(row):
     return row.get('predicted_label') or CLASSES[int(np.argmax(row['probability']))]
 
 
+def pair_slope_state(first, second):
+    """Combine Phase 41A slope labels without recalculating either slope.
+
+    FLAT means at least one available leg is FLAT. Individual slope groups keep
+    the full distinction between a flat/rising and flat/falling pair.
+    """
+    if first == 'UNAVAILABLE' or second == 'UNAVAILABLE':
+        return 'UNAVAILABLE'
+    if first not in ('RISING', 'FALLING', 'FLAT') or second not in ('RISING', 'FALLING', 'FLAT'):
+        return 'UNAVAILABLE'
+    if first == 'FLAT' or second == 'FLAT':
+        return 'FLAT'
+    if first == second == 'RISING':
+        return 'BOTH_RISING'
+    if first == second == 'FALLING':
+        return 'BOTH_FALLING'
+    return 'OPPOSING'
+
+
 def condition_groups(row):
     """Fixed descriptive strata, defined before reading labels or probabilities."""
     c = row['context']
@@ -159,8 +181,11 @@ def condition_groups(row):
                 groups.append(f'{frame}:sma{period}:slope:{sma["slope"]}')
             if sma['priceAbove'] is not None and sma['priceBelow'] is not None:
                 groups.append(f'{frame}:sma{period}:price:{"ABOVE" if sma["priceAbove"] else "BELOW" if sma["priceBelow"] else "EQUAL"}')
-        if value['shortPair'] != 'INSUFFICIENT_DATA' and value['sma']['20']['slope'] != 'UNAVAILABLE':
-            groups.append(f'{frame}:shortPairSlope:{value["shortPair"]}:{value["sma"]["20"]["slope"]}')
+        # Slope groups describe each pair independently of MA order. The slope
+        # labels are produced by the shared Phase 41A technical-context engine.
+        for pair_name, periods in SMA_SLOPE_PAIRS.items():
+            first, second = (value['sma'][period]['slope'] for period in periods)
+            groups.append(f'{frame}:{pair_name}:{pair_slope_state(first, second)}')
     day, hour, short = (frames[frame]['state'] for frame in ('1d', '1h', '15m'))
     if day == hour == short == 'BEARISH_ALIGNMENT':
         groups.append('regime:bear_continuation')
@@ -366,6 +391,8 @@ def markdown(report):
         lines.append(f'| {name} | {item["observations"]} | {item["true_bear"]} | {item["bear_to_lateral"]} | {pct} | {item["status"]} |')
     lines += ['', 'Los intervalos del JSON remuestrean sesiones NYSE completas. No capturan necesariamente dependencia entre jornadas '
               'ni cambios de régimen prolongados. Se inspeccionan numerosos grupos: cualquier asociación puede ser fruto de comparaciones múltiples.',
+              'Los grupos `sma20_40_slope_pair` y `sma100_200_slope_pair` combinan exclusivamente las etiquetas de pendiente SMA de Fase 41A, sin recalcularlas; el orden `shortPair`/`longPair` y las pendientes individuales se informan por separado. '
+              '`FLAT` indica que al menos una pendiente disponible de la pareja es plana; las pendientes individuales permiten distinguir el otro componente. `UNAVAILABLE` indica que no están disponibles ambas pendientes.',
               'Una mayor prevalencia BAJISTA en un grupo no demuestra capacidad predictiva ni mejora de XGBoost.', '',
               '## Integridad y límites', '',
               f'- Período SIP: {report["source"]["firstBarStartUtc"]} a {report["source"]["lastBarEndUtc"]}.',
