@@ -44,6 +44,10 @@ export function readIexDailyState(path:string):IexDailyState|null{
     !['FRESH','STALE','NO_LIVE_DATA'].includes(row.freshness))throw new Error('IEX_AUTOMATION_STATE_INVALID');
   return row;
 }
+export function classifyIexStateFailure(error:unknown):'ABSENT'|'READ_ERROR'|'INVALID'{
+  const code=(error as NodeJS.ErrnoException|undefined)?.code;
+  return code==='ENOENT'?'ABSENT':typeof code==='string'?'READ_ERROR':'INVALID';
+}
 function save(path:string,row:IexDailyState){mkdirSync(dirname(path),{recursive:true});const temporary=`${path}.${randomUUID()}.tmp`;
   try{writeFileSync(temporary,JSON.stringify(row)+'\n',{flag:'wx'});renameSync(temporary,path);}
   catch(error){rmSync(temporary,{force:true});throw error;}}
