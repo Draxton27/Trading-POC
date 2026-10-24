@@ -23,6 +23,8 @@ El bootstrap remuestrea sesiones completas con semilla fija. Sus intervalos no n
 
 Desde la raíz del repositorio, con el histórico privado y el entorno Python 3.12 ya instalado:
 
+En una instalación Python nueva en Windows, instalar ruedas precompiladas con `python -m pip install --only-binary=:all: -r ml/phase41b/requirements.txt`. Esto incluye `tzdata` para `America/New_York`.
+
 ```powershell
 .\.venv\phase28-py312\Scripts\python.exe -m ml.phase41b.bear_audit `
   --sip-csv trading_poc_001_bollinger\data\NVDA_ALPACA_SIP_15min_20211017_20261017.csv `
