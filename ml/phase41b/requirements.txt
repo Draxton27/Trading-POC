@@ -1,0 +1,2 @@
+-r ../phase28/requirements.txt
+tzdata==2026.5
