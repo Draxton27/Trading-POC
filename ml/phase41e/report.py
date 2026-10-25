@@ -74,6 +74,23 @@ def markdown(report):
               'observados, no soportes/resistencias rentables comprobados.', '',
               'SIP split puede contener ajustes retrospectivos que no estaban disponibles entonces. '
               'La comparación no acredita recepción SIP histórica real. No se mezclan niveles SIP con IEX raw.', '']
+    lines += ['', '## Distribucion causal de contexto (SIP +20)', '',
+              'Las categorias de techo y piso se cuentan por separado; son descripciones, no resultados predictivos.', '']
+    candidate_groups = report['coverage']['candidate_context_distributions']['scenario_delay']
+    for key in ('delayed:+20', 'ideal:+20'):
+        group = candidate_groups[key]
+        ceiling, floor = group['ceiling'], group['floor']
+        states = sorted(set(ceiling['counts']) | set(floor['counts']))
+        lines += [f'### {key}', '', '| Estado | Techo n (%) | Piso n (%) |',
+                  '|---|---:|---:|']
+        for state in states:
+            ceiling_count = ceiling['counts'].get(state, 0)
+            floor_count = floor['counts'].get(state, 0)
+            ceiling_fraction = ceiling['fractions'].get(state, 0) * 100
+            floor_fraction = floor['fractions'].get(state, 0) * 100
+            lines.append(f'| {state} | {ceiling_count} ({ceiling_fraction:.2f}%) | '
+                         f'{floor_count} ({floor_fraction:.2f}%) |')
+        lines.append('')
     return '\n'.join(lines)
 
 
@@ -103,6 +120,7 @@ def write_artifacts(out, source, rows, parity, sip_meta):
                 'feature-coverage.json': coverage, 'feature-parity.json': parity,
                 'feature-audit.json': {'missing_by_column': coverage['missing_by_column'],
                                        'incomplete_by_sip_reason': coverage['f2_incomplete_by_sip_reason'],
+                                       'availability_status_counts': coverage['feature_availability_status_counts'],
                                        'row_audit_location': 'features.json/context_audit'},
                 'features.json': {'schema': 'phase41e-features-v1', 'rows': rows},
                 'report.json': report}

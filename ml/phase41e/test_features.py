@@ -114,7 +114,7 @@ class Phase41eFeaturesTests(unittest.TestCase):
                 contexts[(scenario, start, delay)] = {'scenario': scenario, 'fold': 2,
                     'barStartUtc': start, 'decisionAtUtc': decision, 'features': features,
                     'audit': {'sipBarEndUtc': None, 'assumedAvailableAtUtc': None,
-                              'reason': 'INSUFFICIENT_SIP_HISTORY'}}
+                              'reason': 'SOURCE_OUT_OF_RANGE'}}
         original = copy.deepcopy(source)
         rows, parity = build_rows(source, contexts)
         self.assertEqual(source, original)
@@ -125,6 +125,11 @@ class Phase41eFeaturesTests(unittest.TestCase):
         self.assertEqual(rows[0]['targets'][TARGET_IDS[0]], 'BAJISTA')
         self.assertEqual(rows[0]['fold'], 2)
         self.assertEqual(rows[0]['feature_schema_sha256'], schema_sha256())
+        self.assertTrue(rows[0]['feature_availability']['F1'])
+        self.assertFalse(rows[0]['feature_availability']['F2'])
+        self.assertEqual(rows[0]['feature_availability_status'], 'F2_INCOMPLETE_SOURCE_OUT_OF_RANGE')
+        self.assertEqual(rows[0]['feature_availability_reasons']['F2'], 'SOURCE_OUT_OF_RANGE')
+        self.assertIsNone(rows[0]['feature_availability_reasons']['F1'])
         coverage = summarize(rows)
         self.assertEqual(coverage['by_group']['scenario_delay_class']['delayed:+20:BAJISTA']['observations'], 1)
         self.assertEqual(coverage['by_group']['delay']['ideal:+20']['target_and_F2'][TARGET_IDS[0]], 0)

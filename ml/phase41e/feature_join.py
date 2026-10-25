@@ -71,6 +71,19 @@ def build_rows(source, contexts):
             availability = {'F0': complete(values, F0),
                             'F1': complete(values, (*F0, *F1_ADDED)),
                             'F2': complete(values, (*F0, *F1_ADDED, *F2_ADDED))}
+            f0_reason = None if availability['F0'] else 'ORIGINAL_F0_INCOMPLETE'
+            f1_reason = None if availability['F1'] else 'CONTINUOUS_IEX_WINDOW_INCOMPLETE'
+            f2_reason = None if availability['F2'] else (
+                audit['reason'] if audit['reason'] != 'TECHNICAL_CONTEXT_AVAILABLE'
+                else 'SIP_TECHNICAL_FEATURES_INCOMPLETE')
+            if all(availability.values()):
+                availability_status = 'COMPLETE'
+            elif not availability['F0']:
+                availability_status = 'F0_INCOMPLETE'
+            elif not availability['F1']:
+                availability_status = 'F1_AND_F2_INCOMPLETE' if not availability['F2'] else 'F1_INCOMPLETE'
+            else:
+                availability_status = f"F2_INCOMPLETE_{f2_reason}"
             row = {'scenario': key[0], 'fold': int(prediction['fold']),
                    'session_date_ny': observation['session_date_ny'],
                    'bar_start_utc': key[1], 'bar_end_utc': observation['bar_end_utc'],
@@ -78,9 +91,9 @@ def build_rows(source, contexts):
                    'last_iex_feature_bar_end_utc': observation['bar_end_utc'],
                    'last_sip_feature_bar_end_utc': audit['sipBarEndUtc'],
                    'last_sip_assumed_available_at_utc': audit['assumedAvailableAtUtc'],
-                   'sip_delay_minutes': delay, 'feature_availability_status':
-                   'F2_COMPLETE' if availability['F2'] else audit['reason'] if not availability['F1']
-                   else 'F2_INCOMPLETE', 'feature_schema_sha256': schema_hash,
+                   'sip_delay_minutes': delay, 'feature_availability_status': availability_status,
+                   'feature_availability_reasons': {'F0': f0_reason, 'F1': f1_reason, 'F2': f2_reason},
+                   'feature_schema_sha256': schema_hash,
                    'original_feature_sha256': observation['feature_sha256'],
                    'features': values, 'feature_availability': availability,
                    'missing_columns': [name for name, value in values.items()

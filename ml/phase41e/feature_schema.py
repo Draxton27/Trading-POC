@@ -9,9 +9,17 @@ PAIR = ('BULLISH_ALIGNMENT', 'BEARISH_ALIGNMENT', 'MIXED', 'INSUFFICIENT_DATA')
 SLOPE = ('RISING', 'FALLING', 'FLAT', 'UNAVAILABLE')
 ALIGNMENT = ('ALIGNED_BULLISH', 'ALIGNED_BEARISH', 'SHORT_TERM_PULLBACK',
              'SHORT_TERM_RECOVERY', 'CONFLICTING', 'MIXED', 'INSUFFICIENT_DATA')
-CONTEXT = ('UNAVAILABLE', 'NO_CANDIDATE', 'POTENTIAL_NO_INTERACTION',
-           'INTERACTION_OBSERVED', 'REJECTION_OBSERVED', 'BREAK_OBSERVED',
-           'RETEST_PENDING', 'RETEST_CONFIRMED', 'RETEST_EXPIRED', 'RECOVERY_OBSERVED')
+CONTEXT = (
+    'UNAVAILABLE', 'NO_CANDIDATE', 'POTENTIAL_NO_INTERACTION', 'INTERACTION_AT_LEVEL',
+    'TOUCH_FROM_ABOVE', 'TOUCH_FROM_BELOW', 'CROSS_OBSERVED_ABOVE', 'CROSS_OBSERVED_BELOW',
+    'FULL_BODY_STATE_ABOVE', 'FULL_BODY_STATE_BELOW', 'FULL_CANDLE_STATE_ABOVE',
+    'FULL_CANDLE_STATE_BELOW', 'FULL_CANDLE_BREAK_OBSERVED_ABOVE',
+    'FULL_CANDLE_BREAK_OBSERVED_BELOW', 'REJECTION_OBSERVED_ABOVE',
+    'REJECTION_OBSERVED_BELOW', 'RETEST_PENDING_ABOVE', 'RETEST_PENDING_BELOW',
+    'RETEST_OBSERVED_ABOVE', 'RETEST_OBSERVED_BELOW', 'RETEST_FAILED_ABOVE',
+    'RETEST_FAILED_BELOW', 'RETEST_EXPIRED_ABOVE', 'RETEST_EXPIRED_BELOW',
+    'RECOVERY_FAILED_ABOVE', 'RECOVERY_FAILED_BELOW',
+)
 NUMERIC = (*F0, *F1_ADDED, *F2_ADDED[7:11])
 CATEGORIES = {
     'sma_full_order_15m': (*FULL_ORDERS, 'TIED', 'UNAVAILABLE'),
@@ -45,6 +53,14 @@ def feature_schema():
                       'price_relative': 'sipClose / sipSma - 1; never IEX / SIP',
                       'sma_order': 'strict descending prices, or TIED, or UNAVAILABLE',
                       'sequence_window': 'four continuous closed bars, three adjacent comparisons',
+                      'candidate_context': {
+                          'rejection': 'ABOVE applies to floor; BELOW applies to ceiling; closing side must agree with event direction',
+                          'retest_pending_observed_expired': 'ABOVE applies to floor; BELOW applies to ceiling; closing side must remain on break side',
+                          'retest_failed_or_recovery_failed': 'inverse role after return across level; closing side must agree with failure',
+                          'cross_or_full_candle_break': 'retain the traversed level in both role audits even when close returns to the opposite side; event direction and actual closing side stay explicit',
+                          'status': 'event kind, direction, and 41A status remain encoded; only events available by decision are admitted',
+                          'multiple_events_tiebreak': 'latest atUtc, then lower SMA period, then lexical kind, direction, status; reproducibility only, not predictive strength',
+                          'event_evidence': 'all causal current-period events are retained with roleApplicability'},
                       'retrospective_adjustment': 'SIP split may contain later corporate-action adjustments'},
     }
 
