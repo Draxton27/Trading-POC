@@ -31,9 +31,11 @@ export type DoctorOptions={env?:NodeJS.ProcessEnv;now?:()=>number;task?:TaskInsp
   modelCheck?:{check:Check;model?:IexFrozen}};
 
 /** Task Scheduler is queried, never changed or started. Neither raw actions nor account names leave this function. */
-export function inspectWindowsTask(repoRoot=root):TaskInspection{
+export function inspectWindowsTask(repoRoot=root,sessionOpenUtc?:string):TaskInspection{
   if(process.platform!=='win32')return {state:'ABSENT'};
-  const script=`$ErrorActionPreference='Stop'; $z=Get-TimeZone; $utc=[datetime]::SpecifyKind([datetime]'2026-10-26T13:30:00',[System.DateTimeKind]::Utc); $localOpen=[System.TimeZoneInfo]::ConvertTimeFromUtc($utc,$z); $openMinutes=($localOpen.Hour*60+$localOpen.Minute); $t=Get-ScheduledTask -TaskName 'Trading-POC Daily Research' -ErrorAction SilentlyContinue; if($null -eq $t){[pscustomobject]@{absent=$true;localOpenMinutes=$openMinutes}|ConvertTo-Json -Compress;exit}; $i=Get-ScheduledTaskInfo -TaskName 'Trading-POC Daily Research'; [pscustomobject]@{absent=$false;enabled=($t.State -ne 'Disabled');running=($t.State -eq 'Running');execute=$t.Actions[0].Execute;arguments=$t.Actions[0].Arguments;workdir=$t.Actions[0].WorkingDirectory;startWhenAvailable=$t.Settings.StartWhenAvailable;multipleInstances=[string]$t.Settings.MultipleInstances;trigger=$t.Triggers[0].StartBoundary;localOpenMinutes=$openMinutes;nextRun=([datetime]$i.NextRunTime).ToUniversalTime().ToString('o');lastRun=([datetime]$i.LastRunTime).ToUniversalTime().ToString('o');lastResult=$i.LastTaskResult}|ConvertTo-Json -Compress`;
+  if(sessionOpenUtc&&!validUtc(sessionOpenUtc))throw new Error('Apertura oficial UTC inválida.');
+  const utcArg=sessionOpenUtc?`[datetime]::Parse('${sessionOpenUtc}',[cultureinfo]::InvariantCulture,[System.Globalization.DateTimeStyles]::AdjustToUniversal)`: '$null';
+  const script=`$ErrorActionPreference='Stop'; $z=Get-TimeZone; $utc=${utcArg}; $openMinutes=$null; if($null -ne $utc){$localOpen=[System.TimeZoneInfo]::ConvertTimeFromUtc($utc,$z); $openMinutes=($localOpen.Hour*60+$localOpen.Minute)}; $t=Get-ScheduledTask -TaskName 'Trading-POC Daily Research' -ErrorAction SilentlyContinue; if($null -eq $t){[pscustomobject]@{absent=$true;localOpenMinutes=$openMinutes}|ConvertTo-Json -Compress;exit}; $i=Get-ScheduledTaskInfo -TaskName 'Trading-POC Daily Research'; [pscustomobject]@{absent=$false;enabled=($t.State -ne 'Disabled');running=($t.State -eq 'Running');execute=$t.Actions[0].Execute;arguments=$t.Actions[0].Arguments;workdir=$t.Actions[0].WorkingDirectory;startWhenAvailable=$t.Settings.StartWhenAvailable;multipleInstances=[string]$t.Settings.MultipleInstances;trigger=$t.Triggers[0].StartBoundary;localOpenMinutes=$openMinutes;nextRun=([datetime]$i.NextRunTime).ToUniversalTime().ToString('o');lastRun=([datetime]$i.LastRunTime).ToUniversalTime().ToString('o');lastResult=$i.LastTaskResult}|ConvertTo-Json -Compress`;
   const result=spawnSync('powershell.exe',['-NoProfile','-NonInteractive','-Command',script],{encoding:'utf8',timeout:8000,maxBuffer:16000,windowsHide:true});
   if(result.error||result.status!==0)return {state:'ERROR'};
   try{
@@ -41,7 +43,7 @@ export function inspectWindowsTask(repoRoot=root):TaskInspection{
     if(row.absent===true)return {state:'ABSENT',localOpenMinutes:typeof row.localOpenMinutes==='number'?row.localOpenMinutes:undefined};
     const execute=String(row.execute??''),args=String(row.arguments??''),workdir=String(row.workdir??'');
     const trigger=String(row.trigger??'');const hhmm=/T(\d{2}):(\d{2})/.exec(trigger);
-    // The effective Windows zone is checked against the requested Monday's 07:30 local opening.
+    // The effective Windows zone is evaluated for the selected official session, never a fixed date.
     const localOpen=Number(row.localOpenMinutes);
     const taskTime=(value:unknown)=>{const time=Date.parse(String(value??''));return Number.isFinite(time)&&time>Date.parse('2000-01-01T00:00:00Z')?new Date(time).toISOString():null;};
     return {state:'VALID',enabled:row.enabled===true,running:row.running===true,node:/[\\/]node(?:\.exe)?$/i.test(execute),
@@ -138,6 +140,26 @@ function calendarHas(calendar:MarketCalendar,utc:string){
   const session=calendar.get(date),[hour,minute]=parts.split(':').map(Number),slot=hour!*60+minute!;
   return !!session&&slot>=session.open&&slot<session.close;
 }
+/** Find the current or next official opening. Weekend and holiday dates are absent from the calendar. */
+export function officialSessionOpenUtc(calendar:MarketCalendar,now:number):string|null{
+  for(const [day,hours] of [...calendar].sort(([a],[b])=>a.localeCompare(b))){
+    const midnight=Date.parse(`${day}T00:00:00.000Z`);
+    if(!Number.isFinite(midnight))continue;
+    for(let offset=0;offset<24*60;offset+=15){
+      const at=midnight+offset*60_000,parts=newYorkBarParts(new Date(at).toISOString());
+      const [hour,minute]=parts.slot.split(':').map(Number);
+      if(parts.day!==day||hour!*60+minute!==hours.open)continue;
+      if(at+(hours.close-hours.open)*60_000>now)return new Date(at).toISOString();
+      break;
+    }
+  }
+  return null;
+}
+export function taskTimezoneStatus(openMinutes:number|undefined,triggerMinutes:number|undefined):'EXPECTED'|'UNKNOWN'|'TIMEZONE_UNEXPECTED'{
+  if(openMinutes===undefined||triggerMinutes===undefined)return 'UNKNOWN';
+  const lead=openMinutes-triggerMinutes;
+  return lead>=30&&lead<=240?'EXPECTED':'TIMEZONE_UNEXPECTED';
+}
 function auditObservations(rows:IexObservationRecord[],now:number,quarters:IexRecord[]){
   const predictions=new Map<string,Extract<IexObservationRecord,{kind:'PREDICTION'}>>(),evaluations=new Map<string,Extract<IexObservationRecord,{kind:'EVALUATION'}>>();
   const uniqueBars=new Set<string>(),byStart=new Map(quarters.map(row=>[row.bar!.startUtc,row]));
@@ -178,30 +200,36 @@ export function diagnoseIex(options:DoctorOptions={}):Readiness{
   const counts={minutes:0,completeQuarters:0,quarterRevisions:0,predictions:0,outcomeNotDue:0,dueUnevaluated:0,evaluated:0,missingEntry:0,missingOutcome:0};
   const set=(name:string,status:string,detail?:string)=>{checks[name]={status,...(detail?{detail}:{})};};
   const base=resolvePrivateDir({repoRoot:options.repoRoot??root,env});
+  const calendarPath=env.TRADING_POC_IEX_CALENDAR??resolve(base,'iex','calendar.json');
+  let calendar:MarketCalendar|undefined;
+  try{if(!existsSync(calendarPath))set('calendar','ABSENT');else{calendar=loadMarketCalendar(calendarPath);set('calendar','VALID',`${calendar.size} sesiones oficiales`);}}
+  catch{set('calendar','INVALID');}
+  const officialOpen=calendar?officialSessionOpenUtc(calendar,now):null;
   set('node',/^v(?:22|24)\./.test(options.nodeVersion??process.version)?'AVAILABLE':'INCOMPATIBLE',options.nodeVersion??process.version);
   set('tsx',options.tsxAvailable??existsSync(resolve(options.repoRoot??root,'node_modules','tsx'))?'AVAILABLE':'UNAVAILABLE');
   set('envLocal',existsSync(resolve(options.repoRoot??root,'.env.local'))?'PRESENT':'ABSENT');
   set('alpacaCredentials',env.APCA_API_KEY_ID&&env.APCA_API_SECRET_KEY?'PRESENT':'MISSING');
   checks.python=options.python??pythonCheck(env);
-  const task=options.task??inspectWindowsTask(options.repoRoot??root);
-  set('windowsLocalOpen',task.localOpenMinutes===450?'07:30_EXPECTED':task.localOpenMinutes===undefined?'UNKNOWN':'OTHER_TIME_ZONE');
-  if(task.state==='ABSENT')set('windowsTask','NOT_INSTALLED');
-  else if(task.state==='ERROR')set('windowsTask','READ_ERROR');
+  const task=options.task??inspectWindowsTask(options.repoRoot??root,officialOpen??undefined);
+  const timezone=taskTimezoneStatus(task.localOpenMinutes,task.triggerMinutes??360);
+  set('windowsLocalOpen',task.localOpenMinutes===undefined?'UNKNOWN':`${String(Math.floor(task.localOpenMinutes/60)).padStart(2,'0')}:${String(task.localOpenMinutes%60).padStart(2,'0')}_OFFICIAL_SESSION`);
+  set('timezone',officialOpen?timezone:'MARKET_CALENDAR_UNAVAILABLE');
+  if(task.state==='ABSENT'){set('windowsTask','NOT_INSTALLED');set('taskReadiness','TASK_NOT_INSTALLED');}
+  else if(task.state==='ERROR'){set('windowsTask','READ_ERROR');set('taskReadiness','TASK_MISCONFIGURED');}
   else{
     const valid=task.enabled&&task.node&&task.script&&task.workdir&&task.once&&task.startWhenAvailable&&task.ignoreNew&&
-      task.localOpenMinutes===450&&task.triggerMinutes===360;
+      timezone==='EXPECTED'&&task.triggerMinutes===360;
     set('windowsTask',valid?'CONFIGURED':'MISCONFIGURED',task.running?'RUNNING':'READY');
+    set('taskReadiness',!valid?'TASK_MISCONFIGURED':task.running?'TASK_RUNNING':'TASK_READY');
     set('taskLastResult',task.lastRunUtc?task.lastResult===0?'SUCCESS':'NONZERO':'NEVER_RUN',task.lastRunUtc?`UTC ${task.lastRunUtc}; código ${task.lastResult??'N/D'}`:undefined);
     set('taskNextRun',task.nextRunUtc?'SCHEDULED':'UNKNOWN',task.nextRunUtc?`UTC ${task.nextRunUtc}`:undefined);
   }
   const model=options.modelCheck??checkModel(env.TRADING_POC_IEX_FROZEN_DIR);checks.frozenModel=model.check;
-  const ledgerPath=iexLedgerPath(env),calendarPath=env.TRADING_POC_IEX_CALENDAR??resolve(base,'iex','calendar.json'),observationPath=iexObservationPath(env),statePath=iexDailyStatePath(env);
+  const ledgerPath=iexLedgerPath(env),observationPath=iexObservationPath(env),statePath=iexDailyStatePath(env);
   // Paths are resolved by the same functions as the collector. Only their presence, never the paths, is reported.
   set('storage','RESOLVED');
-  let calendar:MarketCalendar|undefined,live:IexRecord[]=[],first:IexRecord[]=[];
-  try{if(!existsSync(calendarPath))set('calendar','ABSENT');else{calendar=loadMarketCalendar(calendarPath);set('calendar','VALID',`${calendar.size} sesiones oficiales`);}}
-  catch{set('calendar','INVALID');}
-  set('marketSession',calendar?calendarHas(calendar,new Date(now).toISOString())?'OPEN':'CLOSED':'CALENDAR_UNAVAILABLE');
+  let live:IexRecord[]=[],first:IexRecord[]=[];
+  set('marketSession',!officialOpen?'MARKET_CALENDAR_UNAVAILABLE':calendarHas(calendar!,new Date(now).toISOString())?'OPEN':'MARKET_CLOSED');
   try{if(!existsSync(ledgerPath))set('iexLedger','ABSENT');else{
     live=readIexLedger(ledgerPath);const audit=auditLive(live,calendar);first=audit.first;
     counts.minutes=audit.minutes;counts.completeQuarters=first.length;counts.quarterRevisions=audit.revisions;
@@ -270,7 +298,7 @@ export function diagnoseIex(options:DoctorOptions={}):Readiness{
   if(['MISSING_FIRST','MISSING_CLOSE','INTRADAY_GAP'].includes(checks.lastSession?.status??''))warnings.push('lastSession');
   if(counts.dueUnevaluated)warnings.push('dueUnevaluated');
   if(checks.automationState.status==='ABSENT')warnings.push('automationStateAbsent');
-  const offHours=checks.marketSession.status==='CLOSED';
+  const offHours=checks.marketSession.status==='MARKET_CLOSED';
   const nonTaskBlocks=blocking.filter(name=>name!=='windowsTask'&&name!=='automationState');
   const overall=dataInvalid?'BLOCKED_DATA_INTEGRITY':nonTaskBlocks.length?'BLOCKED_CONFIGURATION':
     checks.windowsTask.status!=='CONFIGURED'||blocking.includes('automationState')?'BLOCKED_AUTOMATION':

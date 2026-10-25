@@ -5,7 +5,7 @@ import {join} from 'node:path';
 
 export const FORWARD_START = '2026-10-19T13:30:00.000Z';
 export const sha256 = (value: string | Buffer): string => createHash('sha256').update(value).digest('hex');
-export type Kind = 'bar_receipt' | 'bar_assessment' | 'signal' | 'settlement' | 'correction' | 'human_decision' | 'market_context_update';
+export type Kind = 'bar_receipt' | 'bar_assessment' | 'signal' | 'settlement' | 'correction' | 'human_decision' | 'market_context_update' | 'iex_eligibility';
 export type LedgerRecord = {sequence: number; id: string; kind: Kind; recordedAtUtc: string;
   previousHash: string | null; payload: Record<string, unknown>; hash: string};
 const canonical = (record: Omit<LedgerRecord, 'hash'>): string => JSON.stringify(record);

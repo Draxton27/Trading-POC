@@ -102,7 +102,7 @@ function validProbabilities(value:IexPrediction['probabilities']){
 }
 export function appendIexPrediction(path:string,input:Omit<IexPrediction,'schema'|'kind'|'id'|'previousHash'|'recordHash'|'registeredAtUtc'|'entryAtUtc'|'outcomeAtUtc'|'recordedBeforeEntry'|'recordedBeforeOutcome'>,calendar:MarketCalendar,clock:()=>string=()=>new Date().toISOString()){
   return lock(path,()=>{
-    const existing=readIexObservations(path),prior=existing.find(row=>row.kind==='PREDICTION'&&row.modelSha256===input.modelSha256&&row.barStartUtc===input.barStartUtc);
+    const existing=readIexObservations(path),prior=existing.find((row):row is IexPrediction=>row.kind==='PREDICTION'&&row.modelSha256===input.modelSha256&&row.barStartUtc===input.barStartUtc);
     if(prior)return {record:prior,alreadyPresent:true};
     validProbabilities(input.probabilities);
     const nowUtc=clock(),now=exact(nowUtc),bar=exact(input.barStartUtc),local=newYorkBarParts(input.barStartUtc),session=calendar.get(local.day);

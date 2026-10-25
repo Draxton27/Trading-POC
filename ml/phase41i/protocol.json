@@ -1,0 +1,20 @@
+{
+  "schema": "phase41i-prospective-protocol-v1",
+  "protocol_version": 1,
+  "created_at_utc": null,
+  "git_commit": null,
+  "source_model_sha256": "b9bbece648544b39e1e4c4946933e4f4de2d65ec5094997938b25791cb1bb684",
+  "model_frozen_at_utc": null,
+  "prospective_start_at_utc": null,
+  "feature_schema": {
+    "id": "nvda-15m-v1",
+    "columns": ["return_1", "return_4", "distance_ema9", "distance_sma20", "bollinger_position", "relative_volume_20", "candle_range", "candle_body", "atr14_relative", "minutes_from_open"]
+  },
+  "classes": ["ALCISTA", "BAJISTA", "LATERAL"],
+  "prediction_policy": {"classification": "argmax", "abstention": null, "models": ["xgboost", "linear", "frequency"]},
+  "source_policy": {"symbol": "NVDA", "feed": "iex", "adjustment": "raw", "timeframe": "15m", "candidate": "first_complete_live_version", "rest_warmup": "indicators_only"},
+  "eligibility_policy": {"max_live_age_minutes": 15, "required_continuous_bars": 21, "model_frozen_before_bar_start": true, "new_bar_after_activation": true, "four_future_bars_in_session": true, "revalidate_before_append": true},
+  "evaluation_policy": {"label_id": "NET_MOVE_4B_ATR05_V1", "label_formula": "close(t+4)-open(entry); strict +/-0.5*stored_ATR14(t)", "entry": "first_scheduled_open_after_decision", "source": "first_complete_iex_live_versions", "missing": ["MISSING_ENTRY", "MISSING_OUTCOME"]},
+  "metrics": ["macro_f1", "balanced_accuracy", "confusion_matrix", "per_class", "log_loss", "brier_multiclass", "calibration", "roc_auc_bajista", "average_precision_bajista", "prevalence_bajista"],
+  "minimum_reporting_requirements": {"review_sessions": 60, "minimum_actual_per_class": 20, "bootstrap_minimum_sessions": 20, "minimum_complete_bar_coverage": 0.8, "coverage_required": true, "warning": "Review gate only; not statistical power or trading validation."}
+}
