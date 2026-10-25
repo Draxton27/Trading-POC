@@ -56,9 +56,11 @@ on:
       - 'trading_poc_001_bollinger/src/investep-technical-context.ts'
       - 'trading_poc_001_bollinger/src/phase41b-*.ts'
       - 'trading_poc_001_bollinger/src/phase41e-*.ts'
+      - 'trading_poc_001_bollinger/src/phase41g-*.ts'
       - 'tests/phase19/phase41e-*.test.ts'
       - 'docs/phase41e-candle-market-structure.md'
       - 'docs/phase41f-target-feature-comparison.md'
+      - 'docs/phase41g-investep-trend-events.md'
       - 'tests/phase19/technical-context.test.ts'
       - 'tests/phase19/phase41b-context.test.ts'
       - 'docs/phase41a-investep-technical-context.md'
@@ -113,3 +115,4 @@ jobs:
       - run: python -m unittest ml.phase41d.test_targets
       - run: python -m unittest ml.phase41e.test_features
       - run: python -m unittest ml.phase41f.test_experiment
+      - run: python -m unittest ml.phase41g.test_events

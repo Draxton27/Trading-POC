@@ -48,6 +48,7 @@
     "ml:iex:evaluate": "node scripts/ml-iex-replay.mjs",
     "ml:iex:observe": "tsx trading_poc_001_bollinger/src/phase38f-cli.ts",
     "ml:iex:warmup": "tsx trading_poc_001_bollinger/src/phase38f-warmup-cli.ts",
+    "ml:investep:events": "python -m ml.phase41g.report",
     "test:ml": "python -m unittest ml.phase28.test_train",
     "test:ml-inference": "python -m unittest ml.phase31.test_infer"
   },

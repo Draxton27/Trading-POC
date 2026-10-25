@@ -10,11 +10,14 @@ on:
       - 'ml/phase41d/**'
       - 'ml/phase41e/**'
       - 'ml/phase41f/**'
+      - 'ml/phase41g/**'
       - 'docs/phase41d-target-protocol.md'
       - 'docs/phase41e-candle-market-structure.md'
       - 'docs/phase41f-target-feature-comparison.md'
+      - 'docs/phase41g-investep-trend-events.md'
       - 'trading_poc_001_bollinger/src/phase41b-*.ts'
       - 'trading_poc_001_bollinger/src/phase41e-*.ts'
+      - 'trading_poc_001_bollinger/src/phase41g-*.ts'
       - 'scripts/ml-train.mjs'
       - 'scripts/ml-infer.mjs'
       - 'trading_poc_001_bollinger/src/phase31-*.ts'
@@ -33,4 +36,4 @@ jobs:
       - name: Install prebuilt wheels only
         run: 'python -m pip install --only-binary=:all: -r ml/phase40c2/requirements.txt'
       - name: Run synthetic XGBoost tests
-        run: python -m unittest ml.phase28.test_train ml.phase31.test_infer ml.phase41b.test_bear_audit ml.phase41c.test_target_audit ml.phase41d.test_targets ml.phase41e.test_features ml.phase41f.test_experiment
+        run: python -m unittest ml.phase28.test_train ml.phase31.test_infer ml.phase41b.test_bear_audit ml.phase41c.test_target_audit ml.phase41d.test_targets ml.phase41e.test_features ml.phase41f.test_experiment ml.phase41g.test_events
