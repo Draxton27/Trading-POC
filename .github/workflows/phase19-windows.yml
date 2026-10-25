@@ -116,3 +116,4 @@ jobs:
       - run: python -m unittest ml.phase41e.test_features
       - run: python -m unittest ml.phase41f.test_experiment
       - run: python -m unittest ml.phase41g.test_events
+      - run: python -m unittest ml.phase41h.test_rejections
