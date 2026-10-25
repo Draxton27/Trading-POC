@@ -67,8 +67,9 @@ function interactionState(interaction:string):ContextState|null{
 }
 
 function interactionAppliesToRole(interaction:string,side:Side):boolean{
-  if(interaction.startsWith('CROSSED_')||interaction.startsWith('FULL_BODY_BREAK_')||
-      interaction.startsWith('FULL_CANDLE_BREAK_'))return true;
+  if(interaction.startsWith('CROSSED_'))return true;
+  if(interaction==='FULL_BODY_BREAK_ABOVE'||interaction==='FULL_CANDLE_BREAK_ABOVE')return side==='floor';
+  if(interaction==='FULL_BODY_BREAK_BELOW'||interaction==='FULL_CANDLE_BREAK_BELOW')return side==='ceiling';
   if(interaction==='REJECTED_ABOVE'||interaction==='TOUCHED_FROM_ABOVE')return side==='floor';
   if(interaction==='REJECTED_BELOW'||interaction==='TOUCHED_FROM_BELOW')return side==='ceiling';
   return interaction==='EQUAL';

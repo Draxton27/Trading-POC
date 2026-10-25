@@ -58,6 +58,7 @@ def feature_schema():
                           'retest_pending_observed_expired': 'ABOVE applies to floor; BELOW applies to ceiling; closing side must remain on break side',
                           'retest_failed_or_recovery_failed': 'inverse role after return across level; closing side must agree with failure',
                           'cross_or_full_candle_break': 'retain the traversed level in both role audits even when close returns to the opposite side; event direction and actual closing side stay explicit',
+                          'geometric_residence_interactions': 'FULL_BODY_BREAK_ABOVE and FULL_CANDLE_BREAK_ABOVE are current-bar geometry and apply only to floor context; BELOW variants apply only to ceiling context; they are not new crossing events or confirmed support/resistance',
                           'status': 'event kind, direction, and 41A status remain encoded; only events available by decision are admitted',
                           'multiple_events_tiebreak': 'latest atUtc, then lower SMA period, then lexical kind, direction, status; reproducibility only, not predictive strength',
                           'event_evidence': 'all causal current-period events are retained with roleApplicability'},

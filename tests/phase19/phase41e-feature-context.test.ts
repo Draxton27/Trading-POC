@@ -145,6 +145,29 @@ describe('Fase 41E: proyección categórica del motor causal 41A/41B',()=>{
     value.events=[technicalEvent('FULL_CANDLE_BREAK','BELOW','OBSERVED',20)];
     expect(candidateContext(value,105,'ceiling').state).toBe('FULL_CANDLE_BREAK_OBSERVED_BELOW');
   });
+  it('interpreta residencia geométrica ABOVE como piso y BELOW como techo, sin crear el rol opuesto',()=>{
+    const above=frame([100,90,80,70]);
+    for(const period of [20,40,100,200] as const)
+      above.sma[period].interactions=['FULL_BODY_BREAK_ABOVE','FULL_CANDLE_BREAK_ABOVE'];
+    above.events=[];
+    const aboveCeiling=candidateContext(above,105,'ceiling');
+    const aboveFloor=candidateContext(above,105,'floor');
+    expect(aboveCeiling.state).toBe('NO_CANDIDATE');
+    expect(aboveCeiling.periods).toEqual([]);
+    expect(aboveFloor.state).toBe('FULL_BODY_STATE_ABOVE');
+    expect(aboveFloor.periods).toEqual([20,40,100,200]);
+
+    const below=frame([100,90,80,70]);
+    for(const period of [20,40,100,200] as const)
+      below.sma[period].interactions=['FULL_BODY_BREAK_BELOW','FULL_CANDLE_BREAK_BELOW'];
+    below.events=[];
+    const belowFloor=candidateContext(below,65,'floor');
+    const belowCeiling=candidateContext(below,65,'ceiling');
+    expect(belowFloor.state).toBe('NO_CANDIDATE');
+    expect(belowFloor.periods).toEqual([]);
+    expect(belowCeiling.state).toBe('FULL_BODY_STATE_BELOW');
+    expect(belowCeiling.periods).toEqual([20,40,100,200]);
+  });
   it('elige un evento representativo con desempate fijo para señales simultáneas en cuatro SMA',()=>{
     const value=frame([100,90,80,70]);
     value.events=([20,40,100,200] as const).map(period=>
