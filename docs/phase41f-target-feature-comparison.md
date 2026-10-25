@@ -43,6 +43,8 @@ La auditoría de exclusiones separa objetivos indisponibles de variables incompl
 
 El SHA-256 de la configuración congelada es `9980b2801398d6d9baedfb41035889b1d986c224f39bbd25c329f5cf1fd05c8d`. Los SHA-256 verificados de `strict-15m.csv`, observaciones 38E, etiquetas 41D, características 41E y CSV SIP son, respectivamente: `2af4982ab63ce73debb23f214953e22459f27ae58265a1c9b6a51075218a0533`, `e82747d2f1491a945f01ec5128384e949e95bba859bcb76772acf3e84ab35f55`, `a12e55fea626eba0dcbf9cf3477d701f201acd0808b85134e6e51c0d8144e1eb`, `d69620ac7abeaa114939885a68315145914291ee84eba6d46644d14b458002e3` y `7b06d0a493515b18a581963d2d2d488e73a7cd0dc2c961b60a99315e7a9b0ecc`. Los archivos completos y sus rutas privadas figuran en `manifest.json` local.
 
+El cargador histórico registró deriva de código respecto al snapshot original de 38E en `phase38e-cli.ts` y `ml/phase38e/replay.py`. No se oculta ni se considera equivalencia de código: la integridad de los datos congelados, los folds y la paridad exacta de las filas externas se verificaron por separado. La deriva se conserva en el manifiesto 41F.
+
 La tabla usa Macro F1 para NET_MOVE y PR-AUC para los dos objetivos binarios, siempre sobre las mismas 6.158 filas de la comparación principal. PR-AUC de la prevalencia histórica se muestra como referencia, no como precisión de clasificación.
 
 | Objetivo | Modelo | F0 | F1 | F2 |
