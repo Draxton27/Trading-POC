@@ -111,3 +111,4 @@ jobs:
       - run: python -m unittest ml.phase41c.test_target_audit
       - run: python -m unittest ml.phase41d.test_targets
       - run: python -m unittest ml.phase41e.test_features
+      - run: python -m unittest ml.phase41f.test_experiment
