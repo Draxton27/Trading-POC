@@ -58,6 +58,7 @@ on:
       - 'trading_poc_001_bollinger/src/phase41e-*.ts'
       - 'tests/phase19/phase41e-*.test.ts'
       - 'docs/phase41e-candle-market-structure.md'
+      - 'docs/phase41f-target-feature-comparison.md'
       - 'tests/phase19/technical-context.test.ts'
       - 'tests/phase19/phase41b-context.test.ts'
       - 'docs/phase41a-investep-technical-context.md'

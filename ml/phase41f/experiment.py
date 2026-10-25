@@ -268,7 +268,10 @@ def run(history, original_run, targets, features, sip_csv, out):
                        'metrics': score(_labels(rows, TARGETS[target]),
                                         [r['probabilities'] for r in rows], TARGETS[target])})
     paired_result = comparisons(records)
-    write_json(out / 'training-feature-coverage.json', coverage)
+    from ml.phase41f.coverage import audit
+    coverage_audit = audit(plan, source['observations'], rebuilt, TARGETS)
+    coverage_audit['fitted_groups'] = coverage
+    write_json(out / 'training-feature-coverage.json', coverage_audit)
     write_json(out / 'folds.json', fold_reports)
     write_json(out / 'metrics-by-fold.json', by_fold)
     write_json(out / 'metrics-pooled.json', pooled)
@@ -289,6 +292,7 @@ def run(history, original_run, targets, features, sip_csv, out):
               'source_integrity': 'SHA256SUMS, manifests and code contracts verified',
               'reconstructed_observations': parity['all_observations_reconstructed'],
               'external_parity': parity, 'coverage': coverage,
+              'exclusion_audit': coverage_audit['groups'],
               'metrics_by_fold': by_fold, 'metrics_pooled': pooled,
               'paired_comparisons': paired_result,
               'limitations': ['Already explored history; no independent prospective validation.',

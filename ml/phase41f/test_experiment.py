@@ -10,6 +10,7 @@ from ml.phase41d.registry import DEFINITIONS
 from ml.phase41e.feature_schema import CATEGORIES, feature_schema, schema_sha256
 from ml.phase41f.evaluation import score
 from ml.phase41f.diagnostics import feature_name
+from ml.phase41f.coverage import audit
 from ml.phase41f.experiment import frozen_config, TARGETS
 from ml.phase41f.folds import eligible_rows, inner_blocks
 from ml.phase41f.models import frequency, logistic, validate_probabilities, xgboost, lightgbm
@@ -28,6 +29,7 @@ def row(day, index, scenario='delayed', available=True, label='BAJISTA'):
     return {'scenario': scenario, 'fold': 1, 'session_date_ny': day,
             'bar_start_utc': f'{day}T13:{index:02d}:00.000Z',
             'decision_at_utc': f'{day}T13:{index:02d}:00.000Z',
+            'available_at_utc': f'{day}T13:{index:02d}:00.000Z',
             'observed_at_utc': f'{day}T13:{index:02d}:00.000Z',
             'label_available_at_utc': f'{day}T14:{index:02d}:00.000Z',
             'target_known_at_utc': f'{day}T14:{index:02d}:00.000Z',
@@ -79,6 +81,23 @@ class ExperimentTests(unittest.TestCase):
         all_rows[training[-1]['scenario'], training[-1]['bar_start_utc']]['target_known_at_utc'] = plan['cutoff_utc']
         with self.assertRaisesRegex(ValueError, 'posterior'):
             eligible_rows(plan, all_rows, target, 'F2')
+
+    def test_exclusion_audit_preserves_missing_targets_and_F2(self):
+        target = next(iter(TARGETS))
+        train = row('2025-01-02', 0)
+        external = row('2025-01-03', 0, available=False)
+        missing = row('2025-01-03', 15)
+        missing['targets'][target] = None
+        plan = {'plans': {'delayed': [{'fold': 1, 'cutoff_utc': external['decision_at_utc'],
+                                      'first_test_session': '2025-01-03',
+                                      'test': [external, missing]}]}}
+        rebuilt = {(r['scenario'], r['bar_start_utc']): r for r in (train, external, missing)}
+        groups = audit(plan, [train, external, missing], rebuilt, (target,))['groups']
+        self.assertEqual(groups[0]['eligible']['F2'], 1)
+        self.assertEqual(groups[1]['eligible']['F1'], 1)
+        self.assertEqual(groups[1]['eligible']['F2'], 0)
+        self.assertEqual(groups[1]['exclusion_reasons'],
+                         {'F2_INCOMPLETE': 1, 'TARGET_UNAVAILABLE': 1})
 
     def test_inner_purge(self):
         rows = [row(f'2025-01-{day:02d}', 0) for day in (2, 3, 6, 7, 8)]
