@@ -1,0 +1,51 @@
+{
+  "schema": "phase41h-protocol-v1",
+  "status": "FROZEN_BEFORE_HISTORICAL_RESULTS",
+  "source": "NVDA Alpaca SIP split-adjusted regular 15m, official calendar and verified Phase 41G v2 source bridge",
+  "sourceAvailability": "Historical simulated close plus 20 minutes; never an original provider receipt timestamp",
+  "frames": ["15m", "1h", "1d"],
+  "primaryPopulation": {"timeframe": "15m", "regimeDirection": "BEARISH", "smaPeriods": [20, 40]},
+  "secondaryPopulations": "Other SMA periods and BULLISH, 1h and 1d separately; no pooled horizon",
+  "visits": "Reuse Phase 41G v2 event IDs, regime IDs, episode numbers, censoring and eligibility without redefining them",
+  "geometricContact": "The event candle is complete and verified, its final SMA is finite, and low <= SMA <= high",
+  "nonintersection": "A valid Phase 41G visit whose event candle range does not contain its final SMA",
+  "rejection": {
+    "bearish": "geometric contact and close < final SMA and Phase 41A REJECTED_BELOW at candle close",
+    "bullish": "geometric contact and close > final SMA and Phase 41A REJECTED_ABOVE at candle close",
+    "otherwise": ["TOUCH_CLOSED_OPPOSITE_SIDE", "TOUCH_CLOSED_ON_SMA", "TOUCH_CLOSED_ORIGINAL_SIDE_WITHOUT_41A_REJECTION", "NO_RANGE_INTERSECTION", "UNAVAILABLE"],
+    "disagreement": "Audit any incompatible or absent Phase 41A rejection separately; do not change Phase 41A"
+  },
+  "decisionTime": "Event candle close plus the verified 20-minute simulated SIP availability, never intrabar touch time",
+  "outcomes": "Join Phase 41G v2 visit-outcomes by eventId without recalculating labels or excursions",
+  "primaryHorizonBars": 4,
+  "secondaryHorizonBars": [2, 6],
+  "entry": "First scheduled candle opening strictly after assumedAvailableAtUtc as defined by Phase 41G",
+  "terminalThresholdAtr": 0.5,
+  "outcomeCategories": ["FAVORABLE_TERMINAL_MOVE", "ADVERSE_TERMINAL_MOVE", "NEUTRAL_TERMINAL_MOVE", "OUTCOME_UNAVAILABLE"],
+  "transitionGroups": ["GEOMETRIC_REJECTION_CONFIRMED", "GEOMETRIC_CONTACT_NO_REJECTION", "NO_RANGE_INTERSECTION", "UNAVAILABLE"],
+  "comparisons": {
+    "A": "first observed visit with rejection versus first observed visit without rejection",
+    "B": "later observed visit with rejection versus later observed visit without rejection",
+    "C": "first observed visit with rejection versus later observed visit with rejection",
+    "D": "all observed visits with rejection versus actual geometric contacts without rejection",
+    "E": "rejections versus all Phase 41G observed visits of same frame, direction and SMA; overlapping reference"
+  },
+  "comparisonEligibility": "Exclude left-censored visits; use only evaluable outcomes on the same frame, direction, SMA and horizon",
+  "ageBins": ["0-3", "4-11", "12-25", "26-51", "52+"],
+  "originGroups": ["CHANGE", "RESTART", "LEFT_CENSORED"],
+  "years": [2021, 2022, 2023, 2024, 2025, 2026],
+  "overlapPeriod": "[2024-06-10,2026-10-23)",
+  "primaryMetrics": ["contact rate", "rejection rate among visits", "rejection rate among contacts", "terminal favorable/adverse/neutral rates at four bars", "descriptive rate differences A-E"],
+  "secondaryMetrics": ["median signed move ATR", "median favorable/adverse excursion ATR", "first favorable/adverse barrier", "intrabar ambiguity", "two- and six-bar sensitivity", "year and regime-age groups"],
+  "coverage": ["events_total", "true_geometric_contacts", "nonintersecting_visits", "confirmed_rejections", "no_rejections", "outcomes_evaluable", "outcomes_unavailable", "left_censored", "right_censored", "sessions", "regimes", "clusters"],
+  "uncertainty": {
+    "method": "1000 seeded resamples of complete session or complete regime clusters, keeping all simultaneous events in each selected cluster; descriptive sensitivity, not independent validation",
+    "seed": 4118,
+    "insufficientEvidence": "fewer than 30 evaluable events or 30 distinct sessions in either compared group",
+    "crossedClusters": "Session and regime groupings overlap, so neither alone captures all temporal dependencies; suppress interval when coherent pairing cannot be maintained",
+    "multipleComparisons": "Numerous subgroup intervals are descriptive, not separate confirmed hypotheses"
+  },
+  "leftCensoring": "Keep in coverage and transition audit but exclude from primary A-E comparisons",
+  "rightCensoring": "Keep unavailable outcomes with original Phase 41G reason; never impute",
+  "interpretation": "Historical descriptive association only, not profitability or predictive validation"
+}
