@@ -24,6 +24,7 @@ on:
       - 'tests/phase19-e2e/news.spec.ts'
       - 'vitest.config.ts'
       - 'ml/**'
+      - 'docs/phase41c-bear-target-audit.md'
       - 'trading_poc_001_bollinger/src/phase31-*.ts'
       - 'trading_poc_001_bollinger/src/phase32-*.ts'
       - 'trading_poc_001_bollinger/src/phase34-*.ts'
@@ -103,3 +104,4 @@ jobs:
       - run: python -m unittest discover -s ml/phase40c1 -p "test_*.py"
       - run: python -m unittest discover -s ml/phase40c2 -p "test_*.py"
       - run: python -m unittest ml.phase41b.test_bear_audit
+      - run: python -m unittest ml.phase41c.test_target_audit
