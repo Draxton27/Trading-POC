@@ -11,6 +11,11 @@ import {PHASE31_FEATURES} from './phase31-inference.ts';
 
 const root=fileURLToPath(new URL('../../',import.meta.url));
 const templatePath=resolve(root,'ml','phase41i','protocol.json');
+export const phase41iPrivateRoot=(env:NodeJS.ProcessEnv=process.env)=>
+  env.TRADING_POC_PRIVATE_DIR?resolve(root,env.TRADING_POC_PRIVATE_DIR):resolve(root,'private');
+export const phase41iProtocolDir=(env:NodeJS.ProcessEnv=process.env)=>
+  env.TRADING_POC_IEX_41I_PROTOCOL_DIR?resolve(root,env.TRADING_POC_IEX_41I_PROTOCOL_DIR):
+    resolve(phase41iPrivateRoot(env),'ml-iex','phase41i-prospective-protocol-v1');
 export const PHASE41I_MODEL_SHA='b9bbece648544b39e1e4c4946933e4f4de2d65ec5094997938b25791cb1bb684';
 const sha=(value:Buffer|string)=>createHash('sha256').update(value).digest('hex');
 const exact=(value:string)=>{const time=Date.parse(value);if(!Number.isFinite(time)||new Date(time).toISOString()!==value)throw new Error('Timestamp UTC inválido.');return time;};

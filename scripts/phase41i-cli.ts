@@ -7,13 +7,14 @@ import {config as loadEnv} from 'dotenv';
 import {resolvePrivateDir} from '../apps/api/src/news/paths.ts';
 import {iexLedgerPath,iexObservationPath} from './iex-daily.ts';
 import {diagnoseIex} from './iex-diagnostics.ts';
-import {activatePhase41i,loadPhase41iActivation,readPhase41iDecisions,verifyPhase41iModel} from '../trading_poc_001_bollinger/src/phase41i-prospective.ts';
+import {activatePhase41i,loadPhase41iActivation,phase41iPrivateRoot,phase41iProtocolDir,
+  readPhase41iDecisions,verifyPhase41iModel} from '../trading_poc_001_bollinger/src/phase41i-prospective.ts';
 
 const root=fileURLToPath(new URL('../',import.meta.url));
 loadEnv({path:resolve(root,'.env.local'),override:false,quiet:true});
 loadEnv({path:resolve(root,'.env'),override:false,quiet:true});
 const base=resolvePrivateDir({repoRoot:root}),args=process.argv.slice(2),command=args[0];
-const protocolDir=process.env.TRADING_POC_IEX_41I_PROTOCOL_DIR??resolve(base,'ml-iex','phase41i-prospective-protocol-v1');
+const protocolDir=phase41iProtocolDir(process.env),phase41iBase=phase41iPrivateRoot(process.env);
 const observationPath=iexObservationPath(process.env),modelDir=process.env.TRADING_POC_IEX_FROZEN_DIR;
 if(!['diagnose','activate','report','verify'].includes(command??''))throw new Error('Uso: npm.cmd run ml:iex:41i -- diagnose|activate|report|verify [--out-dir carpeta_privada_nueva]');
 if(command==='diagnose'){
@@ -38,8 +39,8 @@ if(command==='diagnose'){
         protocolSha256:active.activation.protocolSha256,eligibilityDecisions:decisions.length})+'\n');
     }else{
       if(args.length!==1&&!(args.length===3&&args[1]==='--out-dir'))throw new Error('Uso: report [--out-dir carpeta_privada_nueva]');
-      const out=resolve(args[2]??resolve(base,'ml-iex','phase41i-prospective-report-v1'));
-      const inside=relative(base,out);
+      const out=resolve(args[2]??resolve(phase41iBase,'ml-iex','phase41i-prospective-report-v1'));
+      const inside=relative(phase41iBase,out);
       if(!inside||inside.startsWith('..')||isAbsolute(inside)||existsSync(out))throw new Error('Destino privado nuevo requerido para el reporte.');
       const python=process.env.PYTHON??(process.platform==='win32'?'py':'python3');
       const launcher=process.platform==='win32'&&/^(?:py|py\.exe)$/i.test(python)?['-3.12']:[];

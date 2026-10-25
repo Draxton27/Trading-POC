@@ -11,7 +11,7 @@ import {readIexLedger} from './phase38-iex.ts';
 import {prepareIexObservation,appendIexPrediction,evaluateIexPredictions,readIexObservations,type IexFrozen,type IexPrediction} from './phase38f-iex-observation.ts';
 import {loadIexWarmup} from './phase38f-warmup.ts';
 import {appendPhase41iDecision,classifyPhase41iFailure,firstNewIexCandidate,
-  loadPhase41iActivation,readPhase41iDecisions,verifyPhase41iModel} from './phase41i-prospective.ts';
+  loadPhase41iActivation,phase41iProtocolDir,readPhase41iDecisions,verifyPhase41iModel} from './phase41i-prospective.ts';
 
 const root=fileURLToPath(new URL('../../',import.meta.url));
 loadEnv({path:resolve(root,'.env.local'),override:false,quiet:true});
@@ -22,7 +22,7 @@ const base=resolvePrivateDir({repoRoot:root});
 const ledger=process.env.TRADING_POC_IEX_LEDGER??resolve(base,'iex','ledger.jsonl');
 const calendarPath=process.env.TRADING_POC_IEX_CALENDAR??resolve(base,'iex','calendar.json');
 const output=process.env.TRADING_POC_IEX_OBSERVATION_LEDGER??resolve(base,'ml-iex','observations.jsonl');
-const phase41iDir=process.env.TRADING_POC_IEX_41I_PROTOCOL_DIR??resolve(base,'ml-iex','phase41i-prospective-protocol-v1');
+const phase41iDir=phase41iProtocolDir(process.env);
 const records=readIexLedger(ledger);
 const evaluations=evaluateIexPredictions(output,records);
 if(args[0]==='--evaluate-only'){

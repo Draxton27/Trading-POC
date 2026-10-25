@@ -8,7 +8,7 @@ import {resolvePrivateDir} from '../apps/api/src/news/paths.ts';
 import {isIexProcessActive} from '../trading_poc_001_bollinger/src/phase38-iex-lock.ts';
 import {readIexLedger,type IexRecord} from '../trading_poc_001_bollinger/src/phase38-iex.ts';
 import {MAX_LIVE_AGE_MS,readIexObservations,type IexObservationRecord,type IexFrozen} from '../trading_poc_001_bollinger/src/phase38f-iex-observation.ts';
-import {appendPhase41iDecision,loadPhase41iActivation,type EligibilityStatus} from '../trading_poc_001_bollinger/src/phase41i-prospective.ts';
+import {appendPhase41iDecision,loadPhase41iActivation,phase41iProtocolDir,type EligibilityStatus} from '../trading_poc_001_bollinger/src/phase41i-prospective.ts';
 
 const root=fileURLToPath(new URL('../',import.meta.url));
 export const IEX_FROZEN_SHA='b9bbece648544b39e1e4c4946933e4f4de2d65ec5094997938b25791cb1bb684';
@@ -83,7 +83,7 @@ export function createIexDaily(options:IexDailyOptions={}){
   const active=options.active??isIexProcessActive,readLedger=options.readLedger??readIexLedger,readObservations=options.readObservations??readIexObservations;
   const verifyModel=options.verifyModel??((bar:string)=>verifyIexDailyModel(env,bar));
   const startedAt=clock();
-  const phase41iDir=env.TRADING_POC_IEX_41I_PROTOCOL_DIR??resolve(resolvePrivateDir({repoRoot:root,env}),'ml-iex','phase41i-prospective-protocol-v1');
+  const phase41iDir=phase41iProtocolDir(env);
   const auditSkip=(candidate:IexRecord|null,status:EligibilityStatus)=>{
     if(!candidate?.bar||Date.parse(candidate.receivedAtUtc)<startedAt)return;
     const active=loadPhase41iActivation(phase41iDir,observations);

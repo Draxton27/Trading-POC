@@ -36,7 +36,7 @@ npm.cmd run ml:iex:41i -- verify
 npm.cmd run ml:iex:41i -- report
 ```
 
-`activate` es una acción explícita e irreversible para esa versión; no acepta timestamps manuales. Debe ejecutarse tras el commit de código que se desea congelar. El reporte por defecto usa el directorio privado nuevo `ml-iex/phase41i-prospective-report-v1`; para reportes siguientes usar `--out-dir` con **otro directorio nuevo** dentro de `TRADING_POC_PRIVATE_DIR` (o el directorio privado predeterminado). `verify` y `report` son de solo lectura para ledgers, broker y tarea. El reporte genera JSON, Markdown, manifiesto y SHA256SUMS sin imprimir rutas privadas. Los archivos privados se excluyen de Git.
+`activate` es una acción explícita e irreversible para esa versión; no acepta timestamps manuales. Debe ejecutarse tras el commit de código que se desea congelar. Los artefactos 41I se guardan por defecto en `private/ml-iex/` del repositorio, excluido de Git; `TRADING_POC_PRIVATE_DIR` puede trasladarlos. El ledger IEX existente conserva su ruta configurada anterior en `%LOCALAPPDATA%` o mediante sus propias variables. El reporte por defecto usa el directorio privado nuevo `phase41i-prospective-report-v1`; para reportes siguientes usar `--out-dir` con **otro directorio nuevo** dentro de la raíz privada 41I. `verify` y `report` son de solo lectura para ledgers, broker y tarea. El reporte genera JSON, Markdown, manifiesto y SHA256SUMS sin imprimir rutas privadas. Los archivos privados se excluyen de Git.
 
 Si la tarea sigue ausente, el operador puede instalarla **manualmente** cuando decida activar la automatización:
 

@@ -4,7 +4,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {afterEach,describe,expect,it} from 'vitest';
 import {activatePhase41i,appendPhase41iDecision,cohortPredictions,firstNewIexCandidate,
-  loadPhase41iActivation,PHASE41I_MODEL_SHA,readPhase41iDecisions} from '../../trading_poc_001_bollinger/src/phase41i-prospective.ts';
+  loadPhase41iActivation,phase41iPrivateRoot,phase41iProtocolDir,PHASE41I_MODEL_SHA,readPhase41iDecisions} from '../../trading_poc_001_bollinger/src/phase41i-prospective.ts';
 import type {IexRecord} from '../../trading_poc_001_bollinger/src/phase38-iex.ts';
 import type {IexPrediction} from '../../trading_poc_001_bollinger/src/phase38f-iex-observation.ts';
 import {officialSessionOpenUtc,taskTimezoneStatus} from '../../scripts/iex-diagnostics.ts';
@@ -40,6 +40,12 @@ function prediction(candidate:IexRecord):IexPrediction{return {schema:'phase38f-
   policy:{classification:'argmax',abstention:null}};}
 
 describe('Fase 41I: protocolo, elegibilidad y ancla causal',()=>{
+  it('mantiene los artefactos 41I en private sin cambiar la ruta del ledger IEX anterior',()=>{
+    const f=fixture();
+    expect(phase41iPrivateRoot({})).toMatch(/Trading-POC[\\/]private$/);
+    expect(phase41iProtocolDir({})).toMatch(/private[\\/]ml-iex[\\/]phase41i-prospective-protocol-v1$/);
+    expect(phase41iProtocolDir({TRADING_POC_PRIVATE_DIR:f.folder})).toBe(join(f.folder,'ml-iex','phase41i-prospective-protocol-v1'));
+  });
   it('activa con hora real inyectada, SHA y ausencia explícita de ledger previo',()=>{
     const f=fixture();expect(f.active.activation).toMatchObject({activatedAtUtc:clock(),modelSha256:PHASE41I_MODEL_SHA,
       priorObservationLedger:{state:'ABSENT',recordCount:0,tipHash:null}});
