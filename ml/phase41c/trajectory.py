@@ -52,7 +52,8 @@ def trajectory(observation, bars):
     lower, upper = entry - .5 * atr, entry + .5 * atr
     down = next((i + 1 for i, bar in enumerate(bars) if bar.low <= lower), None)
     up = next((i + 1 for i, bar in enumerate(bars) if bar.high >= upper), None)
-    both_same_bar = any(bar.low <= lower and bar.high >= upper for bar in bars)
+    any_same_bar_both_touched = any(bar.low <= lower and bar.high >= upper for bar in bars)
+    first_touch_order_ambiguous = down is not None and up is not None and down == up
     maximum_streak = streak = 0
     for close in closes:
         streak = streak + 1 if close < entry else 0
@@ -60,7 +61,7 @@ def trajectory(observation, bars):
     net = closes[-1] - entry
     low, high = min(bar.low for bar in bars), max(bar.high for bar in bars)
     terminal = classify(net, atr)
-    if both_same_bar:
+    if first_touch_order_ambiguous:
         category = 'AMBIGUOUS_INTRABAR_ORDER'
     elif down is not None and up is not None:
         category = 'BOTH_DIRECTIONS_TOUCHED'
@@ -83,7 +84,13 @@ def trajectory(observation, bars):
         'downward_excursion_atr': (entry-low)/atr,
         'upward_excursion_atr': (high-entry)/atr,
         'first_downward_threshold_touch': down, 'first_upward_threshold_touch': up,
-        'both_barriers_same_bar': both_same_bar, 'barrier_order_ambiguous': both_same_bar or down == up and down is not None,
+        'any_same_bar_both_touched': any_same_bar_both_touched,
+        'first_touch_order_ambiguous': first_touch_order_ambiguous,
+        'first_touch_order': ('SAME_BAR' if first_touch_order_ambiguous else
+                              'UP_FIRST' if up is not None and (down is None or up < down) else
+                              'DOWN_FIRST' if down is not None and (up is None or down < up) else
+                              'ONE_OR_NONE_TOUCHED'),
+        'barrier_order_ambiguous': first_touch_order_ambiguous,
         'final_close_relative_to_entry': 'BELOW' if net < 0 else 'ABOVE' if net > 0 else 'EQUAL',
         'terminal_class_at_0_5_atr': terminal, 'trajectory_category': category,
         'closes_below_entry': sum(close < entry for close in closes),

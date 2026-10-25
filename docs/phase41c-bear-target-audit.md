@@ -10,13 +10,15 @@ El CLI verifica paridad exacta de todas las observaciones originales evaluables 
 
 La trayectoria registra mínimo, máximo, excursiones en unidades de precio y ATR, cambio neto, primeros toques de barreras, cuatro cierres respecto a la entrada, racha máxima debajo, cuerpos bajistas y recuperación desde el mínimo. Un toque es inclusivo; la etiqueta terminal exige una desigualdad estricta. Si ambas barreras se tocan en una misma vela de 15 minutos, el orden queda ambiguo.
 
-Las categorías tienen precedencia fija: ambas barreras en una vela → AMBIGUOUS_INTRABAR_ORDER; ambas en velas distintas → BOTH_DIRECTIONS_TOUCHED; cierre terminal bajista/alcista → BEARISH_TERMINAL_MOVE/BULLISH_TERMINAL_MOVE; toque bajista/alcista sin cierre terminal → DOWNWARD_EXCURSION_RECOVERED/UPWARD_EXCURSION_RECOVERED; ningún toque → NO_SIGNIFICANT_EXCURSION. Por esta precedencia, las frecuencias de categorías no equivalen a las etiquetas terminales.
+Se distinguen dos medidas: any_same_bar_both_touched indica que alguna vela tocó las dos barreras, aunque una ya hubiera recibido su primer toque antes; first_touch_order_ambiguous indica que los primeros toques alcista y bajista ocurrieron en la misma vela. Solo esta segunda condición produce AMBIGUOUS_INTRABAR_ORDER. Si los primeros toques ocurrieron en velas distintas, la trayectoria es BOTH_DIRECTIONS_TOUCHED y conserva el orden inicial aunque una vela posterior toque ambas.
+
+Las demás categorías terminales tienen precedencia después de ambas barreras: cierre bajista/alcista → BEARISH_TERMINAL_MOVE/BULLISH_TERMINAL_MOVE; toque unilateral sin cierre terminal → DOWNWARD_EXCURSION_RECOVERED/UPWARD_EXCURSION_RECOVERED; sin toque → NO_SIGNIFICANT_EXCURSION. Por esta precedencia, las frecuencias de categorías no equivalen a las etiquetas terminales.
 
 La persistencia experimental requiere cierre BAJISTA, tres cierres bajo la entrada y una racha de tres. Una recuperación parcial significa que el cierre final supera el mínimo intrahorizonte en al menos 0,5 ATR. Estas propiedades pueden coexistir. Ninguna es regla oficial de Investep.
 
 ## Resultado local verificado
 
-El resultado final está en private/ml-iex/phase41c-target-audit-v2/. El cálculo previo v1 se conservó; v2 añade los desgloses de persistencia y todas las etiquetas LATERAL. Los SHA-256 del histórico 38D y del experimento 38E se contrastaron con los manifiestos. Persiste la deriva de dos hashes de capturas de código originales ya documentada en 41B; los archivos de observaciones, predicciones y modelos se verificaron. La paridad contra las velas IEX aprobó.
+El resultado inicial está en `private/ml-iex/phase41c-target-audit-v2/`; las salidas privadas anteriores se conservaron. La corrección actual se regeneró en `private/ml-iex/phase41c-target-audit-v6/`. El manifiesto SHA-256 de v6 se verificó. Los SHA-256 del histórico 38D y del experimento 38E se contrastaron con los manifiestos. Persiste la deriva de dos hashes de capturas de código originales ya documentada en 41B; los archivos de observaciones, predicciones y modelos se verificaron. La paridad contra las velas IEX aprobó.
 
 En delayed, las 6.219 predicciones evaluables abarcan 333 sesiones: 1.705 BAJISTA, 2.833 LATERAL y 1.681 ALCISTA. La confusión BAJISTA conserva 61 aciertos, 1.425 predicciones LATERAL y 219 ALCISTA.
 
@@ -30,7 +32,7 @@ En delayed, las 6.219 predicciones evaluables abarcan 333 sesiones: 1.705 BAJIST
 
 Las 1.467 etiquetas LATERAL con toque bajista muestran que el cierre de la cuarta vela oculta caídas transitorias. Entre los 1.705 BAJISTA terminales, 1.409 cumplen la definición descriptiva de persistencia y 510 recuperan al menos 0,5 ATR desde el mínimo antes del cierre; los grupos se solapan. Los BAJISTA confundidos con LATERAL tuvieron una caída terminal mediana menor que los 61 aciertos (−0,94 frente a −1,31 ATR) y menor probabilidad BAJISTA mediana original (0,266 frente a 0,364). Estas cifras no identifican una causa única.
 
-En delayed, 1.250 trayectorias tocaron ambas barreras y 477 lo hicieron en una misma vela de 15 minutos; su orden intravela es desconocido. Entre los 219 BAJISTA predichos ALCISTA, 89 tocaron ambas barreras y 41 tocaron primero la alcista en una vela anterior a la bajista. El resto no autoriza inferir esa secuencia.
+En delayed, 1.250 trayectorias tocaron ambas barreras. En 477 hubo alguna vela que tocó las dos; 229 tuvieron sus primeros toques dentro de esa misma vela y se clasifican AMBIGUOUS_INTRABAR_ORDER. En las otras 248, el primer toque previo de una barrera ya establecía el orden; una vela posterior con ambos extremos no invalida esa información. Entre los 219 BAJISTA predichos ALCISTA, 89 tocaron ambas barreras y 41 tocaron primero la alcista en una vela anterior a la bajista.
 
 ### Umbral contrafactual con horizonte original
 
@@ -66,7 +68,7 @@ Una hipótesis para predefinir antes de observar datos nuevos sería distinguir 
 Desde la raíz, con Python 3.12 y el entorno existente:
 
 ~~~powershell
-.\.venv\phase28-py312\Scripts\python.exe -m ml.phase41c.report --history private\iex-history\nvda-2024-2026-phase38e --run private\ml-iex\phase38e-20261023-v1 --out private\ml-iex\phase41c-target-audit-v3
+.\.venv\phase28-py312\Scripts\python.exe -m ml.phase41c.report --history private\iex-history\nvda-2024-2026-phase38e --run private\ml-iex\phase38e-20261023-v1 --out private\ml-iex\phase41c-target-audit-v6
 ~~~
 
 El destino debe ser nuevo. Emite manifest.json, coverage.json, trajectory-audit.json, target-sensitivity.json, bear-confusion-audit.json, report.json, report.md y SHA256SUMS. Las pruebas sintéticas se ejecutan con:

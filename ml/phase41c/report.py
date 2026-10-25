@@ -65,9 +65,14 @@ def markdown(report):
         f"{round(bull['both_barriers_touched']['fraction']*bull['observations']) if bull['observations'] else 0}; "
         f"toque alcista en vela anterior al bajista: "
         f"{round(bull['up_then_down_distinct_bars']['fraction']*bull['observations']) if bull['observations'] else 0}.",
-        f"- Ambas barreras tocadas en la población delayed: "
+        f"- Trayectorias que tocaron ambas barreras en algún momento en delayed: "
         f"{round(delayed['overall']['both_barriers_touched']['fraction']*delayed['overall']['observations']) if delayed['overall']['observations'] else 0} "
-        f"({fmt(delayed['overall']['both_barriers_touched'])}); el orden dentro de una vela se declara ambiguo.",
+        f"({fmt(delayed['overall']['both_barriers_touched'])}). Primeros toques simultáneos: "
+        f"{round(delayed['overall']['first_touch_order_ambiguous']['fraction']*delayed['overall']['observations']) if delayed['overall']['first_touch_order_ambiguous']['fraction'] else 0}. "
+        f"De esas trayectorias, "
+        f"{round(delayed['overall']['any_same_bar_both_touched']['fraction']*delayed['overall']['observations']) if delayed['overall']['any_same_bar_both_touched']['fraction'] else 0} tuvieron al menos una vela que tocó ambas; "
+        f"{round((delayed['overall']['any_same_bar_both_touched']['fraction']-delayed['overall']['first_touch_order_ambiguous']['fraction'])*delayed['overall']['observations'])} ya tenían un primer toque previo que fija el orden. "
+        'Los primeros toques en velas distintas conservan su orden aunque una vela posterior toque ambas.',
         '',
         '## Sensibilidad contrafactual',
         '',
@@ -119,7 +124,8 @@ def write_artifacts(result, out):
                                 'upward_excursion_atr': '(maximum_future_high - entry_open) / original_ATR14',
                                 'flat_or_recovery': 'derived only after the outcome; never a predictor feature',
                                 'barrier_touch': 'inclusive; terminal labels are strict',
-                                'ambiguous_intrabar': 'opposing barriers touched in the same 15m candle; order unknown',
+                                'any_same_bar_both_touched': 'both thresholds were touched in at least one same 15m candle, regardless of prior first touches',
+                                'first_touch_order_ambiguous': 'the first upward and downward threshold touches occurred in the same 15m candle',
                                 'horizons_bars': [2, 4, 6], 'thresholds_atr': [.25, .5, .75, 1.0],
                                 'near_boundary_atr': .1},
                 'prediction_model_changed': False, 'original_sources_modified': False}

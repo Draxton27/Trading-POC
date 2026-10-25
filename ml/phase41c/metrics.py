@@ -58,7 +58,8 @@ def path_summary(rows):
         'downward_touch': proportion(rows, lambda r: r['paths']['4']['first_downward_threshold_touch'] is not None),
         'both_barriers_touched': proportion(rows, lambda r: r['paths']['4']['first_downward_threshold_touch'] is not None
                                              and r['paths']['4']['first_upward_threshold_touch'] is not None),
-        'ambiguous_same_bar': proportion(rows, lambda r: r['paths']['4']['both_barriers_same_bar']),
+        'any_same_bar_both_touched': proportion(rows, lambda r: r['paths']['4']['any_same_bar_both_touched']),
+        'first_touch_order_ambiguous': proportion(rows, lambda r: r['paths']['4']['first_touch_order_ambiguous']),
         # These descriptive properties may overlap; neither is an Investep rule.
         'sustained_terminal_bear': proportion(rows, lambda r: r['paths']['4']['terminal_class_at_0_5_atr'] == 'BAJISTA'
             and r['paths']['4']['closes_below_entry'] >= 3

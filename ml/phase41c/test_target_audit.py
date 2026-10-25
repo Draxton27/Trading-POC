@@ -95,16 +95,49 @@ class TargetAuditTests(unittest.TestCase):
         self.assertEqual(trajectory(obs, falling)['terminal_class_at_0_5_atr'], 'BAJISTA')
         self.assertEqual(trajectory(obs, falling)['closes_below_entry'], 1)
 
-    def test_opposing_barriers_in_one_candle_are_ambiguous(self):
-        bars, _ = session('2026-01-05', prices=[100]*7)
+    def test_barrier_first_touch_order_is_distinct_from_any_same_bar_touch(self):
+        bars, _ = session('2026-01-05', prices=[100]*8)
         obs = observation(bars)
-        future = bars[1:5]
-        path = trajectory(obs, future)
-        self.assertTrue(path['both_barriers_same_bar'])
-        self.assertTrue(path['barrier_order_ambiguous'])
-        self.assertEqual(path['trajectory_category'], 'AMBIGUOUS_INTRABAR_ORDER')
+
+        def candle(index, high, low):
+            bar = bars[index]
+            return Bar(bar.start, bar.timestamp, 100, high, low, 100,
+                       bar.volume, bar.day, bar.minute)
+
+        # Upward first, followed by a candle that touches both barriers.
+        up_then_both = [candle(1, 100.6, 99.8), candle(2, 100.7, 99.2),
+                        candle(3, 100.1, 99.9), candle(4, 100.1, 99.9)]
+        path = trajectory(obs, up_then_both)
+        self.assertEqual(path['first_touch_order'], 'UP_FIRST')
+        self.assertEqual(path['first_upward_threshold_touch'], 1)
+        self.assertEqual(path['first_downward_threshold_touch'], 2)
+        self.assertTrue(path['any_same_bar_both_touched'])
+        self.assertFalse(path['first_touch_order_ambiguous'])
+        self.assertFalse(path['barrier_order_ambiguous'])
+        self.assertEqual(path['trajectory_category'], 'BOTH_DIRECTIONS_TOUCHED')
+
+        # Downward first, then a later candle touches both.
+        down_then_both = [candle(1, 100.2, 99.4), candle(2, 100.7, 99.2),
+                          candle(3, 100.1, 99.9), candle(4, 100.1, 99.9)]
+        path = trajectory(obs, down_then_both)
+        self.assertEqual(path['first_touch_order'], 'DOWN_FIRST')
+        self.assertEqual(path['first_downward_threshold_touch'], 1)
+        self.assertEqual(path['first_upward_threshold_touch'], 2)
+        self.assertTrue(path['any_same_bar_both_touched'])
+        self.assertFalse(path['first_touch_order_ambiguous'])
+        self.assertEqual(path['trajectory_category'], 'BOTH_DIRECTIONS_TOUCHED')
+
+        # Both first touches occur within the same candle.
+        both_first = [candle(1, 100.6, 99.4), candle(2, 100.1, 99.9),
+                      candle(3, 100.1, 99.9), candle(4, 100.1, 99.9)]
+        path = trajectory(obs, both_first)
+        self.assertEqual(path['first_touch_order'], 'SAME_BAR')
         self.assertEqual(path['first_upward_threshold_touch'], 1)
         self.assertEqual(path['first_downward_threshold_touch'], 1)
+        self.assertTrue(path['any_same_bar_both_touched'])
+        self.assertTrue(path['first_touch_order_ambiguous'])
+        self.assertTrue(path['barrier_order_ambiguous'])
+        self.assertEqual(path['trajectory_category'], 'AMBIGUOUS_INTRABAR_ORDER')
 
     def test_horizons_market_close_early_close_gaps_and_dst(self):
         for day in ('2026-01-05', '2026-03-09', '2026-11-02'):
