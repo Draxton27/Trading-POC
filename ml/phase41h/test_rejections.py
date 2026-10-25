@@ -16,7 +16,7 @@ from .rejection_classification import (
     classify, join, transition,
 )
 from .sources import REQUIRED, verify_checksums
-from .statistics import F, A, N, comparison, difference_interval, summarize
+from .statistics import F, A, N, comparison, difference_interval, exclusions, summarize
 from .report import build
 
 
@@ -175,6 +175,10 @@ class EpisodeAndOutcomeTests(unittest.TestCase):
         item = with_outcome(classify(visit, row), 'OUTCOME_UNAVAILABLE')
         self.assertEqual(summarize([item])['outcomes_unavailable'], 1)
         self.assertEqual(summarize([item])['right_censored'], 1)
+        self.assertEqual(exclusions([item])['MARKET_CLOSE'], 1)
+        item['outcomes']['4']['reason'] = 'RIGHT_CENSORED'
+        self.assertEqual(exclusions([item])['OTHER'], 1)
+        self.assertEqual(exclusions([item])['originalOutcomeReasons'], {'RIGHT_CENSORED': 1})
 
 
 class StatisticsTests(unittest.TestCase):

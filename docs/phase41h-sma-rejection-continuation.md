@@ -70,8 +70,55 @@ En la fuente local verificada hay **5.681 visitas**, **1.103 regímenes** y
 **5.681 registros de desenlace** con paridad exacta. La clasificación inicial
 de todas las visitas dio **2.825 rechazos confirmados**, **335 visitas sin
 intersección**, **2.518 contactos con cierre del lado contrario** y **3 cierres
-exactamente sobre la SMA**. Los denominadores específicos por SMA y tipo de
-visita están en el reporte privado.
+exactamente sobre la SMA**. No hubo discrepancias con la interacción 41A en
+esta fuente. Hubo 844 clústeres de visita que contienen más de una SMA.
+
+## Hallazgos prioritarios: 15 minutos, tendencia bajista
+
+Los denominadores de contacto y rechazo son todas las visitas observadas,
+excluyendo censura izquierda. Los porcentajes de continuación usan únicamente
+desenlaces evaluables de cuatro velas.
+
+| SMA | Visitas | Contacto real | Rechazo confirmado | Rechazo / visitas | Rechazo / contactos | Rechazos evaluables | Favorable / adverso tras rechazo | Contactos sin rechazo evaluables | Favorable / adverso sin rechazo |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 20 | 930 | 892 | 474 | 51,0 % | 53,1 % | 348 | 29,0 % / 30,2 % | 296 | 31,8 % / 26,4 % |
+| 40 | 690 | 638 | 342 | 49,6 % | 53,6 % | 258 | 27,1 % / 31,8 % | 240 | 28,3 % / 32,5 % |
+
+Para SMA20, **157/339** primeras visitas tuvieron rechazo confirmado
+(157/328 entre contactos); entre las posteriores fueron **317/591**
+(317/564 entre contactos). La continuación favorable después de esos
+rechazos fue **26,7 %** de 120 primeras evaluables y **30,3 %** de 228
+posteriores evaluables. Para SMA40, los rechazos fueron **174/351** primeras
+(174/327 contactos) y **168/339** posteriores (168/311 contactos); la
+continuación favorable fue **23,5 %** de 136 y **31,1 %** de 122,
+respectivamente. La primera visita no mostró una frecuencia de rechazo
+uniformemente superior.
+
+La comparación predefinida D (rechazo frente a contacto real sin rechazo)
+dio una diferencia favorable de **−2,7 puntos porcentuales** para SMA20
+y **−1,2 puntos** para SMA40. Sus intervalos por sesión, etiquetados solo
+como sensibilidad, fueron aproximadamente **−9,8 a +3,7 puntos** y
+**−8,9 a +6,0 puntos**. Ambos incluyen cero. La comparación A (primera
+visita con rechazo frente a primera sin rechazo) dio **−4,9** y **−4,1
+puntos**, también con sensibilidades que incluyen cero. Los resultados
+alcistas de SMA20/40 tampoco muestran una mejora uniforme tras rechazo:
+28,1 % frente a 31,1 % y 27,6 % frente a 29,0 % de continuación favorable
+entre contactos evaluables.
+
+El desglose anual cambia de dirección. Por ejemplo, en bajista SMA20 la
+tasa favorable tras rechazo fue 38,9 % en 2022, 21,1 % en 2024, 20,7 %
+en 2025 y 35,9 % en 2026. En 2021 hubo solo nueve desenlaces de rechazo
+evaluables, por lo que ese año se marca como evidencia insuficiente.
+Los bins de edad del régimen de 41G también presentan resultados
+heterogéneos. El período coincidente con 38E/41F se presenta aparte del
+historial anterior; ninguno es una muestra independiente del proyecto.
+
+En SMA20 bajista quedaron **248** desenlaces de cuatro velas no
+evaluables, y en SMA40 **140**. Los motivos originales distinguen
+`SESSION_END` (129 y 59) de `RIGHT_CENSORED` (119 y 81).
+No se atribuye todo `RIGHT_CENSORED` automáticamente a un cierre normal:
+también puede reflejar el borde de la fuente. El reporte conserva cada
+motivo 41G, además de las categorías resumidas de exclusión.
 
 ## Reproducción local en Windows
 

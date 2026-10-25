@@ -181,6 +181,15 @@ def build(data: dict) -> dict:
                 item['direction'] == 'BEARISH' and item['smaPeriod'] in (20, 40) and
                 item['visitGroup'] in ('ALL', 'FIRST', 'LATER') and item['rejectionGroup'] in
                 ('ALL', CONFIRMED, 'GEOMETRIC_CONTACT_NO_REJECTION', NO_INTERSECTION)]
+    priority_years = [item for item in by_year if item['timeframe'] == '15m' and
+                      item['direction'] == 'BEARISH' and item['smaPeriod'] in (20, 40)]
+    priority_ages = [item for item in by_regime if item['timeframe'] == '15m' and
+                     item['direction'] == 'BEARISH' and item['smaPeriod'] in (20, 40) and
+                     item['dimension'] == 'ageBin']
+    priority_coverage = [{'smaPeriod': period,
+                          **summarize(_population(rows, '15m', 'BEARISH', period)),
+                          'exclusions': exclusions(_population(rows, '15m', 'BEARISH', period))}
+                         for period in (20, 40)]
     report = {'schema': 'phase41h-report-v1', 'status': 'HISTORICAL_EXPLORATORY',
               'phase41gParity': {'visits': len(rows), 'regimes': len(data['regimes']),
                                  'outcomes': len(data['outcomes']), 'exact': True},
@@ -189,6 +198,8 @@ def build(data: dict) -> dict:
               'phase41gArtifactSha256': data['checksums']['report.json'],
               'phase41hProtocolSha256': sha(Path(__file__).with_name('protocol.json')),
               'contactAudit': geometry, 'priority15mBearish': priority,
+              'priorityByYear': priority_years, 'priorityByAge': priority_ages,
+              'priorityCoverage': priority_coverage,
               'comparisons': comparisons,
               'limitations': [
                   'Disponibilidad SIP histórica simulada, no recepción original verificable.',
@@ -244,12 +255,35 @@ def markdown(result: dict) -> str:
                      f"{f'{diff:+.1%}' if diff is not None else 'N/D'}|" +
                      f"{ci(item['sessionSensitivity95'])}|{ci(item['regimeSensitivity95'])}|" +
                      f"{item['uncertaintyStatus']}|")
+    lines += ['', '## Años: 15m bajista', '',
+              '|SMA|Año|Visitas|Rechazos|Continuación tras rechazo (n)|Continuación sin rechazo (n)|',
+              '|---:|---:|---:|---:|---:|---:|']
+    years = {(item['smaPeriod'], item['year'], item['rejectionGroup']): item
+             for item in report['priorityByYear']}
+    for period in (20, 40):
+        for year in range(2021, 2027):
+            all_items = years[(period, year, 'ALL')]
+            rejected = years[(period, year, CONFIRMED)]
+            other = years[(period, year, 'NO_REJECTION')]
+            lines.append(f"|{period}|{year}|{all_items['events_total']}|" +
+                         f"{rejected['events_total']}|" +
+                         f"{percent(rejected['favorableRate'])} ({rejected['outcomes_evaluable']})|" +
+                         f"{percent(other['favorableRate'])} ({other['outcomes_evaluable']})|")
+    lines += ['', '## Cobertura del horizonte principal: 15m bajista', '',
+              '|SMA|Visitas|Evaluables|No evaluables|SESSION_END|RIGHT_CENSORED|',
+              '|---:|---:|---:|---:|---:|---:|']
+    for item in report['priorityCoverage']:
+        original = item['exclusions']['originalOutcomeReasons']
+        lines.append(f"|{item['smaPeriod']}|{item['events_total']}|" +
+                     f"{item['outcomes_evaluable']}|{item['outcomes_unavailable']}|" +
+                     f"{original.get('SESSION_END', 0)}|{original.get('RIGHT_CENSORED', 0)}|")
     lines += ['', '## Interpretación', '',
               'Un rechazo confirmado es un hecho geométrico y de cierre conocido solo cuando la vela y su demora están disponibles.',
               'La continuación favorable, adversa o neutral ocurre después de esa decisión y usa el horizonte original de 41G.',
               'Las comparaciones son asociaciones descriptivas; no demuestran capacidad predictiva ni una ejecución al tocar la SMA.',
               'Los intervalos por sesión y régimen son sensibilidades: la dependencia simultánea entre ambos tipos de clúster no queda completamente representada.',
-              'Años, orígenes, edades de régimen, marcos secundarios, razones de exclusión y horizontes 2/6 figuran en JSON.',
+              'Orígenes, edades de régimen, marcos secundarios, razones de exclusión y horizontes 2/6 figuran en JSON.',
+              'RIGHT_CENSORED conserva su motivo original: no se atribuye automáticamente a un cierre normal del mercado.',
               'CHANGE y RESTART casi se superponen en la máquina binaria y no ofrecen grupos independientes.',
               'Todo el histórico ya fue investigado; no se entrenaron modelos ni se generaron señales de opciones.', '']
     return '\n'.join(lines)

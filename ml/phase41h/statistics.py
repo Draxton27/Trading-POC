@@ -78,6 +78,7 @@ def difference_interval(left: list[dict], right: list[dict], cluster: str,
 
 def exclusions(items: list[dict]) -> dict[str, int]:
     reasons: Counter[str] = Counter()
+    original: Counter[str] = Counter()
     for item in items:
         if item['rejectionStatus'] == UNAVAILABLE:
             reasons['SMA_UNAVAILABLE'] += 1
@@ -89,15 +90,18 @@ def exclusions(items: list[dict]) -> dict[str, int]:
         if outcome['status'] != 'OUTCOME_UNAVAILABLE':
             continue
         reason = outcome.get('reason')
+        original[str(reason)] += 1
         mapped = {'SOURCE_MISSING': 'SOURCE_UNAVAILABLE',
-                  'SESSION_END': 'MARKET_CLOSE', 'RIGHT_CENSORED': 'MARKET_CLOSE',
+                  'SESSION_END': 'MARKET_CLOSE',
                   'GAP': 'FUTURE_BARS_MISSING', 'INCOMPLETE_SOURCE': 'FUTURE_BARS_MISSING',
                   'ENTRY_UNAVAILABLE': 'FUTURE_BARS_MISSING',
                   'ATR_INSUFFICIENT': 'ATR_INSUFFICIENT'}.get(reason, 'OTHER')
         reasons[mapped] += 1
-    return {key: reasons[key] for key in ('SOURCE_UNAVAILABLE', 'SMA_UNAVAILABLE',
+    output = {key: reasons[key] for key in ('SOURCE_UNAVAILABLE', 'SMA_UNAVAILABLE',
         'NO_RANGE_INTERSECTION', 'LEFT_CENSORED', 'MARKET_CLOSE',
         'FUTURE_BARS_MISSING', 'ATR_INSUFFICIENT', 'OTHER')}
+    output['originalOutcomeReasons'] = dict(sorted(original.items()))
+    return output
 
 
 def summarize(items: list[dict], horizon: int = 4, uncertainty: bool = False) -> dict:
