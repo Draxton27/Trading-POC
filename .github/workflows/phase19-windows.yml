@@ -55,6 +55,9 @@ on:
       - 'trading_poc_001_bollinger/src/alpaca*.ts'
       - 'trading_poc_001_bollinger/src/investep-technical-context.ts'
       - 'trading_poc_001_bollinger/src/phase41b-*.ts'
+      - 'trading_poc_001_bollinger/src/phase41e-*.ts'
+      - 'tests/phase19/phase41e-*.test.ts'
+      - 'docs/phase41e-candle-market-structure.md'
       - 'tests/phase19/technical-context.test.ts'
       - 'tests/phase19/phase41b-context.test.ts'
       - 'docs/phase41a-investep-technical-context.md'
@@ -107,3 +110,4 @@ jobs:
       - run: python -m unittest ml.phase41b.test_bear_audit
       - run: python -m unittest ml.phase41c.test_target_audit
       - run: python -m unittest ml.phase41d.test_targets
+      - run: python -m unittest ml.phase41e.test_features
