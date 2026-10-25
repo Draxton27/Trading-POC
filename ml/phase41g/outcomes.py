@@ -87,12 +87,17 @@ def evaluate(events: list[dict], document: dict, horizons=(2,4,6)) -> list[dict]
                 if f and first_fav is None: first_fav=j
                 if a and first_adv is None: first_adv=j
             intrabar=first_fav is not None and first_fav==first_adv
+            outcome_bar_end=segment[-1]['endUtc']
+            outcome_known=segment[-1].get('availableAtUtc') if segment[-1].get('verified') else None
+            if outcome_known is None or dt(outcome_known) <= dt(outcome_bar_end):
+                raise ValueError('Disponibilidad simulada del desenlace ausente o anterior al cierre')
             base['outcomes'][str(horizon)]={'status':status,'reason':None,
                 'rightCensored':False,'signedMoveAtr':delta/base['atr14AtDecision'],
                 'favorableExcursionAtr':favorable_max/base['atr14AtDecision'],
                 'adverseExcursionAtr':adverse_max/base['atr14AtDecision'],
                 'firstFavorableBarrierBar':first_fav,'firstAdverseBarrierBar':first_adv,
-                'ambiguousIntrabarOrder':intrabar,'outcomeKnownAtUtc':segment[-1]['endUtc'],
+                'ambiguousIntrabarOrder':intrabar,'outcomeBarEndUtc':outcome_bar_end,
+                'outcomeKnownAtUtc':outcome_known,
                 'outcomeAvailability':'HISTORICAL_SIMULATED_SIP_DELAY',
                 'lastBarStartUtc':segment[-1]['startUtc']}
         output.append(base)

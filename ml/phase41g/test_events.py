@@ -9,7 +9,7 @@ from .trend_regimes import TrendMachine
 from .visit_episodes import VisitMachine
 from .event_detection import detect
 from .outcomes import evaluate
-from .comparators import match
+from .comparators import match, audit as audit_pairs
 from .statistics import grouped
 from .sources import load
 
@@ -132,7 +132,10 @@ class OutcomeTests(unittest.TestCase):
         result=evaluate([self.event(rows)],doc(rows))[0]
         self.assertEqual(result['referenceEntryAtUtc'],rows[18]['startUtc'])
         self.assertEqual(result['outcomes']['4']['status'],'FAVORABLE_TERMINAL_MOVE')
-        self.assertEqual(result['outcomes']['4']['outcomeKnownAtUtc'],rows[21]['endUtc'])
+        self.assertEqual(result['outcomes']['4']['outcomeKnownAtUtc'],rows[21]['availableAtUtc'])
+        self.assertEqual(result['outcomes']['4']['outcomeBarEndUtc'],rows[21]['endUtc'])
+        self.assertGreater(datetime.fromisoformat(result['outcomes']['4']['outcomeKnownAtUtc'].replace('Z','+00:00')),
+                           datetime.fromisoformat(result['outcomes']['4']['outcomeBarEndUtc'].replace('Z','+00:00')))
         bear=evaluate([self.event(rows,'BEARISH')],doc(rows))[0]
         self.assertEqual(bear['outcomes']['4']['status'],'ADVERSE_TERMINAL_MOVE')
         rows[21]['close']=100
@@ -182,6 +185,19 @@ class OutcomeTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'Procedencia'):
                 load(path,'a'*64)
 
+    def test_verified_source_must_use_the_frozen_twenty_minute_delay(self):
+        row=bar(0);row.update(timeframe='15m',continuousBars=21,
+                              availableAtUtc=iso(datetime.fromisoformat(row['endUtc'].replace('Z','+00:00'))+
+                                                 timedelta(minutes=21)))
+        source={'schema':'phase41g-sip-source-v1','source':{'symbol':'NVDA','feed':'sip',
+          'adjustment':'split','timeframe':'15m','delayMinutes':20,
+          'availability':'SIMULATED_HISTORICAL_DELAY','hashes':{'csv':'a'*64}},
+          'calendar':[{'date':row['dateNy'],'open':570,'close':960}], 'rows':[row]}
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)/'source.json';path.write_text(json.dumps(source),encoding='utf-8')
+            with self.assertRaisesRegex(ValueError,'Vela verificada'):
+                load(path,'a'*64)
+
     def test_reproducible_stats_and_matching_without_outcome(self):
         rows=[bar(i,low=99,high=101,close=100) for i in range(22)]
         ev={**self.event(rows),'smaPeriod':20,'regimeId':'r','ageBin':'12-25',
@@ -190,6 +206,66 @@ class OutcomeTests(unittest.TestCase):
              'assumedAvailableAtUtc':rows[14]['availableAtUtc'],'barsSinceRegimeStart':19}
         self.assertEqual(match([ev],[non])[0]['nonvisitId'],'n')
         self.assertEqual(evaluate([ev],doc(rows)),evaluate([copy.deepcopy(ev)],doc(rows)))
+
+    def test_control_reuse_cross_session_and_pair_audit(self):
+        control={**self.event([bar(i) for i in range(22)]),'eventId':'control','regimeId':'r',
+            'smaPeriod':20,'ageBin':'12-25','localSlot':'14:00','barsSinceRegimeStart':20,
+            'dateNy':'2026-10-20','eventBarStartUtc':'2026-10-20T18:00:00.000Z'}
+        visits=[]
+        for i,day in enumerate(('2026-10-21','2026-10-22')):
+            visits.append({**control,'eventId':f'v{i}','dateNy':day,
+                           'eventBarStartUtc':f'{day}T18:00:00.000Z'})
+        pairs=match(visits,[control])
+        summary=audit_pairs(pairs)
+        self.assertEqual(summary['pairs'],2)
+        self.assertEqual(summary['crossSessionPairs'],2)
+        self.assertEqual(summary['uniqueControls'],1)
+        self.assertEqual(summary['reusedControls'],1)
+        self.assertEqual(summary['maxControlReuse'],2)
+        self.assertEqual(summary['pairsByRegime'],{'r':2})
+        self.assertEqual([p['controlReuseCount'] for p in pairs],[2,2])
+        self.assertEqual([p['separationMinutes'] for p in pairs],[1440,2880])
+
+    def test_outcome_known_timestamp_includes_delay_for_1h_and_1d(self):
+        def frame_row(start,end,day,slot,frame):
+            return {'timeframe':frame,'startUtc':iso(start),'endUtc':iso(end),
+                'availableAtUtc':iso(end+timedelta(minutes=20)),'dateNy':day,'localSlot':slot,
+                'open':100,'high':101,'low':99,'close':100,'verified':True}
+        # Four official sessions with six 60-minute bars and one 30-minute close bar.
+        dates=['2026-10-19','2026-10-20','2026-10-21','2026-10-22']
+        calendar=[{'date':d,'open':570,'close':960} for d in dates]
+        hourly=[]
+        for day_i,day in enumerate(dates):
+            base=datetime(2026,10,int(day[-2:]),13,30,tzinfo=UTC)
+            for slot in range(7):
+                start=base+timedelta(hours=slot);duration=30 if slot==6 else 60
+                hour=9+(30+60*slot)//60;minute=(30+60*slot)%60
+                local=f'{hour:02d}:{minute:02d}'
+                hourly.append(frame_row(start,start+timedelta(minutes=duration),day,local,'1h'))
+        for target,expected in ((hourly[14],hourly[19]),):
+            event={'eventId':'hour','timeframe':'1h','eventBarStartUtc':target['startUtc'],
+                   'assumedAvailableAtUtc':target['availableAtUtc'],'regimeDirection':'BULLISH'}
+            outcome=evaluate([event],doc(hourly,calendar))[0]['outcomes']['4']
+            self.assertEqual(outcome['outcomeBarEndUtc'],expected['endUtc'])
+            self.assertEqual(outcome['outcomeKnownAtUtc'],expected['availableAtUtc'])
+        # Daily bars are released after each official close; use a 20-session run for ATR14.
+        daily=[];days=[];cursor=datetime(2026,9,1)
+        while len(days)<20:
+            if cursor.weekday()<5:days.append(cursor.strftime('%Y-%m-%d'))
+            cursor+=timedelta(days=1)
+        for day in days:
+            date=datetime.fromisoformat(day)
+            start=datetime(date.year,date.month,date.day,13,30,tzinfo=UTC)
+            daily.append(frame_row(start,start+timedelta(minutes=390),day,'09:30','1d'))
+        daily_calendar=[{'date':d,'open':570,'close':960} for d in days]
+        target=daily[14];last=daily[18]
+        event={'eventId':'daily','timeframe':'1d','eventBarStartUtc':target['startUtc'],
+               'assumedAvailableAtUtc':target['availableAtUtc'],'regimeDirection':'BEARISH'}
+        outcome=evaluate([event],doc(daily,daily_calendar))[0]['outcomes']['4']
+        self.assertEqual(outcome['outcomeBarEndUtc'],last['endUtc'])
+        self.assertEqual(outcome['outcomeKnownAtUtc'],last['availableAtUtc'])
+        self.assertGreater(datetime.fromisoformat(outcome['outcomeKnownAtUtc'].replace('Z','+00:00')),
+                           datetime.fromisoformat(outcome['outcomeBarEndUtc'].replace('Z','+00:00')))
 
 
 if __name__=='__main__':unittest.main()

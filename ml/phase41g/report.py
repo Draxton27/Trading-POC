@@ -11,7 +11,7 @@ from statistics import median
 from .sources import load, sha
 from .event_detection import detect
 from .outcomes import evaluate
-from .comparators import match
+from .comparators import match, audit as audit_pairs
 from .statistics import grouped, summarize_no_bootstrap, paired_interval, F
 
 ROOT=Path(__file__).resolve().parents[2]
@@ -50,8 +50,14 @@ def comparisons(visits: list[dict], nonvisits: list[dict], pairs: list[dict]) ->
                     'matchedNonvisitFavorableRate':rate(matched_nonvisits),
                     'matchedDifference':round(rate(matched_visits)-rate(matched_nonvisits),6)
                        if evaluable else None,
-                    'matchedDifferenceSessionBootstrap95':paired_interval(pair_values,'dateNy'),
+                    'matchedDifferenceSessionBootstrap95':None,
                     'matchedDifferenceRegimeBootstrap95':paired_interval(pair_values,'regimeId'),
+                    'matchedDifferenceUncertaintyStatus':
+                       'NO_SESSION_INTERVAL_SHARED_CONTROL_OR_CROSS_SESSION_PAIRING',
+                    'matchedDifferenceRegimeBootstrapInterpretation':
+                       'REGIME_CLUSTER_SENSITIVITY; sessions can contain multiple regimes',
+                    'pairAuditAll':audit_pairs(matching),
+                    'pairAuditEvaluable':audit_pairs(evaluable),
                     'interpretation':'EXPLORATORY_ASSOCIATION_NOT_CAUSAL'})
     return output
 
@@ -83,17 +89,21 @@ def markdown(report: dict) -> str:
         lines.append(f"|{row['timeframe']}|{row['direction']}|{row['horizonBars']}|"
                      f"{row['evaluable']}|{f'{value:.1%}' if value is not None else 'N/D'}|")
     lines += ['', '## Visita frente a un punto sin visita, emparejado antes del desenlace', '',
-              '|Marco|Tendencia|SMA|Pares evaluables|Diferencia favorable|IC 95 % sesión|',
-              '|---|---|---:|---:|---:|---|']
+              '|Marco|Tendencia|SMA|Pares|Diferencia favorable|Pares entre sesiones|Controles reutilizados/únicos|IC 95 % por régimen|',
+              '|---|---|---:|---:|---:|---:|---:|---|']
     for row in report['comparisons']:
-        diff=row['matchedDifference'];ci=row['matchedDifferenceSessionBootstrap95']
+        diff=row['matchedDifference'];ci=row['matchedDifferenceRegimeBootstrap95']
+        audit=row['pairAuditEvaluable']
         lines.append(f"|{row['timeframe']}|{row['direction']}|{row['smaPeriod']}|{row['matchedPairs']}|"
-                     f"{f'{diff:+.1%}' if diff is not None else 'N/D'}|"
+                     f"{f'{diff:+.1%}' if diff is not None else 'N/D'}|{audit['crossSessionPairs']}|"
+                     f"{audit['reusedControls']}/{audit['uniqueControls']}|"
                      f"{(f'{ci[0]:+.1%}–{ci[1]:+.1%}') if ci else 'N/D'}|")
     lines += ['', '## Método y límites', '',
       'El detector no ve desenlaces: se calculan en un segundo paso. El toque se conoce al cierre y la apertura de referencia es la primera posterior a cierre + 20 min. Las aperturas no son fills.',
       'ATR14 y SMA usan SIP split. El ajuste retrospectivo por splits no representa exactamente los precios conocidos en cada fecha histórica.',
       'Las segundas visitas requieren supervivencia del régimen: una tasa mayor o menor no prueba causalidad. Se informa comparación por edad y hora, y referencias sin visita seleccionadas antes de calcular resultados.',
+      f"Auditoría del comparador: {report['pairedComparisonAudit']['crossSessionPairs']} de {report['pairedComparisonAudit']['pairs']} pares proceden de sesiones distintas; {report['pairedComparisonAudit']['reusedControls']} controles se reutilizan ({report['pairedComparisonAudit']['uniqueControls']} controles únicos; separación mediana {report['pairedComparisonAudit']['medianSeparationMinutes']} minutos). No se publica IC pareado por sesión simple, porque las dos observaciones del par pueden pertenecer a grupos de sesión distintos y los controles pueden repetirse.",
+      'El intervalo por régimen de la tabla es una sensibilidad que agrupa juntos los pares y controles reutilizados dentro del régimen. No captura sesiones compartidas entre regímenes; no debe interpretarse como incertidumbre completa de la secuencia temporal.',
       'En una secuencia binaria continua de alineaciones, cada cruce desde el tercero restaura la dirección de dos cruces antes. Por eso CHANGE y RESTART se superponen y no constituyen grupos independientes; los subgrupos CHANGE sin RESTART son escasos.',
       'Los intervalos por sesión y régimen no necesariamente capturan dependencias entre jornadas, múltiples SMA en una misma vela ni cambios prolongados de régimen. Grupos con <30 eventos evaluables o sesiones son insuficientes.',
       'Los horizontes 2 y 6 son sensibilidades. Los resultados 1h y 1d son estudios propios y no equivalen al horizonte 15m.',
@@ -156,13 +166,14 @@ def run(csv: Path,out: Path,expected_sha: str,source_export: Path | None=None,
     write(out/'visit-outcomes.json',visit_outcomes)
     write(out/'event-coverage.json',result['coverage'])
     write(out/'event-statistics.json',statistics)
-    write(out/'paired-comparisons.json',{'pairs':pairs,'summaries':comparison})
+    pair_audit=audit_pairs(pairs)
+    write(out/'paired-comparisons.json',{'audit':pair_audit,'pairs':pairs,'summaries':comparison})
     write(out/'uncertainty.json',[{'keys':r['keys'],'dimension':r['dimension'],
         'sessionBootstrap95':r.get('sessionBootstrap95'),'regimeBootstrap95':r.get('regimeBootstrap95')}
         for r in statistics if r['dimension'] in ('main','origin','overlap_38e')])
     report={'schema':'phase41g-report-v1','status':'HISTORICAL_EXPLORED',
       'counts':count,'coverage':result['coverage'],'statistics':statistics,'comparisons':comparison,
-      'horizonSensitivity':sensitivity,
+      'horizonSensitivity':sensitivity,'pairedComparisonAudit':pair_audit,
       'outcomeUnavailability':dict(Counter(v['outcomes']['4'].get('reason') for v in visit_outcomes
                               if v['outcomes']['4']['status']=='OUTCOME_UNAVAILABLE')),
       'sourceSha256':expected_sha,'sourceExportSha256':sha(source_path),'protocolSha256':sha(protocol),

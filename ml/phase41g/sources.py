@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+from datetime import datetime, timedelta
 
 FRAMES = ('15m', '1h', '1d')
 PERIODS = (20, 40, 100, 200)
@@ -32,7 +33,8 @@ def load(path: Path, expected_sha: str) -> dict:
         prior[frame] = row['startUtc']
         if row['verified']:
             if not row['complete'] or row['continuousBars'] < 1 or row['sma'] is None or \
-               row['availableAtUtc'] <= row['endUtc']:
+               datetime.fromisoformat(row['availableAtUtc'].replace('Z','+00:00')) != \
+               datetime.fromisoformat(row['endUtc'].replace('Z','+00:00'))+timedelta(minutes=20):
                 raise ValueError('Vela verificada inválida')
         if any(row[k] is None for k in ('open','high','low','close')) and row['verified']:
             raise ValueError('OHLC verificado incompleto')

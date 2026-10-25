@@ -12,6 +12,8 @@ Una primera visita verdadera requiere un régimen cuyo comienzo fue observado, u
 
 El desenlace se calcula después de fijar todos los eventos. Referencia: apertura de la primera vela programada **estrictamente posterior** a cierre + 20 minutos. Umbral favorable/adverso: ±0,5 ATR14 causal, medido desde la referencia en la dirección del régimen. El desenlace principal es el cierre de cuatro velas completas; se registran dos y seis como sensibilidades. En 15m y 1h no se traslada un horizonte incompleto a otra sesión; el diario utiliza sesiones consecutivas del calendario oficial. Los extremos intrabar se informan como excursiones, con empate de primera barrera marcado ambiguo. Las aperturas OHLC no son fills garantizados.
 
+Para cada horizonte se conservan dos instantes: `outcomeBarEndUtc` es el cierre físico de la última barra; `outcomeKnownAtUtc` es su `availableAtUtc` verificado, 20 minutos después. La etiqueta y el momento de llegada de los datos no son intercambiables.
+
 ## Resultado histórico principal de 15 minutos
 
 Cada celda muestra **eventos / evaluables / favorable / adverso** en cuatro velas. El denominador de las tasas son exclusivamente los evaluables. Las visitas censuradas a izquierda se excluyen.
@@ -29,7 +31,9 @@ Cada celda muestra **eventos / evaluables / favorable / adverso** en cuatro vela
 
 En bajista SMA20, el IC 95 % por remuestreo de sesiones para la tasa favorable de primeras visitas es **23,3–34,8 %**, frente a **26,2–34,6 %** para visitas posteriores. Los IC por régimen son **23,7–35,2 %** y **26,0–34,6 %**. Estos intervalos se superponen ampliamente; no confirman una ventaja de la primera visita. Para SMA200 bajista, la diferencia puntual va en la otra dirección, pero hay solo 101 y 68 casos evaluables; su estimación es inestable y procede de comparaciones múltiples.
 
-En el comparador predefinido de puntos sin visita, se emparejan observaciones anteriores del mismo régimen, SMA, bin de edad y hora local antes de calcular desenlaces. En bajista SMA20 hubo 395 pares evaluables; diferencia de tasa favorable visita menos control: **−4,3 puntos porcentuales**, IC 95 % por sesión **−9,1 a +0,5 puntos**. No constituye prueba de efecto causal. El reporte privado contiene los demás pares y los intervalos tanto por sesión como por régimen.
+En el comparador predefinido de puntos sin visita, se emparejan observaciones anteriores del mismo régimen, SMA, bin de edad y hora local antes de calcular desenlaces. En bajista SMA20 hubo 395 pares evaluables; diferencia de tasa favorable visita menos control: **−4,3 puntos porcentuales**. El intervalo por régimen es **−9,3 a +1,0 puntos** y se presenta como sensibilidad condicionada a los regímenes. Se retiró el intervalo por sesión simple: el 24,5 % de los pares globales cruza sesiones y existen controles compartidos.
+
+La auditoría global encontró **798/3.258 pares entre sesiones**, **32 controles reutilizados**, **3.226 controles únicos**, una reutilización máxima de 2 y una separación mediana de 15 minutos (máxima 7.200 minutos). Para bajista SMA20, entre los 395 pares evaluables hubo 21 pares entre sesiones, 4 controles reutilizados y 391 controles únicos. Cada par registra la fecha de ambos eventos, separación y cuántas veces se reutilizó el control. El bootstrap simple por fecha de visita no preserva la dependencia del control y por eso ya no se presenta como IC por sesiones completas. El bootstrap por régimen mantiene juntos controles compartidos dentro del régimen; se informa como sensibilidad porque las sesiones pueden abarcar más de un régimen.
 
 ## Cambios, duración, cobertura y períodos
 
@@ -57,4 +61,4 @@ python -m unittest ml.phase41g.test_events
 npm.cmd run ml:investep:events -- --sip-csv trading_poc_001_bollinger/data/NVDA_ALPACA_SIP_15min_20211017_20261017.csv --out private/ml-iex/phase41g-investep-trend-events-NUEVA-EJECUCION --expected-sha256 7b06d0a493515b18a581963d2d2d488e73a7cd0dc2c961b60a99315e7a9b0ecc
 ```
 
-La salida debe ser un directorio nuevo; el comando rechaza sobrescrituras. `private/` está ignorado por Git. Para verificar SHA de salidas, revisar `SHA256SUMS`; el manifiesto conserva hashes del código TypeScript/Python y del protocolo. Las salidas preliminares privadas de esta fase se conservaron; el informe definitivo es el directorio `phase41g-investep-trend-events-v1`.
+La salida debe ser un directorio nuevo; el comando rechaza sobrescrituras. `private/` está ignorado por Git. Para verificar SHA de salidas, revisar `SHA256SUMS`; el manifiesto conserva hashes del código TypeScript/Python y del protocolo. El reporte base `phase41g-investep-trend-events-v1` se conserva; la revisión de timestamps y dependencias de pares se guarda en `phase41g-investep-trend-events-v2-final`.
