@@ -1,7 +1,8 @@
 import type {MarketBar} from '@trading-poc/contracts';
 export {previousSessionLevels} from './historical-context.ts';
 export {spread} from './quote-math.ts';
-export {analyzeLongOption,daysToExpiration,expirationAnalysis,longBreakEven} from './option-analysis.ts';
+export {analyzeLongOption,daysToExpiration,expirationAnalysis,longBreakEven,optionQuoteQuality} from './option-analysis.ts';
+export * from './paper-simulator.ts';
 
 export type IndicatorPoint={startUtc:string;sma20:number|null;sma40:number|null;sma100:number|null;sma200:number|null;bbUpper:number|null;bbLower:number|null;bbMiddle:number|null};
 /** Indicadores de presentación causales. Solo se calculan sobre velas completas, en orden. */

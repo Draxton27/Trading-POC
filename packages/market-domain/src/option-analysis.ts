@@ -47,7 +47,7 @@ export function longBreakEven(right:unknown,strike:unknown,ask:unknown):number|n
     right==='CALL'?strike+ask:right==='PUT'?strike-ask:null:null;
 }
 
-function quoteQuality(input:OptionAnalysisInput['quote'],nowMs:number):Result['quote']{
+export function optionQuoteQuality(input:OptionAnalysisInput['quote'],nowMs:number):Result['quote']{
   const {bid,ask,bidSize,askSize,receivedAtUtc,marketTimestampUtc,feedType,provider,marketDataStatus,permissionDenied}=input;
   const bidBad=bid!==null&&(bid<0||bid>1e9),askBad=ask!==null&&(ask<0||ask>1e9);
   const sizeBad=[bidSize,askSize].some(v=>v!==null&&(!Number.isSafeInteger(v)||v<0));
@@ -133,7 +133,7 @@ export function analyzeLongOption(raw:unknown):Result{
   if(!parsed.success)return OptionAnalysisResult.parse(invalidResult(raw));
   const input=parsed.data,{contract:c,quote:q}=input;
   const nowMs=Date.parse(input.asOfUtc),expiration=expirationAnalysis(c.expiration,new Date(nowMs));
-  const issues=contractIssues(c,expiration),quality=quoteQuality(q,nowMs);
+  const issues=contractIssues(c,expiration),quality=optionQuoteQuality(q,nowMs);
   const inputIssues:string[]=[];
   if(!Number.isSafeInteger(input.quantity)||input.quantity<1||input.quantity>10_000)inputIssues.push('Cantidad de contratos fuera del rango 1–10000.');
   if(input.capitalUsd!==null&&(input.capitalUsd<0||input.capitalUsd>1e12))inputIssues.push('Capital hipotético inválido.');
