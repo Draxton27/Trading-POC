@@ -1,8 +1,10 @@
-import {useEffect,useState} from 'react';
+import {useCallback,useEffect,useState} from 'react';
 import {useQuery} from '@tanstack/react-query';
 import {api,dateTime,fmt} from '../../lib/api.ts';
 import {Badge,Button,Card,SectionTitle} from '../../components/ui.tsx';
 import {comparisonMetrics,toggleComparison} from './comparison.ts';
+import OptionAnalysisPanel from './OptionAnalysisPanel.tsx';
+import {analyzeComparisonRow,optionQualityLabel} from './analysis.ts';
 
 type ContractRow=Record<string,any>;
 type Issue={strike:number|null;code:string;message:string;requestId:string|null;ibkrCode:number|null};
@@ -20,7 +22,8 @@ const academyText:Record<string,string>={
 };
 const referenceText:Record<string,string>={ACTIVE:'vigente',REFERENCE_DATE:'misma fecha documental',HISTORICAL_ONLY:'referencia histórica sin vigencia declarada',CONFLICT:'referencias contradictorias',NONE:'sin referencia'};
 
-function ComparisonRow({conId,mode,onRemove}:{conId:number;mode:string;onRemove:()=>void}){
+function ComparisonRow({conId,mode,nowMs,onRemove,onAnalyze,onUpdate}:{conId:number;mode:string;nowMs:number;onRemove:()=>void;
+  onAnalyze:()=>void;onUpdate:(conId:number,row:ContractRow|null)=>void}){
   const [result,setResult]=useState<{item:ContractRow;error?:Issue|null}|null>(null);
   const [error,setError]=useState('');
   useEffect(()=>{
@@ -32,26 +35,35 @@ function ComparisonRow({conId,mode,onRemove}:{conId:number;mode:string;onRemove:
       inFlight=(async()=>{
         try{
           const response=await api<{item:ContractRow;error?:Issue|null}>('/options/comparison',{method:'POST',body:JSON.stringify({conId,consumerId:consumer})});
-          if(active){setResult(response);setError('');}
+          if(active){setResult(response);setError('');onUpdate(conId,response.item);}
         }catch(e){if(active){setResult(null);setError(e instanceof Error?e.message:'Consulta no disponible');}}
       })().finally(()=>{inFlight=null;});
     };
     refresh();const timer=setInterval(refresh,5000);
-    return ()=>{active=false;clearInterval(timer);void (inFlight??Promise.resolve()).then(release);};
-  },[conId,mode]);
+    return ()=>{active=false;clearInterval(timer);onUpdate(conId,null);void (inFlight??Promise.resolve()).then(release);};
+  },[conId,mode,onUpdate]);
   const row=result?.item,metrics=row?comparisonMetrics({right:row.right,strike:row.strike,expiration:row.expiration,
     multiplier:row.multiplier,bid:row.bid,ask:row.ask}):null;
+  const analysis=row?analyzeComparisonRow(row,{quantity:1,capitalUsd:null,entryFeePerContractUsd:null,
+    expirationFeePerContractUsd:null,hypotheticalUnderlyingAtExpirationUsd:null,asOfUtc:new Date(nowMs).toISOString()}):null;
+  const missing=analysis?[...analysis.contractIssues,
+    ...(analysis.quote.ask===null?['ASK ausente']:[]),...(analysis.quote.bid===null?['BID ausente']:[]),
+    ...(analysis.quote.marketTimestampUtc===null?['Hora de mercado N/D']:[])]:[];
   const evaluation=row?.academyEvaluation;
-  return <tr><td>{row?.right??'N/D'}<small>conId {conId}</small><Button variant="ghost" onClick={onRemove} aria-label={`Quitar contrato ${conId}`}>Quitar</Button></td>
+  return <tr><td>{row?.right??'N/D'}<small>conId {conId}</small><Button variant="ghost" onClick={onAnalyze} aria-label={`Analizar contrato ${conId}`}>Analizar</Button><Button variant="ghost" onClick={onRemove} aria-label={`Quitar contrato ${conId}`}>Quitar</Button></td>
     <td>{display(row?.strike)}</td><td>{row?.expiration??'N/D'}</td><td>{display(row?.bid)} / {display(row?.ask)}</td>
     <td>{display(metrics?.spread.absolute)} / {metrics?.spread.percent==null?'N/D':display(metrics.spread.percent)+'%'}</td>
+    <td>{row?.bidSize??'N/D'} / {row?.askSize??'N/D'}</td>
     <td>{metrics?.dte??'N/D'}</td><td>{display(row?.delta,3)}</td><td>{display(row?.theta,3)}</td>
-    <td>{display(metrics?.nominalCost)}</td><td>{display(metrics?.breakEven)}</td>
+    <td>{display(analysis?.premium.grossPremiumUsd)}</td><td>{display(analysis?.premium.maximumPremiumLossUsd)}</td>
+    <td>{display(analysis?.premium.cashOutlayWithKnownEntryFeesUsd)}<small>Sin comisiones desconocidas</small></td>
+    <td>{display(metrics?.breakEven)}</td>
     <td>{academyText[evaluation?.status]??'N/D'}<small>{evaluation?.reason??'Evaluación pendiente'}</small>
       {evaluation?.reference?<small>Referencia: {display(evaluation.reference.minAskCents/100)} a {display(evaluation.reference.maxAskCents/100)} USD por acción</small>:null}</td>
-    <td>{row?.provider==='DEMO sintético'?'DEMO sintético':row?.provider==='PAPER SIMULADO'?'PAPER SIMULADO':row?.feedType??'N/D'}
+    <td>{analysis?optionQualityLabel[analysis.quote.status]:'N/D'}<small>{row?.provider==='DEMO sintético'?'DEMO sintético':row?.provider==='PAPER SIMULADO'?'PAPER SIMULADO':row?.feedType??'N/D'}</small>
       <small>{error||result?.error?.message||statusText[row?.dataStatus]||row?.dataStatus||(row?.provider==='DEMO sintético'?'Datos sintéticos':'Consultando...')}</small>
-      <small>{row?.receivedAtUtc?dateTime(row.receivedAtUtc):'N/D'}</small></td></tr>;
+      <small>{row?.receivedAtUtc?dateTime(row.receivedAtUtc):'N/D'}</small></td>
+    <td>{missing.length?missing.join(' · '):'Ninguno estructural'}{analysis?.quote.status!=='LIVE_RECENT'?<small>{analysis?.quote.reason}</small>:null}</td></tr>;
 }
 
 export default function OptionsView({mode,consumerId}:{mode:string;consumerId:string}){
@@ -62,6 +74,13 @@ export default function OptionsView({mode,consumerId}:{mode:string;consumerId:st
   const [range,setRange]=useState({min:'',max:''}),[offset,setOffset]=useState(0);
   const [now,setNow]=useState(Date.now());
   const [selected,setSelected]=useState<number[]>([]);
+  const [selectedRows,setSelectedRows]=useState<Record<number,ContractRow>>({});
+  const [analysisConId,setAnalysisConId]=useState<number|null>(null);
+  const onComparisonUpdate=useCallback((conId:number,row:ContractRow|null)=>setSelectedRows(previous=>{
+    if(row===null){if(!(conId in previous))return previous;const next={...previous};delete next[conId];return next;}
+    return {...previous,[conId]:row};
+  }),[]);
+  const activeAnalysisConId=analysisConId!==null&&selected.includes(analysisConId)?analysisConId:selected[0]??null;
   useEffect(()=>{const timer=setInterval(()=>setNow(Date.now()),5000);return ()=>clearInterval(timer);},[]);
   const expirations=useQuery<{items:string[];source:string}>({queryKey:['option-expirations',mode],
     queryFn:()=>api('/options/expirations')});
@@ -146,10 +165,13 @@ export default function OptionsView({mode,consumerId}:{mode:string;consumerId:st
       Selección de strikes: {q.data.referenceSource}. Una cotización retrasada no es un precio actual ejecutable.</p>:null}
     </Card>
     <Card><h3>Comparador de contratos ({selected.length}/4)</h3>
-      <p>Seleccione hasta cuatro contratos, incluso de distintos vencimientos o tipos. DTE son días calendario desde la fecha de Nueva York. Costo nominal = ASK × multiplicador; equilibrio al vencimiento para posiciones largas = strike ± ASK, sin comisiones. Son cálculos indicativos, no precios de ejecución.</p>
-      {selected.length?<div className="table-wrap"><table aria-label="Comparador de opciones"><thead><tr><th>Contrato</th><th>Strike</th><th>Vencimiento</th><th>BID / ASK</th><th>Spread / % medio</th><th>DTE</th><th>Delta</th><th>Theta</th><th>Costo nominal USD</th><th>Equilibrio USD</th><th>Referencia ASK</th><th>Feed / estado</th></tr></thead>
-        <tbody>{selected.map(id=><ComparisonRow key={id} conId={id} mode={mode} onRemove={()=>setSelected(ids=>toggleComparison(ids,id))}/>)}</tbody></table></div>:<p className="subtle">Seleccione contratos de la cadena para compararlos.</p>}
+      <p>Seleccione hasta cuatro contratos, incluso de distintos vencimientos o tipos. Los importes de esta tabla son por un contrato, sin comisiones desconocidas. DTE son días calendario de Nueva York. Comparar equilibrios entre vencimientos diferentes no compara probabilidades de beneficio. Son cálculos indicativos, no precios de ejecución.</p>
+      {selected.length?<div className="table-wrap"><table aria-label="Comparador de opciones"><thead><tr><th>Contrato</th><th>Strike</th><th>Vencimiento</th><th>BID / ASK</th><th>Spread / % medio</th><th>Tamaño BID / ASK</th><th>DTE</th><th>Delta</th><th>Theta</th><th>Costo bruto USD</th><th>Pérdida máxima bruta USD</th><th>Capital requerido USD</th><th>Equilibrio USD</th><th>Referencia ASK</th><th>Feed / estado</th><th>Datos faltantes</th></tr></thead>
+        <tbody>{selected.map(id=><ComparisonRow key={id} conId={id} mode={mode} nowMs={now} onAnalyze={()=>setAnalysisConId(id)}
+          onUpdate={onComparisonUpdate} onRemove={()=>setSelected(ids=>toggleComparison(ids,id))}/>)}</tbody></table></div>:<p className="subtle">Seleccione contratos de la cadena para compararlos.</p>}
     </Card>
+    <OptionAnalysisPanel row={activeAnalysisConId===null?null:selectedRows[activeAnalysisConId]??null}
+      conId={activeAnalysisConId} nowMs={now}/>
     <Card className="academy-reference"><h3>Referencia de la academia</h3>
       <p>Los rangos documentales se expresan como prima ASK por acción. No son una señal de compra ni sustituyen la cotización del bróker.</p>
       {rows.length?<div className="academy-grid">{rows.map(row=>{const evaluation=row.academyEvaluation,reference=evaluation?.reference;

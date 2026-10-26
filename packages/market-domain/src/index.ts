@@ -1,5 +1,7 @@
 import type {MarketBar} from '@trading-poc/contracts';
 export {previousSessionLevels} from './historical-context.ts';
+export {spread} from './quote-math.ts';
+export {analyzeLongOption,daysToExpiration,expirationAnalysis,longBreakEven} from './option-analysis.ts';
 
 export type IndicatorPoint={startUtc:string;sma20:number|null;sma40:number|null;sma100:number|null;sma200:number|null;bbUpper:number|null;bbLower:number|null;bbMiddle:number|null};
 /** Indicadores de presentación causales. Solo se calculan sobre velas completas, en orden. */
@@ -21,9 +23,4 @@ export function quoteNumber(value:unknown):number|null {
 }
 export function priceNumber(value:unknown):number|null{
   const n=quoteNumber(value);return n!==null&&n>0?n:null;
-}
-export function spread(bid:number|null,ask:number|null){
-  if(bid===null||ask===null||ask<bid)return {absolute:null,percent:null};
-  const absolute=ask-bid,mid=(bid+ask)/2;
-  return {absolute,percent:mid>0?100*absolute/mid:null};
 }

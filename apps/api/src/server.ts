@@ -43,7 +43,7 @@ const bad=(reply:any,error:string,status=400)=>reply.code(status).send({error});
 function demoOptions(){
   const spot=218.42;return ['CALL','PUT'].flatMap((right,i)=>[210,215,220,225,230].map((strike,j)=>{
     const bid=Math.max(.15,Math.round((4+Math.abs(spot-strike)*.13-j*.12+i*.2)*100)/100),ask=bid+.12+j*.02;
-    return {conId:90000+i*100+j,occSymbol:`NVDA  261023${right==='CALL'?'C':'P'}${String(strike*1000).padStart(8,'0')}`,underlying:'NVDA',right,strike,expiration:'2026-10-23',multiplier:100,bid,ask,spread:spread(bid,ask),bidSize:10+j,askSize:12+j,delta:null,gamma:null,theta:null,vega:null,impliedVolatility:null,marketTimestampUtc:'2026-10-16T19:59:00.000Z',receivedAtUtc:'2026-10-16T19:59:01.000Z',feedType:'UNKNOWN',provider:'DEMO sintético'};
+    return {conId:90000+i*100+j,occSymbol:`NVDA  261023${right==='CALL'?'C':'P'}${String(strike*1000).padStart(8,'0')}`,underlying:'NVDA',currency:'USD',right,strike,expiration:'2026-10-23',multiplier:100,bid,ask,spread:spread(bid,ask),bidSize:10+j,askSize:12+j,delta:null,gamma:null,theta:null,vega:null,impliedVolatility:null,marketTimestampUtc:'2026-10-16T19:59:00.000Z',receivedAtUtc:'2026-10-16T19:59:01.000Z',feedType:'UNKNOWN',provider:'DEMO sintético'};
   }));
 }
 export async function createApp(options:Options={}){
