@@ -6,6 +6,7 @@ import {Badge,Button,Card,SectionTitle} from '../../components/ui.tsx';
 import ForwardEvaluationView from './ForwardEvaluationView.tsx';
 import NewsContextView from './NewsContextView.tsx';
 import FeedsView from './FeedsView.tsx';
+import IexProspectiveDashboard from './IexProspectiveDashboard.tsx';
 
 const notice='Modelo experimental. Evaluación retrospectiva no independiente. Probabilidades no calibradas para uso operativo. No constituye recomendación CALL o PUT.';
 const classes=['ALCISTA','BAJISTA','LATERAL'] as const;
@@ -29,8 +30,10 @@ export default function PredictionsView(){
   const loading=status.isPending||(ready&&(summary.isPending||metrics.isPending||predictions.isPending||prospective.isPending));
   const error=status.error??summary.error??metrics.error??predictions.error??prospective.error;
   const model=summary.data,report=metrics.data,page=predictions.data,tracking=prospective.data,forwardTracking=forward.data;
-  return <div className="content-page ml-page"><SectionTitle eyebrow="INVESTIGACIÓN HISTÓRICA" title="Predicciones" aside={<Badge tone="warning">EXPERIMENTAL</Badge>}/>
+  return <div className="content-page ml-page"><SectionTitle eyebrow="INVESTIGACIÓN EXPERIMENTAL" title="Predicciones" aside={<Badge tone="warning">EXPERIMENTAL</Badge>}/>
     <Card className="ml-warning" role="note"><strong>{notice}</strong></Card>
+    <IexProspectiveDashboard freshness={iexDaily.data?.freshness}/>
+    <h2>Investigación histórica y otros estudios</h2>
     <ForwardEvaluationView/>
     <NewsContextView/>
     <FeedsView/>
