@@ -23,7 +23,7 @@ const validUtc=(value:unknown):value is string=>typeof value==='string'&&Number.
 const knownStatus=new Set(['CONNECTING','CONNECTED','AUTHENTICATED','SUBSCRIBED','QUIET_ACTIVE_SESSION','DISCONNECTED','AUTH_FAILED','CONNECTION_LIMIT','SUBSCRIPTION_FAILED','INVALID_MESSAGE','OBSERVATION_STARTED','OBSERVATION_ENDED','CALENDAR_UNAVAILABLE']);
 const knownObservation=new Set(['NO_LIVE_DATA','STALE_LIVE_DATA','PREEXISTING_LIVE_DATA','FEED_DISCONNECTED','RECORDED','ALREADY_PRESENT','INDICATORS_INSUFFICIENT','HORIZON_INELIGIBLE','MODEL_TOO_RECENT','MODEL_INCOMPATIBLE','MODEL_NOT_CONFIGURED','OBSERVE_FAILED','ERROR']);
 const knownError=new Set(['IEX_COLLECT_START_FAILED','IEX_COLLECT_EXITED','IEX_COLLECT_TERMINAL_ERROR','IEX_COLLECT_RETRIES_EXHAUSTED','IEX_EVALUATION_FAILED','IEX_OBSERVE_FAILED','IEX_OBSERVE_OUTPUT_INVALID','IEX_LEDGER_OR_CALENDAR_INVALID','IEX_AUTOMATION_STATE_INVALID','MODEL_NOT_CONFIGURED','MODEL_INCOMPATIBLE','MODEL_TOO_RECENT']);
-export type TaskInspection={state:'ABSENT'|'VALID'|'ERROR';enabled?:boolean;running?:boolean;node?:boolean;script?:boolean;workdir?:boolean;once?:boolean;startWhenAvailable?:boolean;ignoreNew?:boolean;localOpenMinutes?:number;triggerMinutes?:number;nextRunUtc?:string|null;lastRunUtc?:string|null;lastResult?:number|null};
+export type TaskInspection={state:'ABSENT'|'VALID'|'ERROR';enabled?:boolean;running?:boolean;schedulerState?:string;node?:boolean;script?:boolean;workdir?:boolean;once?:boolean;startWhenAvailable?:boolean;ignoreNew?:boolean;localOpenMinutes?:number;triggerMinutes?:number;nextRunUtc?:string|null;lastRunUtc?:string|null;lastResult?:number|null};
 export type Check={status:string;detail?:string;count?:number};
 export type Readiness={schema:'phase40d1-iex-readiness-v1';checkedAtUtc:string;checks:Record<string,Check>;blocking:string[];warnings:string[];overall:string;
   counts:{minutes:number;completeQuarters:number;quarterRevisions:number;predictions:number;outcomeNotDue:number;dueUnevaluated:number;evaluated:number;missingEntry:number;missingOutcome:number}};
@@ -35,7 +35,7 @@ export function inspectWindowsTask(repoRoot=root,sessionOpenUtc?:string):TaskIns
   if(process.platform!=='win32')return {state:'ABSENT'};
   if(sessionOpenUtc&&!validUtc(sessionOpenUtc))throw new Error('Apertura oficial UTC inválida.');
   const utcArg=sessionOpenUtc?`[datetime]::Parse('${sessionOpenUtc}',[cultureinfo]::InvariantCulture,[System.Globalization.DateTimeStyles]::AdjustToUniversal)`: '$null';
-  const script=`$ErrorActionPreference='Stop'; $z=Get-TimeZone; $utc=${utcArg}; $openMinutes=$null; if($null -ne $utc){$localOpen=[System.TimeZoneInfo]::ConvertTimeFromUtc($utc,$z); $openMinutes=($localOpen.Hour*60+$localOpen.Minute)}; $t=Get-ScheduledTask -TaskName 'Trading-POC Daily Research' -ErrorAction SilentlyContinue; if($null -eq $t){[pscustomobject]@{absent=$true;localOpenMinutes=$openMinutes}|ConvertTo-Json -Compress;exit}; $i=Get-ScheduledTaskInfo -TaskName 'Trading-POC Daily Research'; [pscustomobject]@{absent=$false;enabled=($t.State -ne 'Disabled');running=($t.State -eq 'Running');execute=$t.Actions[0].Execute;arguments=$t.Actions[0].Arguments;workdir=$t.Actions[0].WorkingDirectory;startWhenAvailable=$t.Settings.StartWhenAvailable;multipleInstances=[string]$t.Settings.MultipleInstances;trigger=$t.Triggers[0].StartBoundary;localOpenMinutes=$openMinutes;nextRun=([datetime]$i.NextRunTime).ToUniversalTime().ToString('o');lastRun=([datetime]$i.LastRunTime).ToUniversalTime().ToString('o');lastResult=$i.LastTaskResult}|ConvertTo-Json -Compress`;
+  const script=`$ErrorActionPreference='Stop'; $z=Get-TimeZone; $utc=${utcArg}; $openMinutes=$null; if($null -ne $utc){$localOpen=[System.TimeZoneInfo]::ConvertTimeFromUtc($utc,$z); $openMinutes=($localOpen.Hour*60+$localOpen.Minute)}; $t=Get-ScheduledTask -TaskName 'Trading-POC Daily Research' -ErrorAction SilentlyContinue; if($null -eq $t){[pscustomobject]@{absent=$true;localOpenMinutes=$openMinutes}|ConvertTo-Json -Compress;exit}; $i=Get-ScheduledTaskInfo -TaskName 'Trading-POC Daily Research'; [pscustomobject]@{absent=$false;enabled=($t.State -ne 'Disabled');running=($t.State -eq 'Running');taskState=[string]$t.State;execute=$t.Actions[0].Execute;arguments=$t.Actions[0].Arguments;workdir=$t.Actions[0].WorkingDirectory;startWhenAvailable=$t.Settings.StartWhenAvailable;multipleInstances=[string]$t.Settings.MultipleInstances;trigger=$t.Triggers[0].StartBoundary;localOpenMinutes=$openMinutes;nextRun=([datetime]$i.NextRunTime).ToUniversalTime().ToString('o');lastRun=([datetime]$i.LastRunTime).ToUniversalTime().ToString('o');lastResult=$i.LastTaskResult}|ConvertTo-Json -Compress`;
   const result=spawnSync('powershell.exe',['-NoProfile','-NonInteractive','-Command',script],{encoding:'utf8',timeout:8000,maxBuffer:16000,windowsHide:true});
   if(result.error||result.status!==0)return {state:'ERROR'};
   try{
@@ -46,7 +46,8 @@ export function inspectWindowsTask(repoRoot=root,sessionOpenUtc?:string):TaskIns
     // The effective Windows zone is evaluated for the selected official session, never a fixed date.
     const localOpen=Number(row.localOpenMinutes);
     const taskTime=(value:unknown)=>{const time=Date.parse(String(value??''));return Number.isFinite(time)&&time>Date.parse('2000-01-01T00:00:00Z')?new Date(time).toISOString():null;};
-    return {state:'VALID',enabled:row.enabled===true,running:row.running===true,node:/[\\/]node(?:\.exe)?$/i.test(execute),
+    return {state:'VALID',enabled:row.enabled===true,running:row.running===true,
+      schedulerState:typeof row.taskState==='string'?row.taskState:undefined,node:/[\\/]node(?:\.exe)?$/i.test(execute),
       script:args.includes(resolve(repoRoot,'scripts','daily-orchestrator.ts')),workdir:resolve(workdir).toLowerCase()===resolve(repoRoot).toLowerCase(),
       once:args.includes('--once'),startWhenAvailable:row.startWhenAvailable===true,ignoreNew:row.multipleInstances==='IgnoreNew',
       triggerMinutes:hhmm?Number(hhmm[1])*60+Number(hhmm[2]):undefined,localOpenMinutes:Number.isFinite(localOpen)?localOpen:undefined,
@@ -160,6 +161,17 @@ export function taskTimezoneStatus(openMinutes:number|undefined,triggerMinutes:n
   const lead=openMinutes-triggerMinutes;
   return lead>=30&&lead<=240?'EXPECTED':'TIMEZONE_UNEXPECTED';
 }
+/** LastTaskResult is a Windows result code, not the current Get-ScheduledTask state. */
+export function taskResultCode(value:number|null|undefined):{status:string;detail:string}{
+  if(value===null||value===undefined||!Number.isInteger(value)||value<-0x80000000||value>0xffffffff)
+    return {status:'UNKNOWN_CODE',detail:'código N/D'};
+  const unsigned=value>>>0,detail=`código ${value} (0x${unsigned.toString(16).padStart(8,'0').toUpperCase()})`;
+  if(unsigned===0)return {status:'COMPLETED_SUCCESS',detail};
+  if(unsigned===0x00041300)return {status:'SCHED_S_TASK_READY',detail};
+  if(unsigned===0x00041301)return {status:'SCHED_S_TASK_RUNNING',detail};
+  if(unsigned<0x10000||unsigned>=0x80000000)return {status:'ERROR_CODE',detail};
+  return {status:'UNKNOWN_CODE',detail};
+}
 function auditObservations(rows:IexObservationRecord[],now:number,quarters:IexRecord[]){
   const predictions=new Map<string,Extract<IexObservationRecord,{kind:'PREDICTION'}>>(),evaluations=new Map<string,Extract<IexObservationRecord,{kind:'EVALUATION'}>>();
   const uniqueBars=new Set<string>(),byStart=new Map(quarters.map(row=>[row.bar!.startUtc,row]));
@@ -214,14 +226,22 @@ export function diagnoseIex(options:DoctorOptions={}):Readiness{
   const timezone=taskTimezoneStatus(task.localOpenMinutes,task.triggerMinutes??360);
   set('windowsLocalOpen',task.localOpenMinutes===undefined?'UNKNOWN':`${String(Math.floor(task.localOpenMinutes/60)).padStart(2,'0')}:${String(task.localOpenMinutes%60).padStart(2,'0')}_OFFICIAL_SESSION`);
   set('timezone',officialOpen?timezone:'MARKET_CALENDAR_UNAVAILABLE');
-  if(task.state==='ABSENT'){set('windowsTask','NOT_INSTALLED');set('taskReadiness','TASK_NOT_INSTALLED');}
-  else if(task.state==='ERROR'){set('windowsTask','READ_ERROR');set('taskReadiness','TASK_MISCONFIGURED');}
+  if(task.state==='ABSENT'){set('windowsTask','NOT_INSTALLED');set('taskReadiness','TASK_NOT_INSTALLED');set('taskCurrentState','NOT_INSTALLED');set('taskLastResult','NEVER_RUN');}
+  else if(task.state==='ERROR'){set('windowsTask','READ_ERROR');set('taskReadiness','TASK_MISCONFIGURED');set('taskCurrentState','READ_ERROR');set('taskLastResult','UNKNOWN');}
   else{
     const valid=task.enabled&&task.node&&task.script&&task.workdir&&task.once&&task.startWhenAvailable&&task.ignoreNew&&
       timezone==='EXPECTED'&&task.triggerMinutes===360;
     set('windowsTask',valid?'CONFIGURED':'MISCONFIGURED',task.running?'RUNNING':'READY');
     set('taskReadiness',!valid?'TASK_MISCONFIGURED':task.running?'TASK_RUNNING':'TASK_READY');
-    set('taskLastResult',task.lastRunUtc?task.lastResult===0?'SUCCESS':'NONZERO':'NEVER_RUN',task.lastRunUtc?`UTC ${task.lastRunUtc}; código ${task.lastResult??'N/D'}`:undefined);
+    const current=task.schedulerState?.toUpperCase()??(task.running?'RUNNING':task.enabled?'READY':'DISABLED');
+    set('taskCurrentState',['RUNNING','READY','DISABLED','QUEUED'].includes(current)?current:'UNKNOWN',`Get-ScheduledTask: ${current}`);
+    const result=taskResultCode(task.lastResult);
+    set('taskResultCode',result.status,result.detail);
+    const hasReportedResult=task.lastResult!==null&&task.lastResult!==undefined||!!task.lastRunUtc;
+    const lastStatus=result.status==='COMPLETED_SUCCESS'?task.lastRunUtc?'SUCCESS':'NEVER_RUN':
+      result.status==='SCHED_S_TASK_READY'||result.status==='SCHED_S_TASK_RUNNING'?'NO_COMPLETED_RESULT':
+      result.status==='ERROR_CODE'?'ERROR':hasReportedResult?'UNKNOWN':'NEVER_RUN';
+    set('taskLastResult',lastStatus,`${task.lastRunUtc?`último inicio UTC ${task.lastRunUtc}; `:''}${result.detail}`);
     set('taskNextRun',task.nextRunUtc?'SCHEDULED':'UNKNOWN',task.nextRunUtc?`UTC ${task.nextRunUtc}`:undefined);
   }
   const model=options.modelCheck??checkModel(env.TRADING_POC_IEX_FROZEN_DIR);checks.frozenModel=model.check;

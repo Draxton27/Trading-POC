@@ -58,3 +58,61 @@ const ContextMetric=z.object({n:z.number().int().nonnegative(),sessions:z.number
 const ContextGroup=z.object({observations:z.number().int().nonnegative(),evaluated:z.number().int().nonnegative(),sessions:z.number().int().nonnegative(),withNews:z.number().int().nonnegative(),pendingClassifications:z.number().int().nonnegative(),lateReceived:z.number().int().nonnegative(),lateClassified:z.number().int().nonnegative(),providerErrors:z.number().int().nonnegative(),baseline:ContextMetric.nullable(),withNewsMetrics:ContextMetric.nullable(),withoutNewsMetrics:ContextMetric.nullable(),windows:z.record(z.string(),z.object({observations:z.number().int().nonnegative(),baseline:ContextMetric.nullable()})),byDimension:z.record(z.string(),z.record(z.string(),ContextMetric.nullable())),bySession:z.record(z.string(),ContextMetric.nullable()),accuracyDifferenceCoveredMinusUncovered:z.number().finite().nullable(),sessionBootstrap95:z.tuple([z.number().finite(),z.number().finite()]).nullable()}).strict();
 export const MlNewsContextSummary=z.object({schema:z.literal('phase37-news-context-v1'),status:z.literal('READY'),symbol:z.literal('NVDA'),timeframe:z.literal('15m'),modelSha256:z.string().regex(/^[a-f0-9]{64}$/),windowsMinutes:z.array(z.number().int().min(1).max(1440)).length(3),evidenceState:z.enum(['INSUFFICIENT_EVIDENCE','DESCRIPTIVE_ONLY']),observations:z.number().int().nonnegative(),evaluated:z.number().int().nonnegative(),withNews:z.number().int().nonnegative(),sessions:z.number().int().nonnegative(),development:ContextGroup,laterExploratory:ContextGroup,warning:z.string().min(1)}).strict();
 export type MlNewsContextSummary=z.infer<typeof MlNewsContextSummary>;
+
+// Phase 41J: public, read-only projection of the frozen IEX prospective cohort.
+export const IexProspectiveState=z.enum(['READY','NO_PROSPECTIVE_DATA','INVALID_ARTIFACT','UNAVAILABLE']);
+export const IexProspectiveEvidence=z.enum(['NO_PROSPECTIVE_DATA','COLLECTING','INSUFFICIENT_EVIDENCE','DESCRIPTIVE_PROSPECTIVE_RESULTS','PROSPECTIVE_REVIEW_GATE_REACHED']);
+export const IexEvaluationState=z.enum(['PENDING','OVERDUE_UNEVALUATED','EVALUATED','MISSING_ENTRY','MISSING_OUTCOME']);
+export const IexProbabilities=z.object({ALCISTA:probability,BAJISTA:probability,LATERAL:probability}).strict();
+export type IexProbabilities=z.infer<typeof IexProbabilities>;
+export const IexModelProbabilities=z.object({xgboost:IexProbabilities,linear:IexProbabilities,frequency:IexProbabilities}).strict();
+export const IexProspectivePrediction=z.object({
+  predictionId:z.string().min(1),sessionDateNy:z.string().date(),barStartUtc:z.iso.datetime({offset:true}),barEndUtc:z.iso.datetime({offset:true}),
+  receivedAtUtc:z.iso.datetime({offset:true}),registeredAtUtc:z.iso.datetime({offset:true}),entryAtUtc:z.iso.datetime({offset:true}),
+  outcomeAtUtc:z.iso.datetime({offset:true}),modelSha256:z.string().regex(/^[a-f0-9]{64}$/),protocolSha256:z.string().regex(/^[a-f0-9]{64}$/),
+  probabilities:IexModelProbabilities,dominantClass:MlClass,evaluationStatus:IexEvaluationState,
+  actualClass:MlClass.nullable(),evaluatedAtUtc:z.iso.datetime({offset:true}).nullable(),
+  entryOpen:z.number().finite().positive().nullable(),outcomeClose:z.number().finite().positive().nullable(),
+  movementAtr:z.number().finite().nullable(),matches:z.object({xgboost:z.boolean().nullable(),linear:z.boolean().nullable(),frequency:z.boolean().nullable()}).strict(),
+}).strict();
+export type IexProspectivePrediction=z.infer<typeof IexProspectivePrediction>;
+export const IexProspectiveDetail=IexProspectivePrediction.extend({predictionRecordHash:z.string().regex(/^[a-f0-9]{64}$/),
+  featureHash:z.string().regex(/^[a-f0-9]{64}$/),atr14PriceUnits:z.number().finite().nonnegative(),
+  sourceBarCount:z.number().int().positive(),
+  sourceBars:z.array(z.object({startUtc:z.iso.datetime({offset:true}),receivedAtUtc:z.iso.datetime({offset:true}),recordHash:z.string().regex(/^[a-f0-9]{64}$/),origin:z.enum(['LIVE','REST_WARMUP'])}).strict()).max(40)}).strict();
+export type IexProspectiveDetail=z.infer<typeof IexProspectiveDetail>;
+export const IexProspectiveOverview=z.object({status:IexProspectiveState,evidenceStatus:IexProspectiveEvidence.nullable(),
+  protocolVersion:z.literal('41I v2'),modelLabel:z.literal('XGBoost 38F'),symbol:z.literal('NVDA'),timeframe:z.literal('15m'),feed:z.literal('IEX Live'),
+  adjustment:z.literal('raw'),experimental:z.literal(true),activatedAtUtc:z.iso.datetime({offset:true}).nullable(),
+  protocolSha256:z.string().regex(/^[a-f0-9]{64}$/).nullable(),modelSha256:z.string().regex(/^[a-f0-9]{64}$/).nullable(),
+  predictions:z.number().int().nonnegative(),evaluated:z.number().int().nonnegative(),pending:z.number().int().nonnegative(),
+  overdue:z.number().int().nonnegative(),nonEvaluable:z.number().int().nonnegative(),sessionsWithResults:z.number().int().nonnegative(),
+  lastPredictionAtUtc:z.iso.datetime({offset:true}).nullable(),lastEvaluationAtUtc:z.iso.datetime({offset:true}).nullable(),
+  receivedCompleteBars:z.number().int().nonnegative().nullable(),expectedCompleteBars:z.number().int().nonnegative().nullable(),
+  coverage:z.number().finite().min(0).max(1).nullable(),marketStatus:z.enum(['OPEN','MARKET_CLOSED','CALENDAR_UNAVAILABLE']),
+  reason:z.string().min(1),
+}).strict();
+export type IexProspectiveOverview=z.infer<typeof IexProspectiveOverview>;
+export const IexProspectiveHistory=z.object({status:IexProspectiveState,items:z.array(IexProspectivePrediction),total:z.number().int().nonnegative(),
+  offset:z.number().int().nonnegative(),limit:z.number().int().min(1).max(100),nextOffset:z.number().int().nonnegative().nullable()}).strict();
+export type IexProspectiveHistory=z.infer<typeof IexProspectiveHistory>;
+export const IexProspectiveCoverage=z.object({status:IexProspectiveState,decisionRecords:z.number().int().nonnegative(),
+  candidateBars:z.number().int().nonnegative(),admittedBars:z.number().int().nonnegative(),finallyNotAdmitted:z.number().int().nonnegative(),
+  failedAttemptsBeforeRecovery:z.number().int().nonnegative(),abstentionsByReason:z.record(z.string(),z.number().int().nonnegative()),
+  expectedCompleteBars:z.number().int().nonnegative().nullable(),receivedCompleteBars:z.number().int().nonnegative().nullable(),
+  scheduledSessions:z.number().int().nonnegative().nullable(),sessionsWithCapture:z.number().int().nonnegative().nullable(),
+  coverage:z.number().finite().min(0).max(1).nullable(),marketStatus:z.enum(['OPEN','MARKET_CLOSED','CALENDAR_UNAVAILABLE']),
+  reason:z.string().min(1)}).strict();
+export type IexProspectiveCoverage=z.infer<typeof IexProspectiveCoverage>;
+export const IexProspectiveScore=z.object({accuracy:probability,balancedAccuracy:probability,macroF1:probability,
+  logLoss:z.number().finite().nonnegative(),brier:z.number().finite().nonnegative(),
+  perClass:z.object({ALCISTA:MlClassMetrics,BAJISTA:MlClassMetrics,LATERAL:MlClassMetrics}).strict(),
+  confusionMatrix:z.array(z.array(z.number().int().nonnegative()).length(3)).length(3),
+  bearishPrevalence:probability,bearishRocAuc:probability.nullable(),bearishAveragePrecision:probability.nullable(),
+  calibration:z.record(MlClass,z.array(z.object({n:z.number().int().nonnegative(),meanProbability:probability.nullable(),observedFrequency:probability.nullable()}).strict()))}).strict();
+export type IexProspectiveScore=z.infer<typeof IexProspectiveScore>;
+export const IexProspectiveMetrics=z.object({status:IexProspectiveState,snapshotStatus:z.enum(['READY','NO_SNAPSHOT','METRICS_SNAPSHOT_STALE','INVALID_ARTIFACT']),
+  reportStatus:IexProspectiveEvidence.nullable(),generatedAtUtc:z.iso.datetime({offset:true}).nullable(),
+  evaluatedInSnapshot:z.number().int().nonnegative(),scores:z.object({xgboost:IexProspectiveScore,linear:IexProspectiveScore,frequency:IexProspectiveScore}).strict().nullable(),
+  warning:z.string().min(1)}).strict();
+export type IexProspectiveMetrics=z.infer<typeof IexProspectiveMetrics>;
