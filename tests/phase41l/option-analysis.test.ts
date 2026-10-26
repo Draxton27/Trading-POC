@@ -85,10 +85,30 @@ describe('Fase 41L: contrato largo NVDA',()=>{
     expect(analyzeLongOption(input).quote.status).toBe('LIVE_UNVERIFIED');
     input.quote.marketTimestampUtc='2026-10-26T14:59:00.000Z';
     expect(analyzeLongOption(input).quote.status).toBe('LIVE_STALE');
-    input.quote.marketTimestampUtc=NOW;input.quote.receivedAtUtc='2026-10-26T14:59:00.000Z';
+    input.quote.marketTimestampUtc='2026-10-26T14:58:59.000Z';input.quote.receivedAtUtc='2026-10-26T14:59:00.000Z';
     expect(analyzeLongOption(input).quote.status).toBe('LIVE_STALE');
     input.quote.receivedAtUtc='2026-10-26T15:00:01.000Z';
     expect(analyzeLongOption(input).quote.status).toBe('INVALID');
+  });
+  it('solo IBKR con marcas causales recientes puede verificarse como LIVE',()=>{
+    const input=base();
+    expect(analyzeLongOption(input).quote).toMatchObject({status:'LIVE_RECENT',askCurrentVerified:true});
+    input.quote.marketTimestampUtc='2026-10-26T14:59:59.000Z';
+    expect(analyzeLongOption(input).quote).toMatchObject({status:'LIVE_RECENT',askCurrentVerified:true});
+    input.quote.provider=null;
+    expect(analyzeLongOption(input).quote).toMatchObject({status:'LIVE_UNVERIFIED',askCurrentVerified:false});
+    input.quote.provider='PROVEEDOR_DESCONOCIDO';
+    expect(analyzeLongOption(input).quote).toMatchObject({status:'LIVE_UNVERIFIED',askCurrentVerified:false});
+    input.quote.provider='IBKR';input.quote.receivedAtUtc='2026-10-26T14:59:58.000Z';
+    const reversed=analyzeLongOption(input).quote;
+    expect(reversed).toMatchObject({status:'INVALID',askCurrentVerified:false});
+    expect(reversed.reason).toContain('posterior a la recepción');
+    input.quote.receivedAtUtc=NOW;input.quote.marketTimestampUtc=null;
+    expect(analyzeLongOption(input).quote).toMatchObject({status:'LIVE_UNVERIFIED',askCurrentVerified:false});
+    input.quote.feedType='DELAYED';
+    expect(analyzeLongOption(input).quote).toMatchObject({status:'DELAYED',askCurrentVerified:false});
+    input.quote.feedType='LIVE';input.quote.provider='PAPER SIMULADO';
+    expect(analyzeLongOption(input).quote).toMatchObject({status:'SIMULATED',askCurrentVerified:false});
   });
   it('preserva permiso insuficiente, simulación y falta de cotización como estados distintos',()=>{
     const input=base();input.quote.permissionDenied=true;
@@ -118,6 +138,24 @@ describe('Fase 41L: contrato largo NVDA',()=>{
       expect(result.status).toBe('INVALID_INPUT');expect(result.premium.grossPremiumUsd).toBeNull();
     }
     expect(analyzeLongOption({...base(),quantity:Infinity}).status).toBe('INVALID_INPUT');
+  });
+  it('prima sub-centavo y capital alto no producen enteros inseguros ni excepciones',()=>{
+    const input=base();input.quote.bid=0;input.quote.ask=1e-7;
+    input.capitalUsd=1e12;input.quantity=1;input.entryFeePerContractUsd=null;
+    input.expirationFeePerContractUsd=null;
+    const result=analyzeLongOption(input);
+    expect(OptionAnalysisResult.parse(result)).toEqual(result);
+    expect(result.capital.maximumWholeContracts).toBeNull();
+    expect(result.limitations).toContain('Cantidad máxima de contratos no representable como entero seguro; se muestra N/D.');
+    expect(result.premium.grossPremiumUsd).toBeCloseTo(0.00001);
+    input.quantity=10_000;
+    const limit=analyzeLongOption(input);
+    expect(limit.status).toBe('READY');
+    expect(limit.capital.maximumWholeContracts).toBeNull();
+    input.quantity=10_001;
+    expect(analyzeLongOption(input).status).toBe('INVALID_INPUT');
+    input.quantity=1;input.quote.ask=1e-5;
+    expect(analyzeLongOption(input).capital.maximumWholeContracts).toBe(1e15);
   });
   it('DTE usa día de Nueva York, conserva hoy cero y distingue pasado de fecha imposible',()=>{
     expect(daysToExpiration('20261026',new Date('2026-10-26T15:00:00Z'))).toBe(0);
@@ -165,6 +203,7 @@ describe('Fase 41L: contrato largo NVDA',()=>{
     const input=base();input.quote.receivedAtUtc='2026-02-30T15:00:00.000Z';
     expect(analyzeLongOption(input).quote.status).toBe('INVALID');
     input.quote.receivedAtUtc='2026-10-26T14:59:00.000Z';
+    input.quote.marketTimestampUtc='2026-10-26T14:58:59.000Z';
     expect(analyzeLongOption(input).quote.status).toBe('LIVE_STALE');
   });
   it('adapta respuesta del comparador sin leer cuentas ni generar suscripciones',()=>{

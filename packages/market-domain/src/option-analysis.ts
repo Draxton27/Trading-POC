@@ -55,14 +55,17 @@ function quoteQuality(input:OptionAnalysisInput['quote'],nowMs:number):Result['q
   const market=marketTimestampUtc===null?NaN:Date.parse(marketTimestampUtc);
   const timestampBad=(receivedAtUtc!==null&&(!utc.safeParse(receivedAtUtc).success||!Number.isFinite(received)||received>nowMs))||
     (marketTimestampUtc!==null&&(!utc.safeParse(marketTimestampUtc).success||!Number.isFinite(market)||market>nowMs));
+  // No clock-skew tolerance: a market event cannot be received before it occurred.
+  const reversedTimestamps=Number.isFinite(received)&&Number.isFinite(market)&&market>received;
   const crossed=bid!==null&&ask!==null&&ask<bid;
   const bidAskStatus:Result['quote']['bidAskStatus']=bidBad||askBad||sizeBad?'INVALID':
     ask===0?'ASK_NON_POSITIVE':crossed?'CROSSED':bid===null&&ask===null?'BOTH_MISSING':
     bid===null?'BID_MISSING':ask===null?'ASK_MISSING':bid===0?'BID_ZERO':'VALID';
   const simulated=provider!==null&&/sint[eé]tico|simulad|\bdemo\b/i.test(provider);
   let status:Result['quote']['status'],reason:string;
-  if(timestampBad||bidAskStatus==='INVALID'||bidAskStatus==='CROSSED'||bidAskStatus==='ASK_NON_POSITIVE'){
-    status='INVALID';reason='Cotización inválida: precio, tamaño, libro cruzado o timestamp futuro/inválido.';
+  if(timestampBad||reversedTimestamps||bidAskStatus==='INVALID'||bidAskStatus==='CROSSED'||bidAskStatus==='ASK_NON_POSITIVE'){
+    status='INVALID';reason=reversedTimestamps?'Timestamp de mercado posterior a la recepción; orden causal inválido.':
+      'Cotización inválida: precio, tamaño, libro cruzado o timestamp futuro/inválido.';
   }else if(permissionDenied||marketDataStatus==='permission_denied'){
     status='PERMISSION_DENIED';reason='Permisos de cotización insuficientes.';
   }else if(simulated){status='SIMULATED';reason='Cotización sintética, no de mercado.';}
@@ -74,6 +77,9 @@ function quoteQuality(input:OptionAnalysisInput['quote'],nowMs:number):Result['q
   }else if(bidAskStatus==='BID_MISSING'||bidAskStatus==='ASK_MISSING'||marketDataStatus==='partial'){
     status='PARTIAL';reason='Libro parcial; no hay dos lados completos.';
   }else if(feedType==='UNKNOWN'){status='UNKNOWN';reason='No se comprobó el tipo de feed.';}
+  else if(provider!=='IBKR'){
+    status='LIVE_UNVERIFIED';reason='El feed indica LIVE, pero falta procedencia IBKR verificable.';
+  }
   else if(!Number.isFinite(received)||!Number.isFinite(market)){
     status='LIVE_UNVERIFIED';reason='El feed indica LIVE, pero falta recepción o timestamp de mercado verificable.';
   }else if(nowMs-received>LIVE_MAX_AGE_MS||nowMs-market>LIVE_MAX_AGE_MS){
@@ -162,7 +168,10 @@ export function analyzeLongOption(raw:unknown):Result{
     reason:!valid?'Contrato o entrada inválidos.':ask===null?'ASK no disponible.':bid===null?'BID no disponible.':
       bid===0?'BID cero: no hay salida a precio positivo verificada.':'Diferencia hipotética ASK de compra / BID de venta; no garantiza ejecución.'};
   const capital=input.capitalUsd,unitCost=ask!==null&&valid?ask*c.multiplier!+(input.entryFeePerContractUsd??0):null;
-  const maxContracts=capital!==null&&unitCost!==null&&unitCost>0?Math.floor(capital/unitCost):null;
+  const rawMaximum=capital!==null&&unitCost!==null&&unitCost>0?capital/unitCost:null;
+  const maxContracts=rawMaximum!==null&&Number.isFinite(rawMaximum)&&rawMaximum>=0&&
+    rawMaximum<=Number.MAX_SAFE_INTEGER?Math.floor(rawMaximum):null;
+  const maximumUnrepresentable=rawMaximum!==null&&maxContracts===null;
   const remaining=capital!==null&&cash!==null?roundMoney(capital-cash):null;
   const capitalResult:Result['capital']={status:!valid||gross===null?'NO_VALID_COST':capital===null?'NO_CAPITAL':
     remaining!==null&&remaining<0?'BUDGET_EXCEEDED':'AVAILABLE',capitalUsd:capital,quantity,
@@ -185,6 +194,7 @@ export function analyzeLongOption(raw:unknown):Result{
   if(expiration.status==='PASSED')limitations.push('Contrato vencido; el cálculo no representa una compra posible hoy.');
   if(expiration.daysCalendar!==null&&expiration.daysCalendar<=2)limitations.push('Vencimiento próximo: verifique las reglas y horarios específicos de la serie; no se aplicó un veto.');
   if(input.entryFeePerContractUsd===null)limitations.push('Comisión de entrada desconocida: presupuesto y pérdida máxima neta no incluyen comisiones.');
+  if(maximumUnrepresentable)limitations.push('Cantidad máxima de contratos no representable como entero seguro; se muestra N/D.');
   if(!feesCompleteForNet)limitations.push('P&L neto no disponible hasta declarar costos de entrada y salida/ejercicio, incluso si son cero.');
   if(input.academy?.referenceStatus==='HISTORICAL_ONLY')limitations.push('Referencia documental histórica sin vigencia actual declarada.');
   if(input.academy?.referenceStatus==='CONFLICT')limitations.push('Referencias documentales contradictorias; ASK no evaluable.');
