@@ -5,7 +5,7 @@ import {join} from 'node:path';
 
 export const FORWARD_START = '2026-10-19T13:30:00.000Z';
 export const sha256 = (value: string | Buffer): string => createHash('sha256').update(value).digest('hex');
-export type Kind = 'bar_receipt' | 'bar_assessment' | 'signal' | 'settlement' | 'correction' | 'human_decision' | 'market_context_update';
+export type Kind = 'bar_receipt' | 'bar_assessment' | 'signal' | 'settlement' | 'correction' | 'human_decision' | 'market_context_update' | 'iex_eligibility';
 export type LedgerRecord = {sequence: number; id: string; kind: Kind; recordedAtUtc: string;
   previousHash: string | null; payload: Record<string, unknown>; hash: string};
 const canonical = (record: Omit<LedgerRecord, 'hash'>): string => JSON.stringify(record);
@@ -34,12 +34,16 @@ export function verifyLedger(directory: string): LedgerRecord[] {
 }
 
 export function appendRecord(directory: string, id: string, kind: Kind,
-  payload: Record<string, unknown>, recordedAtUtc = new Date().toISOString()): LedgerRecord {
+  payload: Record<string, unknown>, recordedAtUtc = new Date().toISOString(),
+  resolveExisting?: (records: readonly LedgerRecord[]) => LedgerRecord | null): LedgerRecord {
   mkdirSync(directory, {recursive: true});
   const lockPath = join(directory, '.write-lock');
   const lock = openSync(lockPath, 'wx');
   try {
     const records = verifyLedger(directory);
+    // The caller may enforce a semantic terminal state while this exclusive lock is held.
+    const terminal = resolveExisting?.(records);
+    if (terminal) return terminal;
     const prior = records.find(r => r.id === id);
     if (prior) {
       if (prior.kind !== kind || JSON.stringify(prior.payload) !== JSON.stringify(payload)) {

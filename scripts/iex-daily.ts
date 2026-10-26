@@ -8,6 +8,7 @@ import {resolvePrivateDir} from '../apps/api/src/news/paths.ts';
 import {isIexProcessActive} from '../trading_poc_001_bollinger/src/phase38-iex-lock.ts';
 import {readIexLedger,type IexRecord} from '../trading_poc_001_bollinger/src/phase38-iex.ts';
 import {MAX_LIVE_AGE_MS,readIexObservations,type IexObservationRecord,type IexFrozen} from '../trading_poc_001_bollinger/src/phase38f-iex-observation.ts';
+import {appendPhase41iDecision,loadPhase41iActivation,phase41iProtocolDir,recordedPhase41iDecision,type EligibilityStatus} from '../trading_poc_001_bollinger/src/phase41i-prospective.ts';
 
 const root=fileURLToPath(new URL('../',import.meta.url));
 export const IEX_FROZEN_SHA='b9bbece648544b39e1e4c4946933e4f4de2d65ec5094997938b25791cb1bb684';
@@ -82,6 +83,15 @@ export function createIexDaily(options:IexDailyOptions={}){
   const active=options.active??isIexProcessActive,readLedger=options.readLedger??readIexLedger,readObservations=options.readObservations??readIexObservations;
   const verifyModel=options.verifyModel??((bar:string)=>verifyIexDailyModel(env,bar));
   const startedAt=clock();
+  const phase41iDir=phase41iProtocolDir(env);
+  const auditSkip=(candidate:IexRecord|null,status:EligibilityStatus)=>{
+    if(!candidate?.bar||Date.parse(candidate.receivedAtUtc)<startedAt)return;
+    const active=loadPhase41iActivation(phase41iDir,observations);
+    if(active&&Date.parse(candidate.bar.startUtc)>Date.parse(active.activation.activatedAtUtc)&&
+       Date.parse(candidate.receivedAtUtc)>Date.parse(active.activation.activatedAtUtc)&&
+       !recordedPhase41iDecision(active,candidate))
+      appendPhase41iDecision(active,candidate,status,null,()=>iso(clock()));
+  };
   const run=options.run??(async(mode:'--once'|'--evaluate-only')=>{
     const child=spawn(process.execPath,['--experimental-strip-types',resolve(root,'trading_poc_001_bollinger/src/phase38f-cli.ts'),mode],
       {cwd:root,env,stdio:['ignore','pipe','ignore'],windowsHide:true});
@@ -121,12 +131,22 @@ export function createIexDaily(options:IexDailyOptions={}){
         else if(collectorFailures>=3)row.lastErrorCode='IEX_COLLECT_RETRIES_EXHAUSTED';
         else if(now>=retryCollectorAt){start();if(owned){row.owner='MANAGED';row.collector='ACTIVE';}}
       }
+      const protocol=candidate?loadPhase41iActivation(phase41iDir,observations):null;
+      const recorded=protocol&&candidate?recordedPhase41iDecision(protocol,candidate):null;
+      if(recorded){
+        const prediction=prior.find(value=>value.kind==='PREDICTION'&&
+          value.id===recorded.payload.prediction_id_if_recorded&&value.recordHash===recorded.payload.prediction_record_hash);
+        if(!prediction)throw new Error('Decisión RECORDED sin predicción íntegra.');
+        row.freshness=now-Date.parse(candidate!.receivedAtUtc)>MAX_LIVE_AGE_MS?'STALE':'FRESH';
+        row.observationStatus='ALREADY_PRESENT';
+        save(path,row);return row;
+      }
       if(!candidate){row.freshness='NO_LIVE_DATA';row.observationStatus='NO_LIVE_DATA';}
-      else if(now-Date.parse(candidate.receivedAtUtc)>MAX_LIVE_AGE_MS){row.freshness='STALE';row.observationStatus='STALE_LIVE_DATA';}
+      else if(now-Date.parse(candidate.receivedAtUtc)>MAX_LIVE_AGE_MS){row.freshness='STALE';row.observationStatus='STALE_LIVE_DATA';auditSkip(candidate,'STALE_LIVE_DATA');}
       else{
         row.freshness='FRESH';
         if(!collectorActive||['DISCONNECTED','OBSERVATION_ENDED','AUTH_FAILED','CONNECTION_LIMIT','SUBSCRIPTION_FAILED'].includes(lastFeed??'')){
-          row.observationStatus='FEED_DISCONNECTED';save(path,row);return row;
+          row.observationStatus='FEED_DISCONNECTED';auditSkip(candidate,'FEED_DISCONNECTED');save(path,row);return row;
         }
         if(Date.parse(candidate.receivedAtUtc)<startedAt||Date.parse(candidate.receivedAtUtc)<disconnectedAt){
           row.observationStatus='PREEXISTING_LIVE_DATA';save(path,row);return row;
@@ -135,12 +155,13 @@ export function createIexDaily(options:IexDailyOptions={}){
         if(row.lastAttemptedBarStartUtc!==bar){row.lastAttemptedBarStartUtc=bar;row.attemptCount=0;row.retryAtUtc=null;}
         if(row.attemptCount===0||(row.observationStatus==='OBSERVE_FAILED'&&row.attemptCount<3&&now>=Date.parse(row.retryAtUtc??''))){
           const modelError=verifyModel(bar);
-          if(modelError){row.observationStatus=modelError;row.lastErrorCode=modelError;row.attemptCount=1;}
+          if(modelError){row.observationStatus=modelError;row.lastErrorCode=modelError;row.attemptCount=1;
+            auditSkip(candidate,modelError==='MODEL_TOO_RECENT'?'MODEL_TOO_RECENT':'SOURCE_INVALID');}
           else{
             row.attemptCount++;const result=await run('--once');
             if(result.code!==0){row.observationStatus='OBSERVE_FAILED';row.lastErrorCode='IEX_OBSERVE_FAILED';row.retryAtUtc=iso(clock()+row.attemptCount*60_000);}
             else{let parsed:{status?:string}|null=null;try{parsed=JSON.parse(result.output) as {status?:string};}catch{}
-              const allowed=['RECORDED','ALREADY_PRESENT','NO_LIVE_DATA','STALE_LIVE_DATA','INDICATORS_INSUFFICIENT','HORIZON_INELIGIBLE','MODEL_TOO_RECENT'];
+              const allowed=['RECORDED','ALREADY_PRESENT','NO_LIVE_DATA','PREEXISTING_LIVE_DATA','STALE_LIVE_DATA','FEED_DISCONNECTED','INDICATORS_INSUFFICIENT','HORIZON_INELIGIBLE','MODEL_TOO_RECENT'];
               row.observationStatus=parsed?.status&&allowed.includes(parsed.status)?parsed.status:'OBSERVE_FAILED';
               if(row.observationStatus==='OBSERVE_FAILED')row.lastErrorCode='IEX_OBSERVE_OUTPUT_INVALID';
               prior=readObservations(observations);row.pendingEvaluations=prior.filter(r=>r.kind==='PREDICTION').length-prior.filter(r=>r.kind==='EVALUATION').length;
