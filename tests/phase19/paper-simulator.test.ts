@@ -1,4 +1,4 @@
-import {afterEach,describe,expect,it} from 'vitest';
+import {afterEach,describe,expect,it,vi} from 'vitest';
 import {mkdtempSync,mkdirSync,readFileSync,rmSync,writeFileSync,existsSync,utimesSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
@@ -168,9 +168,65 @@ describe('Simulador 41M: contratos, causalidad y economía',()=>{
     expect(indicativeOptionMark(p,{...quote(),receivedAtUtc:new Date(Date.now()-60_000).toISOString(),
       marketTimestampUtc:new Date(Date.now()-61_000).toISOString()},Date.now()).status).toBe('MARK_STALE');
   });
+  it('valora en servicio la cantidad restante tras cierre parcial y omite una posición cerrada',async()=>{
+    const {service}=fixture();
+    const id=(await service.open(open(101,{quantity:2,premiumPerShare:2}))).position.positionId;
+    const initial=(await service.position(id)).position;
+    expect(initial.mark.status).toBe('MARK_AVAILABLE');
+    expect(initial.mark.markValueUsd).toBe(360);
+    await service.close(id,close(1,3));
+    const partial=(await service.position(id)).position;
+    expect(partial.status).toBe('PARTIALLY_CLOSED');
+    expect(partial.remainingQuantity).toBe(1);
+    expect(partial.mark.status).toBe('MARK_AVAILABLE');
+    expect(partial.mark.markValueUsd).toBe(180);
+    expect(partial.mark.unrealizedGrossPnlUsd).toBe(-20);
+    const listed=(await service.positions(0,1)).items[0]!;
+    expect(listed.mark.markValueUsd).toBe(180);
+    await service.close(id,close(1,2));
+    const closed=(await service.position(id)).position;
+    expect(closed.status).toBe('CLOSED');
+    expect(closed.mark.status).toBe('MARK_MISSING');
+    expect(closed.mark.markValueUsd).toBeNull();
+  });
+  it('calcula exposición global desde replay completo en todas las páginas, incluso con cierre parcial',async()=>{
+    const {service}=fixture(new SimulatorStore(null));
+    const ids:string[]=[];
+    for(let i=0;i<30;i++)ids.push((await service.open(open(101,{quantity:i===0?2:1}))).position.positionId);
+    expect((await service.positions(0,25)).totalRemainingPremiumExposureUsd).toBe(6200);
+    await service.close(ids[0]!,close(1,3));
+    const first=await service.positions(0,25),second=await service.positions(25,25);
+    expect(first.items).toHaveLength(25);expect(second.items).toHaveLength(5);
+    expect(first.total).toBe(30);expect(second.total).toBe(30);
+    expect(first.totalRemainingPremiumExposureUsd).toBe(6000);
+    expect(second.totalRemainingPremiumExposureUsd).toBe(6000);
+    await service.close(ids[0]!,close(1,2));
+    expect((await service.positions(25,25)).totalRemainingPremiumExposureUsd).toBe(5800);
+  });
 });
 
 describe('Ledger privado y API aislada',()=>{
+  it('rechaza desde HTTP una venta ordinaria tras vencimiento y no agrega eventos',async()=>{
+    vi.useFakeTimers({toFake:['Date']});vi.setSystemTime(new Date('2027-01-14T17:00:00.000Z'));
+    try{
+      const root=dir(),result=await createApp({mode:'DEMO',privateDir:root,dbPath:join(root,'db.sqlite')});
+      cleanup.push(async()=>result.app.close());
+      const {app,token}=result,headers={'x-local-token':token,origin:'http://127.0.0.1:5173'};
+      const row=(await app.inject('/api/v1/options/contracts')).json().items[0];
+      const opened=await app.inject({method:'POST',url:'/api/v1/simulator/positions',headers,payload:open(row.conId)});
+      expect(opened.statusCode).toBe(201);
+      const id=opened.json().position.positionId;
+      vi.setSystemTime(new Date('2027-01-16T17:00:00.000Z'));
+      expect((await app.inject(`/api/v1/simulator/positions/${id}`)).json().position.status).toBe('EXPIRED_UNRESOLVED');
+      const before=(await app.inject('/api/v1/simulator/ledger/verify')).json();
+      const rejected=await app.inject({method:'POST',url:`/api/v1/simulator/positions/${id}/close`,headers,
+        payload:close(1,3)});
+      expect(rejected.statusCode).toBe(409);
+      expect(rejected.json().error).toMatch(/vencido/);
+      expect((await app.inject('/api/v1/simulator/ledger/verify')).json()).toEqual(before);
+      expect((await app.inject(`/api/v1/simulator/positions/${id}`)).json().position.status).toBe('EXPIRED_UNRESOLVED');
+    }finally{vi.useRealTimers();}
+  });
   it('reconstruye tras reinicio, verifica hashes y detecta alteración/truncamiento',async()=>{
     const base=join(dir(),'paper-simulator'),store=new SimulatorStore(base),service=fixture(store).service;
     await service.open(open());expect((await new SimulatorStore(base).read())).toHaveLength(1);

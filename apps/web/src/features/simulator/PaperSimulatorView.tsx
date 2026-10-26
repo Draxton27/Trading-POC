@@ -86,18 +86,19 @@ function PositionDetail({id,onSaved}:{id:string;onSaved:()=>void}){
 export default function PaperSimulatorView({mode}:{mode:string}){
   const [offset,setOffset]=useState(0),[selected,setSelected]=useState<string|null>(null),[capital,setCapital]=useState('');
   const client=useQueryClient();
-  const list=useQuery<{items:Position[];total:number;source:string}>({queryKey:['simulator-positions',offset],queryFn:()=>api(`/simulator/positions?offset=${offset}&limit=25`)});
+  const list=useQuery<{items:Position[];total:number;source:string;totalRemainingPremiumExposureUsd:number|null}>(
+    {queryKey:['simulator-positions',offset],queryFn:()=>api(`/simulator/positions?offset=${offset}&limit=25`)});
   const performance=useQuery<Record<string,Record<string,number|null>>>({queryKey:['simulator-performance'],queryFn:()=>api('/simulator/performance')});
   const verify=useQuery<{valid:boolean;eventCount:number;headHash:string|null}>({queryKey:['simulator-ledger'],queryFn:()=>api('/simulator/ledger/verify')});
   const refresh=()=>{client.invalidateQueries({queryKey:['simulator-positions']});client.invalidateQueries({queryKey:['simulator-position']});
     client.invalidateQueries({queryKey:['simulator-performance']});client.invalidateQueries({queryKey:['simulator-ledger']});};
-  const positions=list.data?.items??[],exposure=positions.filter(p=>p.status!=='CLOSED').reduce((sum,p)=>sum+p.remainingPremiumExposureUsd,0);
+  const positions=list.data?.items??[],exposure=list.data?.totalRemainingPremiumExposureUsd??null;
   const cap=capital===''?null:Number(capital),metrics=mode==='DEMO'?performance.data?.demo:performance.data?.documentedOnTime;
   return <div className="content-page"><SectionTitle eyebrow="SIMULACIÓN INTERNA · SIN ÓRDENES" title="Simulador Paper" aside={<Badge tone="warning">{mode==='DEMO'?'DEMO_SYNTHETIC':'INTERNAL_SIMULATOR'}</Badge>}/>
     <p className="lead">Operaciones hipotéticas con opciones NVDA. No son ejecuciones de IBKR Paper ni señales de XGBoost. No se consulta la cuenta del bróker.</p>
     {(list.error||verify.error)?<Card role="alert">No se puede leer el ledger; no se sustituye por una cartera vacía. {((list.error??verify.error) as Error).message}</Card>:null}
     <div className="info-row"><Card><h3>Capital hipotético informativo</h3><label>Capital USD <input aria-label="Capital hipotético del simulador" type="number" min="0" step="0.01" value={capital} onChange={e=>setCapital(e.target.value)}/></label>
-      <p>Prima restante comprometida {money(exposure)} · capital indicado {money(cap)} · restante {cap===null?'N/D':money(cap-exposure)}.</p><small>No consulta saldos reales.</small></Card>
+      <p>Prima restante comprometida (todas las páginas) {money(exposure)} · capital indicado {money(cap)} · restante {cap===null||exposure===null?'N/D':money(cap-exposure)}.</p><small>No consulta saldos reales.</small></Card>
       <Card><h3>Integridad</h3><p>{verify.isLoading?'Verificando...':verify.data?.valid?`Ledger válido · ${verify.data.eventCount} eventos`:'No disponible'}</p><small>Eventos privados con SHA-256.</small></Card></div>
     <Card><h3>Posiciones</h3>{list.isLoading?<p>Cargando...</p>:positions.length?<div className="table-wrap"><table><thead><tr><th>Contrato</th><th>Estado</th><th>Cantidad</th><th>Entrada</th><th>Exposición</th><th>BID / marca</th><th>Realizado</th><th>Acción</th></tr></thead><tbody>
       {positions.map(p=><tr key={p.positionId}><td>{p.contract.right} NVDA {p.contract.strike}<small>{p.contract.expiration} · conId {p.contract.conId}</small></td>

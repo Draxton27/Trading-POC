@@ -73,7 +73,11 @@ export class SimulatorService{
   async positions(offset=0,limit=25){
     const {positions}=await this.state();
     const items=positions.slice().reverse().slice(offset,offset+limit).map(position=>this.withMark(position));
-    return {items,total:positions.length,offset,limit,environment:'INTERNAL_SIMULATOR',
+    const remainingCents=positions.reduce((sum,position)=>
+      sum+BigInt(Math.round(position.remainingPremiumExposureUsd*100)),0n);
+    const totalRemainingPremiumExposureUsd=remainingCents<=BigInt(Number.MAX_SAFE_INTEGER)?
+      Number(remainingCents)/100:null;
+    return {items,total:positions.length,offset,limit,totalRemainingPremiumExposureUsd,environment:'INTERNAL_SIMULATOR',
       source:this.deps.mode==='DEMO'?'DEMO_SYNTHETIC':'MANUAL_HYPOTHETICAL'};
   }
   async position(id:string,eventOffset=0,eventLimit=100){
@@ -87,7 +91,9 @@ export class SimulatorService{
   async verify(){const {events}=await this.state();return {valid:true,eventCount:events.length,
     headHash:events.at(-1)?.hash??null,environment:'INTERNAL_SIMULATOR'};}
   private withMark(position:SimulatorPosition){
-    const quote=this.deps.mode==='PAPER'&&position.status==='OPEN'?this.deps.quote(position.contract.conId):null;
+    const quote=this.deps.mode==='PAPER'&&position.remainingQuantity>0&&
+      (position.status==='OPEN'||position.status==='PARTIALLY_CLOSED')?
+      this.deps.quote(position.contract.conId):null;
     return {...position,mark:indicativeOptionMark(position,quote?{...quote,conId:quote.conId??position.contract.conId}:null,Date.now())};
   }
   private checkHuman(plan:SimulatorPlan,decisionAtUtc:string){
@@ -150,6 +156,9 @@ export class SimulatorService{
       const position=replaySimulator(events,at).find(p=>p.positionId===id);
       if(!position)throw new SimulatorInputError(404,'Posición no encontrada');
       if(position.remainingQuantity<request.quantity)throw new SimulatorInputError(409,'Cantidad superior a la posición abierta');
+      if(position.status==='EXPIRED_UNRESOLVED'||
+          expirationAnalysis(position.contract.expiration,new Date(request.simulatedExitAtUtc)).status==='PASSED')
+        throw new SimulatorInputError(409,'Contrato vencido sin resolución; no se registra una venta hipotética ordinaria');
       validTime(request.decisionAtUtc,request.simulatedExitAtUtc,at);
       if(request.simulatedExitAtUtc<(lastEconomicAt(events,id)??''))
         throw new SimulatorInputError(409,'Salida fuera de secuencia causal');
