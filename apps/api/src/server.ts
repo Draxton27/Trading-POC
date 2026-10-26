@@ -16,6 +16,9 @@ import {openDatabase} from './persistence/db.ts';
 import * as tables from './persistence/schema.ts';
 import {AgentHub,AgentRequestError} from './streams/agent-hub.ts';
 import {registerOptionRoutes} from './options/routes.ts';
+import {SimulatorStore} from './simulator/store.ts';
+import {SimulatorService} from './simulator/service.ts';
+import {registerSimulatorRoutes} from './simulator/routes.ts';
 import {registerAcademyRoutes} from './academy/routes.ts';
 import {registerAssistantRoutes} from './assistant/routes.ts';
 import {registerMlRoutes} from './ml/routes.ts';
@@ -30,7 +33,7 @@ import {buildRadar} from './radar/service.ts';
 import {marketEvidence,quoteEvidence} from './assistant/routes.ts';
 import {newsPaths,resolveNewsDir,resolvePrivateDir} from './news/paths.ts';
 
-type Options={mode?:'DEMO'|'OFFLINE'|'PAPER';privateDir?:string;newsDir?:string;phase17Private?:string;phase16Ledger?:string;dbPath?:string;agentSecret?:string;assistantFetch?:typeof fetch;assistantTimeoutMs?:number;mlRunDir?:string|null;mlInferenceLog?:string|null;mlIngestionLog?:string|null;mlForwardObservationLog?:string|null;mlCollectorStatus?:string|null;mlEvaluationLog?:string|null;mlEvaluationStatus?:string|null;radarFrozenDir?:string|null;radarObservationLog?:string|null;iexProspectivePaths?:IexProspectivePaths};
+type Options={mode?:'DEMO'|'OFFLINE'|'PAPER';privateDir?:string;simulatorDir?:string;newsDir?:string;phase17Private?:string;phase16Ledger?:string;dbPath?:string;agentSecret?:string;assistantFetch?:typeof fetch;assistantTimeoutMs?:number;mlRunDir?:string|null;mlInferenceLog?:string|null;mlIngestionLog?:string|null;mlForwardObservationLog?:string|null;mlCollectorStatus?:string|null;mlEvaluationLog?:string|null;mlEvaluationStatus?:string|null;radarFrozenDir?:string|null;radarObservationLog?:string|null;iexProspectivePaths?:IexProspectivePaths};
 const repoRoot=fileURLToPath(new URL('../../../',import.meta.url));
 // Commands can be launched from a workspace directory, so never resolve local
 // configuration relative to process.cwd(). Existing process variables win.
@@ -43,7 +46,7 @@ const bad=(reply:any,error:string,status=400)=>reply.code(status).send({error});
 function demoOptions(){
   const spot=218.42;return ['CALL','PUT'].flatMap((right,i)=>[210,215,220,225,230].map((strike,j)=>{
     const bid=Math.max(.15,Math.round((4+Math.abs(spot-strike)*.13-j*.12+i*.2)*100)/100),ask=bid+.12+j*.02;
-    return {conId:90000+i*100+j,occSymbol:`NVDA  261023${right==='CALL'?'C':'P'}${String(strike*1000).padStart(8,'0')}`,underlying:'NVDA',currency:'USD',right,strike,expiration:'2026-10-23',multiplier:100,bid,ask,spread:spread(bid,ask),bidSize:10+j,askSize:12+j,delta:null,gamma:null,theta:null,vega:null,impliedVolatility:null,marketTimestampUtc:'2026-10-16T19:59:00.000Z',receivedAtUtc:'2026-10-16T19:59:01.000Z',feedType:'UNKNOWN',provider:'DEMO sintético'};
+    return {conId:90000+i*100+j,occSymbol:`NVDA  270115${right==='CALL'?'C':'P'}${String(strike*1000).padStart(8,'0')}`,underlying:'NVDA',currency:'USD',right,strike,expiration:'2027-01-15',multiplier:100,bid,ask,spread:spread(bid,ask),bidSize:10+j,askSize:12+j,delta:null,gamma:null,theta:null,vega:null,impliedVolatility:null,marketTimestampUtc:'2026-10-16T19:59:00.000Z',receivedAtUtc:'2026-10-16T19:59:01.000Z',feedType:'UNKNOWN',provider:'DEMO sintético'};
   }));
 }
 export async function createApp(options:Options={}){
@@ -145,7 +148,18 @@ export async function createApp(options:Options={}){
     db.sqlite.prepare('INSERT INTO chart_drawings(id,symbol,timeframe,kind,price,price2,created_at_utc,author) VALUES (?,?,?,?,?,?,?,?)').run(id,x.symbol,x.timeframe,x.kind,x.price,x.price2??null,at,x.author);
     return reply.code(201).send({id,...x,createdAtUtc:at});
   });
-  registerOptionRoutes(app,hub,mode,demoOptions,db.sqlite);
+  const optionRoutes=registerOptionRoutes(app,hub,mode,demoOptions,db.sqlite);
+  const simulatorDir=mode==='DEMO'?null:options.simulatorDir??
+    (options.privateDir?resolve(privateDir,'paper-simulator'):
+      process.env.TRADING_POC_SIMULATOR_DIR??resolve(privateDir,'paper-simulator'));
+  registerSimulatorRoutes(app,new SimulatorService({store:new SimulatorStore(simulatorDir),mode,
+    contract:optionRoutes.cachedContract,
+    quote:(conId)=>mode==='DEMO'?(demoOptions() as Array<Record<string,unknown>>).find(row=>row.conId===conId) as any??null:
+      mode==='PAPER'?(()=>{const received=hub.latestQuote(String(conId)) as Record<string,unknown>|null;
+        return received&&hub.status().simulation?{...received,provider:'PAPER SIMULADO'}:received as any;})():null,
+    humanDecision:(id,decisionAtUtc)=>verifyLedger(resolve(phase17Private,'ledger')).some(record=>
+      record.id===id&&record.kind==='human_decision'&&record.payload.symbol==='NVDA'&&
+      record.recordedAtUtc<=decisionAtUtc&&String(record.payload.decisionAtUtc)<=decisionAtUtc)}));
   registerAcademyRoutes(app,db.sqlite);
   const assistantDeps={mode,hub,sqlite:db.sqlite,barsFor,offlineAvailable,offlineMetadata,calendarFor:(s:Symbol)=>mode==='DEMO'?null:offlineCalendar(s),transport:options.assistantFetch,timeoutMs:options.assistantTimeoutMs};
   const technicalDeps={mode,barsFor:(s:Symbol)=>barsFor(s,'15m'),metadataFor:offlineMetadata,calendarFor:(s:Symbol)=>mode==='DEMO'?null:offlineCalendar(s)};

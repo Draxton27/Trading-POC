@@ -2,6 +2,7 @@ import {useState} from 'react';
 import {Badge,Card} from '../../components/ui.tsx';
 import {fmt} from '../../lib/api.ts';
 import {analyzeComparisonRow,optionQualityLabel,optionalNumberInput} from './analysis.ts';
+import SimulatorOpenForm from '../simulator/SimulatorOpenForm.tsx';
 
 const money=(value:number|null)=>value===null||!Number.isFinite(value)?'N/D':`$${fmt(value,2)}`;
 const price=(value:number|null)=>value===null||!Number.isFinite(value)?'N/D':`$${fmt(value,4)}`;
@@ -73,6 +74,7 @@ export default function OptionAnalysisPanel({row,conId,nowMs}:{row:Record<string
           <small>Estos valores son primas ASK por acción según interpretación del operador; no son rangos del precio de NVDA ni recomendaciones vigentes.</small>
         </section>
         <ul className="option-analysis-limitations">{analysis.limitations.map(text=><li key={text}>{text}</li>)}</ul>
+        <SimulatorOpenForm row={row}/>
       </>:null}
     </>}
   </Card>;

@@ -53,7 +53,7 @@ export function registerOptionRoutes(app:FastifyInstance,hub:AgentHub,mode:'DEMO
   };
 
   app.get('/api/v1/options/expirations',async(_req,reply)=>{
-    if(mode==='DEMO')return {items:['2026-10-23'],source:'DEMO sintético'};
+    if(mode==='DEMO')return {items:['2027-01-15'],source:'DEMO sintético'};
     try{return {items:[...new Set((await parameters()).flatMap(p=>p.expirations))].sort(),
       source:hub.status().connected?(hub.status().simulation?'Agente simulado':'IBKR Paper'):'IBKR desconectado'};}
     catch(error){return unavailable(reply,error);}
@@ -64,7 +64,7 @@ export function registerOptionRoutes(app:FastifyInstance,hub:AgentHub,mode:'DEMO
       limit:z.coerce.number().int().min(1).max(200).default(50)}).safeParse(req.query);
     if(!parsed.success||parsed.data.minPrice!==undefined&&parsed.data.maxPrice!==undefined&&parsed.data.minPrice>parsed.data.maxPrice)
       return reply.code(400).send({error:'Rango de strikes inválido'});
-    if(mode==='DEMO')return {items:[210,215,220,225,230],expiration:'2026-10-23',total:5,offset:0,nextOffset:null,source:'DEMO sintético'};
+    if(mode==='DEMO')return {items:[210,215,220,225,230],expiration:'2027-01-15',total:5,offset:0,nextOffset:null,source:'DEMO sintético'};
     try{
       const params=await parameters();const selected=parsed.data.expiration??params.flatMap(p=>p.expirations).sort()[0]??null;
       const all=selected?availableStrikes(params,selected,parsed.data.minPrice,parsed.data.maxPrice):[];
@@ -163,4 +163,12 @@ export function registerOptionRoutes(app:FastifyInstance,hub:AgentHub,mode:'DEMO
     return {items,errors,source:hub.status().simulation?'Agente simulado':'IBKR Paper',
       expiration:selectedExpiration,selectionRequired,referenceSource,strikeCount:all.length};
   });
+  // Read only: simulator may use a contract already resolved for the visible chain.
+  // This accessor never resolves a new contract or opens a market subscription.
+  return {cachedContract:(conId:number):Record<string,unknown>|null=>{
+    if(mode==='DEMO')return (demoOptions() as Array<Record<string,unknown>>).find(row=>row.conId===conId)??null;
+    if(mode!=='PAPER'||!hub.status().connected)return null;
+    return [...contractCache.values()].find(entry=>entry.until>Date.now()&&
+      entry.connectionId===hub.status().connectionId&&entry.contract.conId===conId)?.contract??null;
+  }};
 }
