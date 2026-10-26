@@ -7,7 +7,7 @@ import {saveMarketCalendar} from '../../trading_poc_001_bollinger/src/alpaca-cal
 import {readIexLedger,type IexRecord} from '../../trading_poc_001_bollinger/src/phase38-iex.ts';
 import type {IexFrozen,IexPrediction,IexEvaluation} from '../../trading_poc_001_bollinger/src/phase38f-iex-observation.ts';
 import {PHASE31_FEATURES} from '../../trading_poc_001_bollinger/src/phase31-inference.ts';
-import {diagnoseIex,exportPrivateReport,type DoctorOptions,type TaskInspection} from '../../scripts/iex-diagnostics.ts';
+import {diagnoseIex,exportPrivateReport,taskResultCode,type DoctorOptions,type TaskInspection} from '../../scripts/iex-diagnostics.ts';
 
 const folders:string[]=[];
 afterEach(()=>folders.splice(0).forEach(path=>rmSync(path,{recursive:true,force:true})));
@@ -71,6 +71,29 @@ describe('Fase 40D1: diagnóstico IEX de solo lectura',()=>{
     const good=diagnoseIex(f.base);expect(good.checks.windowsTask.status).toBe('CONFIGURED');expect(good.checks.taskLastResult.status).toBe('NEVER_RUN');
     expect(diagnoseIex({...f.base,task:{...task,script:false}}).checks.windowsTask.status).toBe('MISCONFIGURED');
     expect(diagnoseIex({...f.base,task:{...task,localOpenMinutes:360}}).checks.windowsTask.status).toBe('MISCONFIGURED');
+  });
+  it('separa el estado actual de los códigos informativos y del resultado de una ejecución',()=>{
+    const f=fixture(),lastRunUtc='2026-10-23T13:00:00.000Z';
+    const cases=[
+      {schedulerState:'Ready',running:false,lastResult:267008,current:'READY',code:'SCHED_S_TASK_READY',last:'NO_COMPLETED_RESULT',hex:'0x00041300'},
+      {schedulerState:'Running',running:true,lastResult:267009,current:'RUNNING',code:'SCHED_S_TASK_RUNNING',last:'NO_COMPLETED_RESULT',hex:'0x00041301'},
+      {schedulerState:'Ready',running:false,lastResult:0,current:'READY',code:'COMPLETED_SUCCESS',last:'SUCCESS',hex:'0x00000000'},
+      {schedulerState:'Ready',running:false,lastResult:1,current:'READY',code:'ERROR_CODE',last:'ERROR',hex:'0x00000001'},
+      {schedulerState:'Ready',running:false,lastResult:267010,current:'READY',code:'UNKNOWN_CODE',last:'UNKNOWN',hex:'0x00041302'},
+    ] as const;
+    for(const item of cases){
+      const report=diagnoseIex({...f.base,task:{...task,lastRunUtc,...item}});
+      expect(report.checks.taskCurrentState.status).toBe(item.current);
+      expect(report.checks.taskResultCode.status).toBe(item.code);
+      expect(report.checks.taskLastResult.status).toBe(item.last);
+      expect(report.checks.taskResultCode.detail).toContain(String(item.lastResult));
+      expect(report.checks.taskResultCode.detail).toContain(item.hex);
+      expect(report.checks.taskLastResult.detail).toContain(item.hex);
+      expect(report.checks.windowsTask.status).toBe('CONFIGURED');
+    }
+    expect(taskResultCode(-2147024894)).toMatchObject({status:'ERROR_CODE',detail:expect.stringContaining('0x80070002')});
+    expect(diagnoseIex({...f.base,task:{...task,lastResult:0}}).checks.taskLastResult.status).toBe('NEVER_RUN');
+    expect(diagnoseIex({...f.base,task:{...task,lastResult:267010}}).checks.taskLastResult.status).toBe('UNKNOWN');
   });
   it('separa credenciales, Python, modelo ausente e incompatibilidad sin revelar valores',()=>{
     const f=fixture();
