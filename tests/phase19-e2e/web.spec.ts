@@ -40,6 +40,25 @@ test('compara hasta cuatro contratos DEMO y conserva la seleccion al cambiar de 
   await page.getByRole('checkbox',{name:'Comparar contrato 90100'}).check();
   await expect(table.getByText('conId 90100')).toBeVisible();
 });
+test('analiza un contrato DEMO con capital hipotético sin consultar cuentas ni órdenes',async({page})=>{
+  const forbidden:string[]=[];
+  page.on('request',request=>{if(/\/api\/v1\/(?:orders|positions|executions)(?:\/|\?|$)/.test(request.url()))
+    forbidden.push(request.url());});
+  await page.goto('/');await page.getByRole('button',{name:'Opciones'}).click();
+  await page.getByRole('checkbox',{name:'Comparar contrato 90000'}).check();
+  const panel=page.locator('.option-analysis');
+  await expect(panel.getByText('Sintético',{exact:true})).toBeVisible();
+  await expect(panel.getByText('Prima bruta, 1 contrato(s)')).toBeVisible();
+  await expect(panel.locator('dl').first().locator('dd').nth(1)).toHaveText('$521,00');
+  await panel.getByRole('spinbutton',{name:'Cantidad hipotética de contratos'}).fill('2');
+  await expect(panel.locator('dl').first().locator('dd').nth(1)).toHaveText(/\$1\.?042,00/);
+  await panel.getByRole('spinbutton',{name:'Capital hipotético USD'}).fill('500');
+  await expect(panel.getByText('Presupuesto hipotético excedido.')).toBeVisible();
+  await panel.getByRole('spinbutton',{name:'Precio hipotético NVDA al vencimiento USD'}).fill('220');
+  await expect(panel.getByText('Resultado bruto')).toBeVisible();
+  await expect(panel.getByText('P&L neto no disponible', {exact:false})).toBeVisible();
+  expect(forbidden).toEqual([]);
+});
 test('inicio DEMO muestra series, estado y gráfico funcional',async({page})=>{
   const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto('/');await expect(page.getByRole('heading',{name:/Buenos días/})).toBeVisible();
