@@ -57,6 +57,9 @@ class ProspectiveTests(unittest.TestCase):
                            'evaluatedAtUtc':'2026-10-26T16:00:00.000Z'}
         self.decisions = [{'payload':{'eligibility_status':'RECORDED','prediction_id_if_recorded':'p1',
                                       'decision_at_utc':'2026-10-26T13:47:00.000Z',
+                                      'candidate_bar_start_utc':dates[0],
+                                      'candidate_bar_end_utc':self.bars[dates[0]]['bar']['endUtc'],
+                                      'first_received_at_utc':self.bars[dates[0]]['receivedAtUtc'],
                                       'source_bar_sha256':sha(dates[0]),'prediction_record_hash':sha('prediction')}}]
         self.calendar = self.root/'calendar.json'
         self.calendar.write_text(json.dumps({'provider':'Alpaca Market Calendar',
@@ -161,6 +164,41 @@ class ProspectiveTests(unittest.TestCase):
         self.assertEqual(months['2026-10']['rows'],1)
         self.assertEqual(report['review_gate']['actual_class_counts'],{'ALCISTA':1})
         self.assertFalse(report['review_gate']['reached'])
+
+    def test_recorded_is_terminal_even_for_old_ledger_with_later_stale_decision(self):
+        failure = {'payload':{**self.decisions[0]['payload'], 'eligibility_status':'INDICATORS_INSUFFICIENT',
+                              'prediction_id_if_recorded':None, 'prediction_record_hash':None,
+                              'decision_at_utc':'2026-10-26T13:46:00.000Z'}}
+        stale = {'payload':{**failure['payload'], 'eligibility_status':'STALE_LIVE_DATA',
+                            'decision_at_utc':'2026-10-26T14:02:00.000Z'}}
+        original_hash = self.prediction['recordHash']
+        decisions = [failure, self.decisions[0], stale]
+        with patch.object(subject,'read_observations',return_value=[self.prediction]),\
+             patch.object(subject,'load_activation',return_value=(self.protocol,self.activation,{'model_sha256':subject.EXPECTED_MODEL})),\
+             patch.object(subject,'read_eligibility',return_value=decisions),\
+             patch.object(subject,'read_json_records',return_value=[next(iter(self.bars.values()))]):
+            report,_,_ = subject.build_report(self.root,self.root,self.root/'missing.jsonl',
+                                               self.root/'missing-live.jsonl',self.calendar,
+                                               '2026-10-26T14:03:00.000Z')
+        coverage = report['eligibility_coverage']
+        self.assertEqual(coverage['decision_records'],3)
+        self.assertEqual(coverage['candidate_bars_examined'],1)
+        self.assertEqual(coverage['admitted_bars'],report['predictions_coverage']['cohort_count'])
+        self.assertEqual(coverage['finally_not_admitted_bars'],0)
+        self.assertEqual(coverage['failed_attempts_before_recovery'],1)
+        self.assertEqual(coverage['abstentions_by_reason'],{})
+        self.assertEqual(report['evaluation_coverage']['states']['PENDING'],1)
+        self.assertEqual(self.prediction['recordHash'],original_hash)
+
+    def test_reconciliation_rejects_orphan_or_duplicate_success(self):
+        first = self.decisions[0]
+        with self.assertRaisesRegex(ValueError,'uno a uno'):
+            subject.reconcile_eligibility([first],self.bars,{})
+        with self.assertRaisesRegex(ValueError,'Más de un éxito'):
+            subject.reconcile_eligibility([first,first],self.bars,{'p1':self.prediction})
+        wrong = {'payload':{**first['payload'],'source_bar_sha256':sha('wrong')}}
+        with self.assertRaisesRegex(ValueError,'primera vela'):
+            subject.reconcile_eligibility([wrong],self.bars,{'p1':self.prediction})
 
     def test_hash_chains_reject_tampering(self):
         path=self.root/'iex.jsonl'

@@ -5,6 +5,8 @@ import {join} from 'node:path';
 import {afterEach,describe,expect,it} from 'vitest';
 import {activatePhase41i,appendPhase41iDecision,cohortPredictions,firstNewIexCandidate,
   loadPhase41iActivation,phase41iPrivateRoot,phase41iProtocolDir,PHASE41I_MODEL_SHA,readPhase41iDecisions} from '../../trading_poc_001_bollinger/src/phase41i-prospective.ts';
+import {appendRecord} from '../../trading_poc_001_bollinger/src/phase16-ledger.ts';
+import {createIexDaily} from '../../scripts/iex-daily.ts';
 import type {IexRecord} from '../../trading_poc_001_bollinger/src/phase38-iex.ts';
 import type {IexPrediction} from '../../trading_poc_001_bollinger/src/phase38f-iex-observation.ts';
 import {officialSessionOpenUtc,taskTimezoneStatus} from '../../scripts/iex-diagnostics.ts';
@@ -43,8 +45,8 @@ describe('Fase 41I: protocolo, elegibilidad y ancla causal',()=>{
   it('mantiene los artefactos 41I en private sin cambiar la ruta del ledger IEX anterior',()=>{
     const f=fixture();
     expect(phase41iPrivateRoot({})).toMatch(/Trading-POC[\\/]private$/);
-    expect(phase41iProtocolDir({})).toMatch(/private[\\/]ml-iex[\\/]phase41i-prospective-protocol-v1$/);
-    expect(phase41iProtocolDir({TRADING_POC_PRIVATE_DIR:f.folder})).toBe(join(f.folder,'ml-iex','phase41i-prospective-protocol-v1'));
+    expect(phase41iProtocolDir({})).toMatch(/private[\\/]ml-iex[\\/]phase41i-prospective-protocol-v2$/);
+    expect(phase41iProtocolDir({TRADING_POC_PRIVATE_DIR:f.folder})).toBe(join(f.folder,'ml-iex','phase41i-prospective-protocol-v2'));
   });
   it('activa con hora real inyectada, SHA y ausencia explícita de ledger previo',()=>{
     const f=fixture();expect(f.active.activation).toMatchObject({activatedAtUtc:clock(),modelSha256:PHASE41I_MODEL_SHA,
@@ -82,6 +84,55 @@ describe('Fase 41I: protocolo, elegibilidad y ancla causal',()=>{
     const second=join(f.dir,'eligibility-ledger','00000002.json');
     writeFileSync(second,readFileSync(second,'utf8').replace('RECORDED','REJECTED'));
     expect(()=>readPhase41iDecisions(f.dir)).toThrow(/alterado/);
+  });
+  it('conserva fallos previos pero RECORDED es terminal ante polling, errores y envejecimiento',()=>{
+    const f=fixture(),bar=quarter('2026-10-26T13:30:00.000Z','2026-10-26T13:45:05.000Z'),p=prediction(bar);
+    for(const failure of ['INDICATORS_INSUFFICIENT','INFERENCE_FAILED'] as const){
+      const separate=fixture();
+      appendPhase41iDecision(separate.active,bar,failure,null,()=> '2026-10-26T13:46:00.000Z');
+      const success=appendPhase41iDecision(separate.active,bar,'RECORDED',p,()=>p.registeredAtUtc);
+      expect(appendPhase41iDecision(separate.active,bar,'STALE_LIVE_DATA',null,()=> '2026-10-26T14:02:00.000Z').hash).toBe(success.hash);
+      expect(appendPhase41iDecision(separate.active,bar,'RECORDED',p,()=> '2026-10-26T14:03:00.000Z').hash).toBe(success.hash);
+      expect(readPhase41iDecisions(separate.dir).map(row=>row.payload.eligibility_status)).toEqual([failure,'RECORDED']);
+      expect(cohortPredictions(separate.active,[p],readPhase41iDecisions(separate.dir))).toEqual([p]);
+    }
+    const success=appendPhase41iDecision(f.active,bar,'RECORDED',p,()=>p.registeredAtUtc);
+    expect(()=>appendPhase41iDecision(f.active,bar,'RECORDED',{...p,id:'other'},()=>p.registeredAtUtc)).toThrow(/Dos predicciones/);
+    expect(appendPhase41iDecision(f.active,bar,'STALE_LIVE_DATA',null,()=> '2026-10-26T14:03:00.000Z').hash).toBe(success.hash);
+    expect(readPhase41iDecisions(f.dir)).toHaveLength(1);
+  });
+  it('lee un ledger anterior con RECORDED seguido de STALE sin reescribir sus hashes',()=>{
+    const f=fixture(),bar=quarter('2026-10-26T13:30:00.000Z','2026-10-26T13:45:05.000Z'),p=prediction(bar);
+    const success=appendPhase41iDecision(f.active,bar,'RECORDED',p,()=>p.registeredAtUtc);
+    const old={...success.payload,decision_at_utc:'2026-10-26T14:02:00.000Z',eligibility_status:'STALE_LIVE_DATA',
+      eligibility_reason:'STALE_LIVE_DATA',prediction_id_if_recorded:null,prediction_record_hash:null};
+    const id=`iex41i:${sha(JSON.stringify({protocol:f.active.activation.protocolSha256,source:bar.recordHash,status:'STALE_LIVE_DATA'}))}`;
+    appendRecord(join(f.dir,'eligibility-ledger'),id,'iex_eligibility',old,'2026-10-26T14:02:00.000Z');
+    const before=readPhase41iDecisions(f.dir).map(row=>row.hash);
+    expect(appendPhase41iDecision(f.active,bar,'STALE_LIVE_DATA',null,()=> '2026-10-26T14:04:00.000Z').hash).toBe(success.hash);
+    expect(readPhase41iDecisions(f.dir).map(row=>row.hash)).toEqual(before);
+    expect(cohortPredictions(f.active,[p],readPhase41iDecisions(f.dir))).toEqual([p]);
+  });
+  it('el coordinador no reintenta ni degrada una predicción persistida, incluso tras reinicio',async()=>{
+    const f=fixture(),bar=quarter('2026-10-26T13:30:00.000Z','2026-10-26T13:46:05.000Z'),p=prediction(bar);
+    appendPhase41iDecision(f.active,bar,'RECORDED',p,()=>p.registeredAtUtc);
+    const env={...process.env,TRADING_POC_PRIVATE_DIR:f.folder,TRADING_POC_IEX_41I_PROTOCOL_DIR:f.dir};
+    let now=Date.parse('2026-10-26T13:46:00.000Z'),calls=0;
+    const options={env,statePath:join(f.folder,'state.json'),clock:()=>now,active:()=>true,
+      readLedger:()=>[bar],readObservations:()=>[p],verifyModel:()=>null,
+      run:async()=>{calls++;return {code:0,output:'{}'};}};
+    const first=createIexDaily(options);
+    now=Date.parse('2026-10-26T13:48:00.000Z');
+    expect((await first.tick(false,null)).observationStatus).toBe('ALREADY_PRESENT');
+    now=Date.parse('2026-10-26T14:02:00.000Z');
+    expect((await first.tick(false,null)).freshness).toBe('STALE');
+    expect(first.state.observationStatus).toBe('ALREADY_PRESENT');
+    await first.stop();
+    const restarted=createIexDaily(options);
+    expect((await restarted.tick(false,null)).observationStatus).toBe('ALREADY_PRESENT');
+    await restarted.stop();
+    expect(calls).toBe(0);
+    expect(readPhase41iDecisions(f.dir)).toHaveLength(1);
   });
   it('usa aperturas oficiales EDT/EST, omite festivos y acepta cierre anticipado',()=>{
     const calendar=new Map([['2026-03-06',{open:570,close:960}],['2026-03-09',{open:570,close:960}],

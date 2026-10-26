@@ -39,7 +39,7 @@ if(command==='diagnose'){
         protocolSha256:active.activation.protocolSha256,eligibilityDecisions:decisions.length})+'\n');
     }else{
       if(args.length!==1&&!(args.length===3&&args[1]==='--out-dir'))throw new Error('Uso: report [--out-dir carpeta_privada_nueva]');
-      const out=resolve(args[2]??resolve(phase41iBase,'ml-iex','phase41i-prospective-report-v1'));
+      const out=resolve(args[2]??resolve(phase41iBase,'ml-iex','phase41i-prospective-report-v2'));
       const inside=relative(phase41iBase,out);
       if(!inside||inside.startsWith('..')||isAbsolute(inside)||existsSync(out))throw new Error('Destino privado nuevo requerido para el reporte.');
       const python=process.env.PYTHON??(process.platform==='win32'?'py':'python3');

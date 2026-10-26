@@ -15,7 +15,7 @@ export const phase41iPrivateRoot=(env:NodeJS.ProcessEnv=process.env)=>
   env.TRADING_POC_PRIVATE_DIR?resolve(root,env.TRADING_POC_PRIVATE_DIR):resolve(root,'private');
 export const phase41iProtocolDir=(env:NodeJS.ProcessEnv=process.env)=>
   env.TRADING_POC_IEX_41I_PROTOCOL_DIR?resolve(root,env.TRADING_POC_IEX_41I_PROTOCOL_DIR):
-    resolve(phase41iPrivateRoot(env),'ml-iex','phase41i-prospective-protocol-v1');
+    resolve(phase41iPrivateRoot(env),'ml-iex','phase41i-prospective-protocol-v2');
 export const PHASE41I_MODEL_SHA='b9bbece648544b39e1e4c4946933e4f4de2d65ec5094997938b25791cb1bb684';
 const sha=(value:Buffer|string)=>createHash('sha256').update(value).digest('hex');
 const exact=(value:string)=>{const time=Date.parse(value);if(!Number.isFinite(time)||new Date(time).toISOString()!==value)throw new Error('Timestamp UTC inválido.');return time;};
@@ -132,6 +132,12 @@ export function readPhase41iDecisions(directory:string):LedgerRecord[]{
   if(rows.some(row=>row.kind!=='iex_eligibility'))throw new Error('Ledger de elegibilidad 41I con tipos ajenos.');
   return rows;
 }
+export function recordedPhase41iDecision(active:ActiveProtocol,candidate:IexRecord):LedgerRecord|null{
+  if(!candidate.bar)return null;
+  return readPhase41iDecisions(active.directory).find(row=>row.payload.protocol_sha256===active.activation.protocolSha256&&
+    row.payload.candidate_bar_start_utc===candidate.bar!.startUtc&&
+    row.payload.source_bar_sha256===candidate.recordHash&&row.payload.eligibility_status==='RECORDED')??null;
+}
 export function appendPhase41iDecision(active:ActiveProtocol,candidate:IexRecord,status:EligibilityStatus,
   prediction:IexPrediction|null=null,clock:()=>string=()=>new Date().toISOString()):LedgerRecord{
   const statuses:EligibilityStatus[]=['RECORDED','ALREADY_PRESENT','NO_LIVE_DATA','PREEXISTING_LIVE_DATA','STALE_LIVE_DATA',
@@ -140,7 +146,9 @@ export function appendPhase41iDecision(active:ActiveProtocol,candidate:IexRecord
   if(!candidate.bar||candidate.kind!=='quarter'||candidate.status!=='COMPLETE'||candidate.revision!==1||
     exact(candidate.bar.startUtc)<=exact(active.activation.activatedAtUtc)||exact(candidate.receivedAtUtc)<=exact(active.activation.activatedAtUtc))throw new Error('Candidata 41I anterior a activación o no es primera versión Live.');
   if(status==='RECORDED'&&(!prediction||prediction.barStartUtc!==candidate.bar.startUtc||
-    prediction.modelSha256!==active.activation.modelSha256||exact(prediction.registeredAtUtc)<=exact(active.activation.activatedAtUtc)))throw new Error('Enlace de predicción 41I inválido.');
+    prediction.modelSha256!==active.activation.modelSha256||exact(prediction.registeredAtUtc)<=exact(active.activation.activatedAtUtc)||
+    prediction.sourceBars.at(-1)?.recordHash!==candidate.recordHash||
+    exact(prediction.registeredAtUtc)>=exact(prediction.outcomeAtUtc)))throw new Error('Enlace de predicción 41I inválido.');
   const now=clock();if(exact(now)<exact(candidate.receivedAtUtc))throw new Error('Decisión anterior a recepción IEX.');
   const payload={candidate_bar_start_utc:candidate.bar.startUtc,candidate_bar_end_utc:candidate.bar.endUtc,
     first_received_at_utc:candidate.receivedAtUtc,decision_at_utc:now,source_bar_sha256:candidate.recordHash,
@@ -148,9 +156,18 @@ export function appendPhase41iDecision(active:ActiveProtocol,candidate:IexRecord
     eligibility_status:status,eligibility_reason:status,prediction_id_if_recorded:prediction?.id??null,
     prediction_record_hash:prediction?.recordHash??null};
   const directory=join(active.directory,'eligibility-ledger'),id=`iex41i:${sha(JSON.stringify({protocol:active.activation.protocolSha256,source:candidate.recordHash,status}))}`;
-  const existing=readPhase41iDecisions(active.directory).find(row=>row.id===id);if(existing)return existing;
-  try{return appendRecord(directory,id,'iex_eligibility',payload,now);}
-  catch(error){const concurrent=readPhase41iDecisions(active.directory).find(row=>row.id===id);if(concurrent)return concurrent;throw error;}
+  const terminal=(rows:readonly LedgerRecord[])=>{
+    const recorded=rows.find(row=>row.kind==='iex_eligibility'&&row.payload.protocol_sha256===active.activation.protocolSha256&&
+      row.payload.candidate_bar_start_utc===candidate.bar!.startUtc&&row.payload.source_bar_sha256===candidate.recordHash&&
+      row.payload.eligibility_status==='RECORDED');
+    if(recorded){
+      if(status==='RECORDED'&&(recorded.payload.prediction_id_if_recorded!==prediction?.id||
+        recorded.payload.prediction_record_hash!==prediction?.recordHash))throw new Error('Dos predicciones para la misma vela 41I.');
+      return recorded;
+    }
+    return rows.find(row=>row.id===id)??null;
+  };
+  return appendRecord(directory,id,'iex_eligibility',payload,now,terminal);
 }
 
 export function classifyPhase41iFailure(error:unknown):EligibilityStatus{

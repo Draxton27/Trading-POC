@@ -34,12 +34,16 @@ export function verifyLedger(directory: string): LedgerRecord[] {
 }
 
 export function appendRecord(directory: string, id: string, kind: Kind,
-  payload: Record<string, unknown>, recordedAtUtc = new Date().toISOString()): LedgerRecord {
+  payload: Record<string, unknown>, recordedAtUtc = new Date().toISOString(),
+  resolveExisting?: (records: readonly LedgerRecord[]) => LedgerRecord | null): LedgerRecord {
   mkdirSync(directory, {recursive: true});
   const lockPath = join(directory, '.write-lock');
   const lock = openSync(lockPath, 'wx');
   try {
     const records = verifyLedger(directory);
+    // The caller may enforce a semantic terminal state while this exclusive lock is held.
+    const terminal = resolveExisting?.(records);
+    if (terminal) return terminal;
     const prior = records.find(r => r.id === id);
     if (prior) {
       if (prior.kind !== kind || JSON.stringify(prior.payload) !== JSON.stringify(payload)) {

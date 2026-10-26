@@ -10,7 +10,7 @@ import {loadMarketCalendar} from './alpaca-calendar.ts';
 import {readIexLedger} from './phase38-iex.ts';
 import {prepareIexObservation,appendIexPrediction,evaluateIexPredictions,readIexObservations,type IexFrozen,type IexPrediction} from './phase38f-iex-observation.ts';
 import {loadIexWarmup} from './phase38f-warmup.ts';
-import {appendPhase41iDecision,classifyPhase41iFailure,firstNewIexCandidate,
+import {appendPhase41iDecision,classifyPhase41iFailure,firstNewIexCandidate,recordedPhase41iDecision,
   loadPhase41iActivation,phase41iProtocolDir,readPhase41iDecisions,verifyPhase41iModel} from './phase41i-prospective.ts';
 
 const root=fileURLToPath(new URL('../../',import.meta.url));
@@ -42,6 +42,20 @@ const hash=createHash('sha256').update(readFileSync(join(modelDir,'model.json'))
 if(hash!==frozen.modelSha256)throw new Error('SHA-256 del modelo IEX incompatible.');
 let status='NO_NEW_OBSERVATION';
 try{
+  const successful=active&&newCandidate?recordedPhase41iDecision(active,newCandidate):null;
+  const priorPrediction=active&&newCandidate?readIexObservations(output).find((row):row is IexPrediction=>
+    row.kind==='PREDICTION'&&row.modelSha256===hash&&row.barStartUtc===newCandidate.bar!.startUtc&&
+    row.sourceBars.at(-1)?.recordHash===newCandidate.recordHash&&
+    Date.parse(row.registeredAtUtc)>Date.parse(active.activation.activatedAtUtc)):null;
+  if(successful){
+    const linked=readIexObservations(output).find(row=>row.kind==='PREDICTION'&&
+      row.id===successful.payload.prediction_id_if_recorded&&row.recordHash===successful.payload.prediction_record_hash);
+    if(!linked)throw new Error('Decisión RECORDED sin predicción íntegra.');
+    status='ALREADY_PRESENT';
+  }else if(active&&newCandidate&&priorPrediction){
+    appendPhase41iDecision(active,newCandidate,'RECORDED',priorPrediction);
+    status='ALREADY_PRESENT';
+  }else{
   const feed=records.filter(row=>row.kind==='status').at(-1)?.status;
   if(active&&['DISCONNECTED','OBSERVATION_ENDED','AUTH_FAILED','CONNECTION_LIMIT','SUBSCRIPTION_FAILED'].includes(feed??''))throw new Error('FEED_DISCONNECTED');
   const calendar=loadMarketCalendar(calendarPath);
@@ -72,6 +86,7 @@ try{
       policy:{classification:'argmax',abstention:null}},calendar);
     status=appended.alreadyPresent?'ALREADY_PRESENT':'RECORDED';
     if(active&&!appended.alreadyPresent)appendPhase41iDecision(active,newCandidate!,'RECORDED',appended.record);
+  }
   }
 }catch(error){const message=error instanceof Error?error.message:'Error controlado';
   if(active&&newCandidate){

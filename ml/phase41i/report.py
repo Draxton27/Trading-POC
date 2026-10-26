@@ -321,6 +321,42 @@ def official_coverage(calendar, first, activation, now):
             'scope': 'official sessions and closed intervals after activation; missing capture is not zero trades'}
 
 
+def reconcile_eligibility(decisions, first, cohort):
+    """RECORDED is terminal for a verified first Live bar, even in older ledgers with later errors."""
+    by_bar = defaultdict(list)
+    for record in decisions:
+        payload = record['payload']
+        bar = first.get(payload['candidate_bar_start_utc'])
+        if (bar is None or bar['recordHash'] != payload['source_bar_sha256'] or
+                bar['bar']['endUtc'] != payload['candidate_bar_end_utc'] or
+                bar['receivedAtUtc'] != payload['first_received_at_utc']):
+            raise ValueError('Decisión de elegibilidad sin primera vela IEX verificable.')
+        by_bar[(payload['candidate_bar_start_utc'], payload['source_bar_sha256'])].append(payload)
+    admitted, recovered_attempts, abstentions = 0, 0, Counter()
+    linked_ids = set()
+    for attempts in by_bar.values():
+        successes = [index for index, payload in enumerate(attempts) if payload['eligibility_status'] == 'RECORDED']
+        if successes:
+            if len(successes) != 1:
+                raise ValueError('Más de un éxito RECORDED para la misma vela.')
+            success = attempts[successes[0]]
+            prediction_id = success['prediction_id_if_recorded']
+            if prediction_id not in cohort or prediction_id in linked_ids:
+                raise ValueError('Admisión sin predicción enlazada uno a uno.')
+            linked_ids.add(prediction_id)
+            admitted += 1
+            recovered_attempts += sum(payload['eligibility_status'] != 'RECORDED' for payload in attempts[:successes[0]])
+        else:
+            abstentions[attempts[-1]['eligibility_status']] += 1
+    if admitted != len(cohort) or linked_ids != set(cohort):
+        raise ValueError('Cobertura admitida y cohorte de predicciones no concuerdan.')
+    return {'decision_records': len(decisions), 'candidate_bars_examined': len(by_bar),
+            'admitted_bars': admitted, 'finally_not_admitted_bars': len(by_bar)-admitted,
+            'failed_attempts_before_recovery': recovered_attempts,
+            'abstentions_by_reason': dict(abstentions),
+            'warning': 'Polling repetido no crea candidatas; fallos previos a RECORDED siguen en el ledger, sin degradar el éxito.'}
+
+
 def build_report(protocol_dir, model_dir, observation_path, live_path, calendar_path, now=None):
     now = utc(now) if isinstance(now, str) else now or datetime.now(timezone.utc)
     observations = read_observations(observation_path)
@@ -338,14 +374,7 @@ def build_report(protocol_dir, model_dir, observation_path, live_path, calendar_
         raise ValueError('Calendario oficial IEX inválido.')
     cohort, paired, states = eligible_pairs(protocol, activation, observations, decisions, first, now)
     coverage = official_coverage(calendar, first, activation, now)
-    latest_by_bar = {}
-    for row in decisions:
-        payload = row['payload']
-        latest_by_bar[payload['source_bar_sha256']] = payload['eligibility_status']
-    abstentions = dict(Counter(status for status in latest_by_bar.values() if status != 'RECORDED'))
-    eligibility = {'candidate_bars_examined': len(latest_by_bar), 'admitted_bars': sum(s == 'RECORDED' for s in latest_by_bar.values()),
-                   'abstentions_by_reason': abstentions, 'decision_records': len(decisions),
-                   'warning': 'Polling cycles and bars never examined are not counted as candidate decisions.'}
+    eligibility = reconcile_eligibility(decisions, first, cohort)
     predictions = {'cohort_count': len(cohort), 'preexisting_count': sum(row['kind']=='PREDICTION' for row in observations)-len(cohort),
                    'linked_prediction_ids': sorted(cohort), 'same_rows_for_models': True}
     evaluation = {'cohort_predictions': len(cohort), 'evaluated': len(paired), 'states': dict(states),
@@ -407,6 +436,10 @@ def publish(report, by_session, by_month, out_dir):
                  f"| Sesiones con captura Live | {report['market_coverage']['sessions_with_live_capture']} |",
                  f"| Velas completas recibidas / esperadas | {report['market_coverage']['received_complete_bars']} / {report['market_coverage']['expected_complete_bars']} |",
                  f"| Candidatas examinadas | {report['eligibility_coverage']['candidate_bars_examined']} |",
+                 f"| Decisiones registradas | {report['eligibility_coverage']['decision_records']} |",
+                 f"| Velas admitidas | {report['eligibility_coverage']['admitted_bars']} |",
+                 f"| Velas finalmente no admitidas | {report['eligibility_coverage']['finally_not_admitted_bars']} |",
+                 f"| Fallos anteriores a recuperaciones | {report['eligibility_coverage']['failed_attempts_before_recovery']} |",
                  f"| Predicciones nuevas enlazadas | {report['predictions_coverage']['cohort_count']} |",
                  f"| Evaluaciones completas | {report['evaluation_coverage']['evaluated']} |", '',
                  'Las probabilidades originales de XGBoost, logística y frecuencia se comparan solo en las mismas observaciones evaluadas.',

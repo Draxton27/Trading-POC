@@ -8,7 +8,7 @@ import {resolvePrivateDir} from '../apps/api/src/news/paths.ts';
 import {isIexProcessActive} from '../trading_poc_001_bollinger/src/phase38-iex-lock.ts';
 import {readIexLedger,type IexRecord} from '../trading_poc_001_bollinger/src/phase38-iex.ts';
 import {MAX_LIVE_AGE_MS,readIexObservations,type IexObservationRecord,type IexFrozen} from '../trading_poc_001_bollinger/src/phase38f-iex-observation.ts';
-import {appendPhase41iDecision,loadPhase41iActivation,phase41iProtocolDir,type EligibilityStatus} from '../trading_poc_001_bollinger/src/phase41i-prospective.ts';
+import {appendPhase41iDecision,loadPhase41iActivation,phase41iProtocolDir,recordedPhase41iDecision,type EligibilityStatus} from '../trading_poc_001_bollinger/src/phase41i-prospective.ts';
 
 const root=fileURLToPath(new URL('../',import.meta.url));
 export const IEX_FROZEN_SHA='b9bbece648544b39e1e4c4946933e4f4de2d65ec5094997938b25791cb1bb684';
@@ -88,7 +88,8 @@ export function createIexDaily(options:IexDailyOptions={}){
     if(!candidate?.bar||Date.parse(candidate.receivedAtUtc)<startedAt)return;
     const active=loadPhase41iActivation(phase41iDir,observations);
     if(active&&Date.parse(candidate.bar.startUtc)>Date.parse(active.activation.activatedAtUtc)&&
-       Date.parse(candidate.receivedAtUtc)>Date.parse(active.activation.activatedAtUtc))
+       Date.parse(candidate.receivedAtUtc)>Date.parse(active.activation.activatedAtUtc)&&
+       !recordedPhase41iDecision(active,candidate))
       appendPhase41iDecision(active,candidate,status,null,()=>iso(clock()));
   };
   const run=options.run??(async(mode:'--once'|'--evaluate-only')=>{
@@ -129,6 +130,16 @@ export function createIexDaily(options:IexDailyOptions={}){
         if(['AUTH_FAILED','CONNECTION_LIMIT','SUBSCRIPTION_FAILED','INVALID_MESSAGE','CALENDAR_UNAVAILABLE'].includes(lastFeed??''))row.lastErrorCode='IEX_COLLECT_TERMINAL_ERROR';
         else if(collectorFailures>=3)row.lastErrorCode='IEX_COLLECT_RETRIES_EXHAUSTED';
         else if(now>=retryCollectorAt){start();if(owned){row.owner='MANAGED';row.collector='ACTIVE';}}
+      }
+      const protocol=candidate?loadPhase41iActivation(phase41iDir,observations):null;
+      const recorded=protocol&&candidate?recordedPhase41iDecision(protocol,candidate):null;
+      if(recorded){
+        const prediction=prior.find(value=>value.kind==='PREDICTION'&&
+          value.id===recorded.payload.prediction_id_if_recorded&&value.recordHash===recorded.payload.prediction_record_hash);
+        if(!prediction)throw new Error('Decisión RECORDED sin predicción íntegra.');
+        row.freshness=now-Date.parse(candidate!.receivedAtUtc)>MAX_LIVE_AGE_MS?'STALE':'FRESH';
+        row.observationStatus='ALREADY_PRESENT';
+        save(path,row);return row;
       }
       if(!candidate){row.freshness='NO_LIVE_DATA';row.observationStatus='NO_LIVE_DATA';}
       else if(now-Date.parse(candidate.receivedAtUtc)>MAX_LIVE_AGE_MS){row.freshness='STALE';row.observationStatus='STALE_LIVE_DATA';auditSkip(candidate,'STALE_LIVE_DATA');}
