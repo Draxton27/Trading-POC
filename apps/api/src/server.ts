@@ -24,6 +24,7 @@ import {registerIexProspectiveRoutes,iexProspectivePaths} from './ml/iex-prospec
 import type {IexProspectivePaths} from './ml/iex-prospective-reader.ts';
 import {registerNewsRoutes} from './news/routes.ts';
 import {registerRadarRoutes} from './radar/routes.ts';
+import {registerScenarioRoutes} from './radar/scenarios-routes.ts';
 import {registerTechnicalContextRoutes,technicalContextFor} from './technical-context/routes.ts';
 import {buildRadar} from './radar/service.ts';
 import {marketEvidence,quoteEvidence} from './assistant/routes.ts';
@@ -159,6 +160,7 @@ export async function createApp(options:Options={}){
   registerIexProspectiveRoutes(app,options.iexProspectivePaths??iexProspectivePaths(privateDir));
   registerNewsRoutes(app,newsPaths({repoRoot,privateDir,newsDir,env:process.env}));
   registerRadarRoutes(app,radarDeps);
+  registerScenarioRoutes(app,technicalDeps);
   app.get('/api/v1/options/quotes',async()=>({items:mode==='DEMO'?demoOptions():[],source:mode==='DEMO'?'DEMO sintético':'Consulte /options/contracts para suscribirse a contratos visibles'}));
   app.get('/api/v1/positions',async()=>{if(mode!=='PAPER'||!hub.status().connected)return {items:[],source:'IBKR desconectado'};
     const m=await hub.request('broker.positions.request',{});return {items:m.kind==='broker.positions.snapshot'?m.payload.items:[],source:hub.status().simulation?'Agente simulado':'IBKR Paper'};});

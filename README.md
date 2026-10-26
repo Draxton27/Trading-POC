@@ -5,6 +5,7 @@ Aplicación privada en español para observar NVDA, QQQ y SMH, consultar estudio
 ## Inicio rápido en Windows 10/11
 
 El [Radar de Mercado v1](docs/phase39-market-radar.md) reúne el análisis histórico causal de NVDA, QQQ y SMH, el estado de cotizaciones existentes, contexto informativo y, solo para NVDA, probabilidades IEX ya registradas. La vista y el asistente muestran procedencia, fechas, huecos y vigencia; no generan predicciones, contratos ni órdenes al consultarlos.
+La [Fase 41K](docs/phase41k-investep-scenarios.md) añade al Radar escenarios técnicos descriptivos sobre SMA multitemporal, retesteos y contexto Bollinger/volumen, con estados y disponibilidad explícitos.
 
 ### Comparador de opciones
 

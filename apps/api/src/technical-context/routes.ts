@@ -12,7 +12,7 @@ export type TechnicalContextDeps={mode:'DEMO'|'OFFLINE'|'PAPER';barsFor:(symbol:
   calendarFor:(symbol:Symbol)=>MarketCalendar|null;clock?:()=>number};
 const query=z.object({symbol:z.enum(['NVDA','QQQ','SMH']),asOfUtc:z.iso.datetime({offset:true}).optional()}).strict();
 
-export function technicalContextFor(deps:TechnicalContextDeps,symbol:Symbol,asOfUtc:string){
+export function technicalContextFor(deps:TechnicalContextDeps,symbol:Symbol,asOfUtc:string,providedBars?:MarketBar[]){
   const synthetic=deps.mode==='DEMO';
   const metadata=synthetic?null:deps.metadataFor(symbol);
   if(metadata&&(
@@ -21,7 +21,7 @@ export function technicalContextFor(deps:TechnicalContextDeps,symbol:Symbol,asOf
     throw new Error('Procedencia incompatible');
   const provider=synthetic?'DEMO sintético':metadata!.provider,feed=synthetic?'synthetic':metadata!.feed!,adjustment=synthetic?'none':metadata!.adjustment!;
   const cutoff=Date.parse(asOfUtc);
-  const bars=deps.barsFor(symbol).filter(b=>Date.parse(b.endUtc)<=cutoff).slice(-8000);
+  const bars=(providedBars??deps.barsFor(symbol)).filter(b=>Date.parse(b.endUtc)<=cutoff).slice(-8000);
   // DEMO's fixed fixture uses 09:30–16:00 NY; this is explicitly synthetic, never an official calendar.
   const syntheticCalendar:MarketCalendar=new Map(bars.map(b=>[newYorkBarParts(b.startUtc).day,{open:570,close:960}]));
   return TechnicalContextSchema.parse(buildInvestepTechnicalContext({symbol,asOfUtc,bars,calendar:synthetic?syntheticCalendar:deps.calendarFor(symbol),provider,feed,adjustment,
