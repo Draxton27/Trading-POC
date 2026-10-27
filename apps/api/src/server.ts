@@ -28,6 +28,8 @@ import type {IexProspectivePaths} from './ml/iex-prospective-reader.ts';
 import {registerNewsRoutes} from './news/routes.ts';
 import {registerRadarRoutes} from './radar/routes.ts';
 import {registerScenarioRoutes} from './radar/scenarios-routes.ts';
+import {DecisionReviewService} from './research/decision-review-service.ts';
+import {registerDecisionReviewRoutes} from './research/decision-review-routes.ts';
 import {registerTechnicalContextRoutes,technicalContextFor} from './technical-context/routes.ts';
 import {buildRadar} from './radar/service.ts';
 import {marketEvidence,quoteEvidence} from './assistant/routes.ts';
@@ -152,7 +154,8 @@ export async function createApp(options:Options={}){
   const simulatorDir=mode==='DEMO'?null:options.simulatorDir??
     (options.privateDir?resolve(privateDir,'paper-simulator'):
       process.env.TRADING_POC_SIMULATOR_DIR??resolve(privateDir,'paper-simulator'));
-  registerSimulatorRoutes(app,new SimulatorService({store:new SimulatorStore(simulatorDir),mode,
+  const simulatorStore=new SimulatorStore(simulatorDir);
+  registerSimulatorRoutes(app,new SimulatorService({store:simulatorStore,mode,
     contract:optionRoutes.cachedContract,
     quote:(conId)=>mode==='DEMO'?(demoOptions() as Array<Record<string,unknown>>).find(row=>row.conId===conId) as any??null:
       mode==='PAPER'?(()=>{const received=hub.latestQuote(String(conId)) as Record<string,unknown>|null;
@@ -175,6 +178,8 @@ export async function createApp(options:Options={}){
   registerNewsRoutes(app,newsPaths({repoRoot,privateDir,newsDir,env:process.env}));
   registerRadarRoutes(app,radarDeps);
   registerScenarioRoutes(app,technicalDeps);
+  registerDecisionReviewRoutes(app,new DecisionReviewService({mode,phase17Private,phase16Ledger,
+    simulatorStore,iexPaths:options.iexProspectivePaths??iexProspectivePaths(privateDir),technicalDeps}));
   app.get('/api/v1/options/quotes',async()=>({items:mode==='DEMO'?demoOptions():[],source:mode==='DEMO'?'DEMO sintético':'Consulte /options/contracts para suscribirse a contratos visibles'}));
   app.get('/api/v1/positions',async()=>{if(mode!=='PAPER'||!hub.status().connected)return {items:[],source:'IBKR desconectado'};
     const m=await hub.request('broker.positions.request',{});return {items:m.kind==='broker.positions.snapshot'?m.payload.items:[],source:hub.status().simulation?'Agente simulado':'IBKR Paper'};});
