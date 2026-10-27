@@ -212,7 +212,6 @@ export async function createApp(options:Options={}){
   registerScenarioRoutes(app,technicalDeps);
   registerDecisionReviewRoutes(app,new DecisionReviewService({mode,phase17Private,phase16Ledger,
     simulatorStore,iexPaths:options.iexProspectivePaths??iexProspectivePaths(privateDir),technicalDeps}));
-  app.get('/api/v1/options/quotes',async()=>({items:mode==='DEMO'?demoOptions():[],source:mode==='DEMO'?'DEMO sintético':'Consulte /options/contracts para suscribirse a contratos visibles'}));
   app.get('/api/v1/positions',async()=>{if(mode!=='PAPER'||!hub.status().connected)return {items:[],source:'IBKR desconectado'};
     const m=await hub.request('broker.positions.request',{});return {items:m.kind==='broker.positions.snapshot'?m.payload.items:[],source:hub.status().simulation?'Agente simulado':'IBKR Paper'};});
   app.get('/api/v1/executions',async()=>{if(mode!=='PAPER'||!hub.status().connected)return {items:[],source:'IBKR desconectado'};

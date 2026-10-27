@@ -2,12 +2,13 @@ import type {FastifyInstance} from 'fastify';
 import {z} from 'zod';
 import {spread} from '@trading-poc/market-domain';
 import {AgentHub,AgentRequestError} from '../streams/agent-hub.ts';
-import {availableStrikes,selectContractStrikes,quoteReference,type OptionParameter} from './selection.ts';
+import {availableStrikes,selectContractStrikes,quoteReference,iexBarReference,type OptionParameter} from './selection.ts';
+import {validateOptionIdentity} from './identity.ts';
 import type Database from 'better-sqlite3';
 import {academyRanges,evaluateAcademyAskRange,selectAcademyReference} from '../academy/service.ts';
 import {OptionComparisonRequest} from '@trading-poc/contracts';
 
-type Issue={strike:number|null;code:string;message:string;stage:string;requestId:string|null;ibkrCode:number|null};
+type Issue={strike:number|null;code:string;message:string;stage:string;requestId:string|null;ibkrCode:number|null;mismatchFields?:string[]};
 const messages:Record<string,string>={
   TIMEOUT:'La solicitud tardó demasiado; vuelva a intentar este contrato.',
   PAGE_TIMEOUT:'Se agotó el tiempo de esta página; reduzca el número de contratos.',
@@ -28,6 +29,11 @@ function issue(error:unknown,strike:number|null=null):Issue{
 }
 const decimal=z.coerce.number().finite().nonnegative();
 const expiration=z.string().regex(/^\d{8}$/);
+function nyDateKey(now=new Date()){
+  const parts=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(now);
+  const part=(type:string)=>parts.find(item=>item.type===type)?.value??'';
+  return `${part('year')}${part('month')}${part('day')}`;
+}
 
 export function registerOptionRoutes(app:FastifyInstance,hub:AgentHub,mode:'DEMO'|'OFFLINE'|'PAPER',demoOptions:()=>unknown[],sqlite:Database.Database){
   let parametersCache:{until:number;connectionId:string|null;items:OptionParameter[]}|null=null;
@@ -51,10 +57,23 @@ export function registerOptionRoutes(app:FastifyInstance,hub:AgentHub,mode:'DEMO
     const problem=issue(error);return reply.code(problem.code==='DISCONNECTED'?503:504)
       .send({code:problem.code,error:problem.message,stage:problem.stage,requestId:problem.requestId});
   };
+  const validateResolved=(raw:unknown,requested:{right:'CALL'|'PUT';expiration:string;strike:number},requestId:string)=>{
+    const result=validateOptionIdentity(raw,{symbol:'NVDA',...requested});
+    if(result.contract)return result.contract;
+    const c=raw&&typeof raw==='object'?raw as Record<string,unknown>:{};
+    app.log.warn({component:'options',event:'contract_identity_mismatch',requestId,twsRequestId:c.twsRequestId??null,
+      conId:c.conId??null,requestedSymbol:'NVDA',resolvedSymbol:c.symbol??null,requestedRight:requested.right,
+      resolvedRight:c.right??null,requestedExpiration:requested.expiration,resolvedExpiration:c.expiration??null,
+      requestedStrike:requested.strike,resolvedStrike:c.strike??null,requestedMultiplier:100,resolvedMultiplier:c.multiplier??null,
+      requestedSecType:'OPT',resolvedSecType:c.secType??null,requestedTradingClass:'NVDA',
+      resolvedTradingClass:c.tradingClass??null,requestedCurrency:'USD',resolvedCurrency:c.currency??null,
+      mismatchFields:result.mismatchFields});
+    throw Object.assign(new AgentRequestError('INVALID_CONTRACT','contract_details',requestId),{mismatchFields:result.mismatchFields});
+  };
 
   app.get('/api/v1/options/expirations',async(_req,reply)=>{
     if(mode==='DEMO')return {items:['2027-01-15'],source:'DEMO sintético'};
-    try{return {items:[...new Set((await parameters()).flatMap(p=>p.expirations))].sort(),
+    try{return {items:[...new Set((await parameters()).flatMap(p=>p.expirations))].filter(day=>day>=nyDateKey()).sort(),
       source:hub.status().connected?(hub.status().simulation?'Agente simulado':'IBKR Paper'):'IBKR desconectado'};}
     catch(error){return unavailable(reply,error);}
   });
@@ -66,7 +85,7 @@ export function registerOptionRoutes(app:FastifyInstance,hub:AgentHub,mode:'DEMO
       return reply.code(400).send({error:'Rango de strikes inválido'});
     if(mode==='DEMO')return {items:[210,215,220,225,230],expiration:'2027-01-15',total:5,offset:0,nextOffset:null,source:'DEMO sintético'};
     try{
-      const params=await parameters();const selected=parsed.data.expiration??params.flatMap(p=>p.expirations).sort()[0]??null;
+      const params=await parameters();const selected=parsed.data.expiration??params.flatMap(p=>p.expirations).filter(day=>day>=nyDateKey()).sort()[0]??null;
       const all=selected?availableStrikes(params,selected,parsed.data.minPrice,parsed.data.maxPrice):[];
       const {offset,limit}=parsed.data;
       return {items:all.slice(offset,offset+limit),expiration:selected,total:all.length,offset,
@@ -103,6 +122,32 @@ export function registerOptionRoutes(app:FastifyInstance,hub:AgentHub,mode:'DEMO
       permissions:subscribeError?.code==='PERMISSION'||received?.marketDataStatus==='permission_denied'?'Insuficientes':'No verificados',
       stale,provider:hub.status().simulation?'PAPER SIMULADO':'IBKR'},error:subscribeError,source:hub.status().simulation?'Agente simulado':'IBKR Paper'};
   });
+  // Poll only the quotes for contracts already resolved by the chain. No new TWS requests or subscriptions.
+  app.get('/api/v1/options/quotes',async(req,reply)=>{
+    const parsed=z.object({conIds:z.string().regex(/^\d{1,12}(?:,\d{1,12}){0,9}$/).optional()}).safeParse(req.query);
+    if(!parsed.success)return reply.code(400).send({error:'Contratos inválidos'});
+    const ids=parsed.data.conIds?[...new Set(parsed.data.conIds.split(',').map(Number))]:[];
+    if(mode==='DEMO')return {items:(demoOptions() as Array<Record<string,unknown>>).filter(item=>!parsed.data.conIds||ids.includes(Number(item.conId))),source:'DEMO sintético'};
+    if(mode!=='PAPER'||!hub.status().connected||!parsed.data.conIds)return {items:[],source:'Consulte /options/contracts para suscribirse a contratos visibles'};
+    const items=ids.flatMap(conId=>{
+      const entry=[...contractCache.values()].find(value=>value.until>Date.now()&&
+        value.connectionId===hub.status().connectionId&&value.contract.conId===conId);
+      if(!entry)return [];
+      const contract=entry.contract;
+      const received=hub.latestQuote(String(conId)) as {receivedAtUtc?:string;marketTimestampUtc?:string;bid?:number|null;ask?:number|null;
+        feedType?:string;marketDataStatus?:string;provider?:string}|null;
+      const stale=!!received&&(!received.receivedAtUtc||Date.now()-Date.parse(received.receivedAtUtc)>30000);
+      const reference=selectAcademyReference(academyRanges(sqlite,'NVDA'),new Date().toISOString(),contract.right==='PUT'?'PUT':'CALL');
+      const evaluatedQuote=received&&hub.status().simulation?{...received,provider:'PAPER SIMULADO'}:received;
+      const academyEvaluation=evaluateAcademyAskRange(reference,evaluatedQuote,Date.now(),String(contract.currency??'USD'),Number(contract.multiplier));
+      return [{...contract,...(received??{}),academyEvaluation,spread:spread(received?.bid??null,received?.ask??null),
+        dataStatus:!received?'cotizacion_pendiente':stale?'obsoleto':received.marketDataStatus==='permission_denied'?'permisos_insuficientes':
+          received.marketDataStatus==='partial'?'cotizacion_parcial':received.marketDataStatus==='unavailable'||received.bid==null&&received.ask==null?
+          'cotizacion_no_disponible':'recibido',stale,permissions:received?.marketDataStatus==='permission_denied'?'Insuficientes':'No verificados',
+        provider:hub.status().simulation?'PAPER SIMULADO':'IBKR'}];
+    });
+    return {items,source:hub.status().simulation?'Agente simulado':'IBKR Paper'};
+  });
   app.get('/api/v1/options/contracts',async(req,reply)=>{
     if(mode==='DEMO')return {items:(demoOptions() as Array<Record<string,unknown>>).map(item=>({...item,academyEvaluation:{status:'INSUFFICIENT_DATA',referenceStatus:'NONE',reference:null,askCents:null,distancePercent:null,quoteReceivedAtUtc:null,reason:'DEMO usa contratos sintéticos; no se comparan con referencias documentales'}})),errors:[],source:'DEMO sintético'};
     if(mode!=='PAPER'||!hub.status().connected)return {items:[],errors:[],source:'IBKR desconectado'};
@@ -114,18 +159,25 @@ export function registerOptionRoutes(app:FastifyInstance,hub:AgentHub,mode:'DEMO
     const query=parsed.data;
     let params:OptionParameter[];
     try{params=await parameters();}catch(error){return unavailable(reply,error);}
-    const selectedExpiration=query.expiration??params.flatMap(p=>p.expirations).sort()[0]??null;
+    const today=nyDateKey();
+    const selectedExpiration=query.expiration??params.flatMap(p=>p.expirations).filter(day=>day>=today).sort()[0]??null;
     if(!selectedExpiration)return {items:[],errors:[],source:'IBKR sin vencimientos',selectionRequired:false};
     const all=availableStrikes(params,selectedExpiration,query.minPrice,query.maxPrice);
-    const quote=hub.latestQuote('NVDA') as {last?:unknown;receivedAtUtc?:unknown;feedType?:unknown}|null;
-    const marketReference=quoteReference(quote);
-    const reference=query.centerStrike??marketReference;
+    const quote=hub.latestQuote('NVDA') as {last?:unknown;receivedAtUtc?:unknown;feedType?:unknown;provider?:unknown}|null;
+    const marketReference=hub.status().simulation?null:quoteReference(quote);
+    let iexReference:number|null=null,iexSnapshot:Record<string,unknown>|null=null;
+    if(query.centerStrike===undefined&&marketReference===null){
+      try{const response=await app.inject({method:'GET',url:'/api/v1/market/live-technical-context'});
+        if(response.statusCode===200){const snapshot=response.json() as Record<string,unknown>;
+          iexReference=iexBarReference(snapshot);if(iexReference!==null)iexSnapshot=snapshot;}}catch{/* No verified IEX reference. */}
+    }
+    const reference=query.centerStrike??marketReference??iexReference;
     const strikes=reference!==null?selectContractStrikes(all,query.limit,reference):
       query.minPrice!==undefined||query.maxPrice!==undefined?all.slice(0,query.limit):[];
     const selectionRequired=strikes.length===0&&all.length>0&&reference===null&&
       query.minPrice===undefined&&query.maxPrice===undefined;
     const referenceSource=query.centerStrike!==undefined?'MANUAL_STRIKE':marketReference!==null?
-      `IBKR_${String(quote?.feedType??'UNKNOWN')}`:query.minPrice!==undefined||query.maxPrice!==undefined?'MANUAL_RANGE_ASCENDING':'NONE';
+      'IBKR_LAST_OBSERVED':iexReference!==null?'ALPACA_IEX_LAST_COMPLETE_BAR':query.minPrice!==undefined||query.maxPrice!==undefined?'MANUAL_RANGE_ASCENDING':'NONE';
     const items:Array<Record<string,unknown>>=[],errors:Issue[]=[];
     const academyReference=selectAcademyReference(academyRanges(sqlite,'NVDA'),new Date().toISOString(),query.right);
     const deadline=Date.now()+hub.optionPageTimeoutMs();
@@ -138,12 +190,10 @@ export function registerOptionRoutes(app:FastifyInstance,hub:AgentHub,mode:'DEMO
       if(!contract){
         try{
           const response=await hub.request('option.resolve',{expiration:selectedExpiration,right:query.right,strike},remaining);
-          contract=response.payload.contract as Record<string,unknown>|undefined;
-          if(!contract||!Number.isInteger(contract.conId)||Number(contract.conId)<=0||contract.symbol!=='NVDA'||
-            contract.right!==query.right||contract.expiration!==selectedExpiration||contract.strike!==strike||contract.multiplier!==100)
-            throw new AgentRequestError('INVALID_CONTRACT','contract_details',response.requestId??'');
+          contract=validateResolved(response.payload.contract,{right:query.right,expiration:selectedExpiration,strike},response.requestId??'');
           contractCache.set(cacheKey,{contract,until:Date.now()+60000,connectionId:hub.status().connectionId});
-        }catch(error){errors.push(issue(error,strike));continue;}
+        }catch(error){const fields=error&&typeof error==='object'&&'mismatchFields' in error?(error as {mismatchFields:string[]}).mismatchFields:null;
+          errors.push({...issue(error,strike),...(fields?{mismatchFields:fields,message:`Definición incompatible: ${fields.join(', ')}.`}:{})});continue;}
       }
       let subscribeError:Issue|null=null;
       try{await hub.subscribe({conId:contract.conId,expiration:selectedExpiration,right:query.right,strike},query.consumerId,
@@ -152,7 +202,8 @@ export function registerOptionRoutes(app:FastifyInstance,hub:AgentHub,mode:'DEMO
       const received=hub.latestQuote(String(contract.conId)) as {receivedAtUtc?:string;marketTimestampUtc?:string;bid?:number|null;ask?:number|null;feedType?:string;marketDataStatus?:string;ibkrErrorCode?:number;provider?:string}|null;
       const stale=!!received&&(!received.receivedAtUtc||Date.now()-Date.parse(received.receivedAtUtc)>30000);
       const noBidAsk=!received||received.bid==null&&received.ask==null;
-      const academyEvaluation=evaluateAcademyAskRange(academyReference,received,Date.now(),String(contract.currency??'USD'),Number(contract.multiplier??100));
+      const evaluatedQuote=received&&hub.status().simulation?{...received,provider:'PAPER SIMULADO'}:received;
+      const academyEvaluation=evaluateAcademyAskRange(academyReference,evaluatedQuote,Date.now(),String(contract.currency??'USD'),Number(contract.multiplier??100));
       items.push({...contract,...(received??{}),academyEvaluation,spread:spread(received?.bid??null,received?.ask??null),
         dataStatus:subscribeError?subscribeError.code==='PERMISSION'?'permisos_insuficientes':'suscripcion_fallida':
           !received?'cotizacion_pendiente':stale?'obsoleto':received.marketDataStatus==='permission_denied'?'permisos_insuficientes':
@@ -161,7 +212,10 @@ export function registerOptionRoutes(app:FastifyInstance,hub:AgentHub,mode:'DEMO
         provider:hub.status().simulation?'PAPER SIMULADO':'IBKR'});
     }
     return {items,errors,source:hub.status().simulation?'Agente simulado':'IBKR Paper',
-      expiration:selectedExpiration,selectionRequired,referenceSource,strikeCount:all.length};
+      expiration:selectedExpiration,selectionRequired,referenceSource,referencePrice:reference,
+      referenceObservedAtUtc:query.centerStrike!==undefined?null:marketReference!==null?quote?.receivedAtUtc??null:iexSnapshot?.barEndUtc??null,
+      referenceReceivedAtUtc:query.centerStrike!==undefined?null:marketReference!==null?quote?.receivedAtUtc??null:iexSnapshot?.receivedAtUtc??null,
+      strikeCount:all.length};
   });
   /** Bounded background inspection for 41O. Reuses parameters and the same contract cache. */
   const inspectOpportunity=async(right:'CALL'|'PUT',referencePrice:number,count:number,consumerId:string)=>{

@@ -12,9 +12,21 @@ export function selectContractStrikes(strikes:number[],count:number,reference:nu
     .slice(0,count).sort((a,b)=>a-b);
 }
 
-export function quoteReference(quote:{last?:unknown;receivedAtUtc?:unknown;marketDataStatus?:unknown}|null,now=Date.now()){
+export function quoteReference(quote:{last?:unknown;receivedAtUtc?:unknown;marketDataStatus?:unknown;feedType?:unknown;provider?:unknown}|null,now=Date.now()){
   const price=quote?.last,received=quote?.receivedAtUtc;
   return quote?.marketDataStatus!=='permission_denied'&&quote?.marketDataStatus!=='unavailable'&&
+    quote?.provider==='IBKR'&&quote.feedType==='LIVE'&&
     typeof price==='number'&&Number.isFinite(price)&&price>0&&
     typeof received==='string'&&now-Date.parse(received)>=0&&now-Date.parse(received)<=30000?price:null;
+}
+
+export function iexBarReference(snapshot:unknown,now=Date.now()){
+  const s=snapshot&&typeof snapshot==='object'?snapshot as Record<string,unknown>:{};
+  const received=typeof s.receivedAtUtc==='string'?Date.parse(s.receivedAtUtc):NaN;
+  const end=typeof s.barEndUtc==='string'?Date.parse(s.barEndUtc):NaN;
+  return (s.state==='CURRENT'||s.state==='PARTIAL')&&s.source==='Alpaca IEX Live'&&s.feed==='iex'&&
+    s.collectorProcessStatus==='ACTIVE'&&s.collectorStatus==='SUBSCRIBED'&&
+    typeof s.close==='number'&&Number.isFinite(s.close)&&s.close>0&&
+    Number.isFinite(received)&&now-received>=0&&now-received<=15*60000&&
+    Number.isFinite(end)&&received>=end&&now-end<=30*60000?s.close:null;
 }
