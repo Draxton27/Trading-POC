@@ -7,7 +7,7 @@ test('DEMO registra entrada y salida hipotéticas sin consultar órdenes ni ejec
   });
   await page.goto('/');
   await page.getByRole('button',{name:'Opciones'}).click();
-  await page.getByRole('checkbox',{name:'Comparar contrato 90000'}).check();
+  await page.getByRole('button',{name:'Ver análisis'}).first().click();
   const panel=page.locator('.option-analysis');
   await expect(panel.getByRole('button',{name:'Registrar entrada simulada'})).toBeVisible();
   await panel.getByRole('button',{name:'Registrar entrada simulada'}).click();

@@ -16,7 +16,7 @@ export default function OptionAnalysisPanel({row,conId,nowMs}:{row:Record<string
   const analysis=row?analyzeComparisonRow(row,{quantity:Number(quantity),capitalUsd:optionalNumberInput(capital),
     entryFeePerContractUsd:optionalNumberInput(entryFee),expirationFeePerContractUsd:optionalNumberInput(expirationFee),
     hypotheticalUnderlyingAtExpirationUsd:optionalNumberInput(underlying),asOfUtc:new Date(nowMs).toISOString()}):null;
-  return <Card className="option-analysis"><h3>Análisis de contrato largo</h3>
+  return <Card className="option-analysis"><span className="eyebrow">DETALLE DEL CONTRATO</span><h3>{analysis?.identity.right??'Contrato'} NVDA · strike {price(analysis?.identity.strike??null)}</h3>
     <p>Ejercicio local e hipotético de compra para abrir. No consulta saldos, no envía órdenes y no garantiza precios de ejecución.</p>
     {!row?<p className="subtle">{conId===null?'Seleccione un contrato para analizarlo.':`Consultando el contrato ${conId} o sin datos disponibles.`}</p>:<>
       <div className="option-analysis-form">
@@ -27,11 +27,8 @@ export default function OptionAnalysisPanel({row,conId,nowMs}:{row:Record<string
         <label>NVDA hipotético al vencimiento USD <input aria-label="Precio hipotético NVDA al vencimiento USD" type="number" min="0" step="0.01" value={underlying} onChange={e=>setUnderlying(e.target.value)} placeholder="Opcional"/></label>
       </div>
       {analysis?<>
-        <div className="option-analysis-meta"><strong>{analysis.identity.right??'N/D'} · conId {conId} · strike {price(analysis.identity.strike)}</strong>
+        <div className="option-analysis-meta"><strong>Vencimiento {analysis.expiration.expirationDate??'N/D'} · DTE {analysis.expiration.daysCalendar??'N/D'}</strong>
           <Badge tone={analysis.quote.status==='LIVE_RECENT'?'success':'warning'}>{optionQualityLabel[analysis.quote.status]}</Badge>
-          <span>Vencimiento: {analysis.expiration.expirationDate??'inválido'} · DTE {analysis.expiration.daysCalendar??'N/D'} · {analysis.expiration.status}</span>
-          <span>Proveedor: {analysis.quote.provider??'N/D'} · Feed: {analysis.quote.feedType}</span>
-          <span>Recepción: {analysis.quote.receivedAtUtc??'N/D'} · Hora de mercado: {analysis.quote.marketTimestampUtc??'N/D'}</span>
           <span>{analysis.quote.reason}</span></div>
         {analysis.contractIssues.length||analysis.inputIssues.length?<p role="alert" className="option-analysis-warning">{[...analysis.contractIssues,...analysis.inputIssues].join(' ')}</p>:null}
         <div className="option-analysis-grid">
@@ -73,6 +70,16 @@ export default function OptionAnalysisPanel({row,conId,nowMs}:{row:Record<string
             <p>Fecha documental: {analysis.academy.referenceDate??'N/D'} · Vigencia declarada: {analysis.academy.validFrom??'N/D'} a {analysis.academy.validTo??'N/D'} · Estado ASK: {analysis.academy.status}.</p></>:<p>Sin referencia documental evaluable en la respuesta actual.</p>}
           <small>Estos valores son primas ASK por acción según interpretación del operador; no son rangos del precio de NVDA ni recomendaciones vigentes.</small>
         </section>
+        <details className="option-analysis-advanced"><summary>Detalles avanzados</summary><dl>
+          <dt>conId</dt><dd>{conId??'N/D'}</dd><dt>OCC symbol</dt><dd>{analysis.identity.occSymbol??'N/D'}</dd>
+          <dt>Multiplicador</dt><dd>{analysis.identity.multiplier??'N/D'}</dd>
+          <dt>Proveedor / feed</dt><dd>{analysis.quote.provider??'N/D'} / {analysis.quote.feedType}</dd>
+          <dt>Recepción</dt><dd>{analysis.quote.receivedAtUtc??'N/D'}</dd>
+          <dt>Timestamp de mercado</dt><dd>{analysis.quote.marketTimestampUtc??'N/D'}</dd>
+          <dt>BID / ASK sizes</dt><dd>{analysis.quote.bidSize??'N/D'} / {analysis.quote.askSize??'N/D'}</dd>
+          <dt>Delta / Gamma</dt><dd>{String(row.delta??'N/D')} / {String(row.gamma??'N/D')}</dd>
+          <dt>Theta / Vega / IV</dt><dd>{String(row.theta??'N/D')} / {String(row.vega??'N/D')} / {String(row.impliedVolatility??'N/D')}</dd>
+          <dt>Permisos</dt><dd>{String(row.permissions??'N/D')}</dd></dl></details>
         <ul className="option-analysis-limitations">{analysis.limitations.map(text=><li key={text}>{text}</li>)}</ul>
         <SimulatorOpenForm row={row}/>
       </>:null}

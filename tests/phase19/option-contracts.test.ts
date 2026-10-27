@@ -89,7 +89,7 @@ describe('API de contratos Paper simulados',()=>{
   it('conserva un contrato por conId con consumidor separado y sin inventar cotizaciones',async()=>{
     const {app,hub,token}=await fixture();
     vi.spyOn(hub,'request').mockImplementation(async(kind,payload)=>kind==='option.parameters'?response(kind,{items:parameters}) as any:
-      response(kind,{contract:{conId:1150,symbol:'NVDA',right:'CALL',expiration:'20261023',strike:Number(payload.strike),multiplier:100}}) as any);
+      response(kind,{contract:{conId:1150,symbol:'NVDA',secType:'OPT',currency:'USD',tradingClass:'NVDA',right:'CALL',expiration:'20261023',strike:Number(payload.strike),multiplier:100}}) as any);
     const subscribe=vi.spyOn(hub,'subscribe').mockResolvedValue(undefined);
     const chainConsumer=randomUUID(),comparisonConsumer=randomUUID();
     await app.inject(`/api/v1/options/contracts?expiration=20261023&centerStrike=150&limit=1&consumerId=${chainConsumer}`);
@@ -118,7 +118,7 @@ describe('API de contratos Paper simulados',()=>{
         resolved++;const strike=Number(payload.strike);
         if(strike===151)throw new AgentRequestError('NOT_FOUND','contract_details','req-151',200);
         return response(kind,{contract:{conId:1000+strike,symbol:'NVDA',secType:'OPT',right:'CALL',
-          expiration:'20261023',strike,multiplier:100,localSymbol:null,currency:'USD',exchange:'SMART'}}) as any;
+          expiration:'20261023',strike,multiplier:100,localSymbol:null,currency:'USD',tradingClass:'NVDA',exchange:'SMART'}}) as any;
       }
       throw Error('unexpected');
     });
@@ -133,11 +133,40 @@ describe('API de contratos Paper simulados',()=>{
   it('informa permisos de cotización sin perder el contrato resuelto',async()=>{
     const {app,hub}=await fixture();
     vi.spyOn(hub,'request').mockImplementation(async(kind,payload)=>kind==='option.parameters'?response(kind,{items:parameters}) as any:
-      response(kind,{contract:{conId:1150,symbol:'NVDA',right:'CALL',expiration:'20261023',strike:Number(payload.strike),multiplier:100}}) as any);
+      response(kind,{contract:{conId:1150,symbol:'NVDA',secType:'OPT',currency:'USD',tradingClass:'NVDA',right:'CALL',expiration:'20261023',strike:Number(payload.strike),multiplier:100}}) as any);
     vi.spyOn(hub,'subscribe').mockRejectedValue(new AgentRequestError('PERMISSION','market_data','subscription',354));
     const result=await app.inject(`/api/v1/options/contracts?expiration=20261023&right=CALL&centerStrike=150&limit=1&consumerId=${randomUUID()}`);
     expect(result.statusCode).toBe(200);
     expect(result.json().items[0].dataStatus).toBe('permisos_insuficientes');
     expect(result.json().errors).toMatchObject([{code:'PERMISSION',ibkrCode:354}]);
+  });
+  it('valida cinco definiciones por campo, conserva cuatro y refresca quotes sin nuevas suscripciones',async()=>{
+    const {app,hub}=await fixture();
+    const resolve=vi.spyOn(hub,'request').mockImplementation(async(kind,payload)=>kind==='option.parameters'?
+      response(kind,{items:parameters}) as any:response(kind,{contract:{conId:1000+Number(payload.strike),
+        symbol:'NVDA',secType:'OPT',currency:'USD',tradingClass:'NVDA',right:'C',
+        expiration:Number(payload.strike)===149?'20261030':'20261023 16:00:00',
+        strike:String(payload.strike),multiplier:'100',twsRequestId:77}}) as any);
+    const subscribe=vi.spyOn(hub,'subscribe').mockResolvedValue(undefined);
+    const consumerId=randomUUID();
+    const first=await app.inject(`/api/v1/options/contracts?expiration=20261023&centerStrike=150&limit=5&consumerId=${consumerId}`);
+    expect(first.statusCode).toBe(200);
+    const body=first.json();
+    expect(body.items).toHaveLength(4);
+    expect(body.errors).toMatchObject([{strike:149,code:'INVALID_CONTRACT',mismatchFields:['expiration']}]);
+    expect(subscribe).toHaveBeenCalledTimes(4);
+    const calls=resolve.mock.calls.length;
+    const quote=await app.inject('/api/v1/options/quotes?conIds='+body.items.map((item:any)=>item.conId).join(','));
+    expect(quote.statusCode).toBe(200);expect(quote.json().items).toHaveLength(4);
+    expect(quote.json().items.every((item:any)=>item.dataStatus==='cotizacion_pendiente')).toBe(true);
+    expect(resolve).toHaveBeenCalledTimes(calls);expect(subscribe).toHaveBeenCalledTimes(4);
+    vi.spyOn(hub,'latestQuote').mockImplementation(key=>key==='1148'?{conId:1148,provider:'IBKR',feedType:'DELAYED',
+      receivedAtUtc:new Date().toISOString(),marketTimestampUtc:null,bid:2,ask:2.2} as any:null);
+    const updated=await app.inject('/api/v1/options/quotes?conIds=1148');
+    expect(updated.json().items[0]).toMatchObject({conId:1148,bid:2,ask:2.2,feedType:'DELAYED'});
+    expect(subscribe).toHaveBeenCalledTimes(4);
+    const second=await app.inject(`/api/v1/options/contracts?expiration=20261023&centerStrike=150&limit=5&consumerId=${consumerId}`);
+    expect(second.json().items).toHaveLength(4);
+    expect(resolve).toHaveBeenCalledTimes(calls+1); // Only the mismatching definition is retried.
   });
 });

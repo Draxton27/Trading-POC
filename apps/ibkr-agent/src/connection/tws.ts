@@ -8,7 +8,8 @@ import {TickBook} from './tick-normalizer.ts';
 
 type Feed='LIVE'|'DELAYED'|'FROZEN'|'DELAYED_FROZEN'|'UNKNOWN';
 export {normalizeFeed} from './tick-normalizer.ts';
-const contract=(c:ResolvedContract):Contract=>({conId:c.conId,symbol:c.symbol,secType:c.secType==='STK'?SecType.STK:SecType.OPT,exchange:c.exchange,currency:c.currency});
+const contract=(c:ResolvedContract):Contract=>{if(c.secType==='UNKNOWN')throw new Error('Tipo de contrato no admitido');
+  return {conId:c.conId,symbol:c.symbol,secType:c.secType==='STK'?SecType.STK:SecType.OPT,exchange:c.exchange,currency:c.currency};};
 export class TwsRequestError extends Error {
   constructor(public readonly code:string,public readonly stage:string,public readonly twsRequestId:number,
     public readonly ibkrCode:number|null=null){super(code);this.name='TwsRequestError';}
@@ -84,7 +85,7 @@ export class TwsReadOnlyAdapter implements ReadOnlyBrokerAdapter {
         console.warn(JSON.stringify({component:'tws',stage:'contract_details',twsRequestId:id,ibkrCode:code}));
         reject(new TwsRequestError(classifyIbkrError(code,error.message),'contract_details',id,code));};
       const onEnd=(n:number)=>{if(n!==id)return;cleanup();if(rows.length!==1){reject(new TwsRequestError(rows.length?'AMBIGUOUS':'NOT_FOUND','contract_details',id));return;}
-        const c=rows[0]!.contract;resolve({conId:c.conId!,symbol:c.symbol!,secType:c.secType===SecType.STK?'STK':'OPT',localSymbol:c.localSymbol??null,currency:c.currency??'USD',exchange:c.exchange??'SMART',right:c.right===OptionType.Call?'CALL':c.right===OptionType.Put?'PUT':null,strike:c.strike??null,expiration:c.lastTradeDateOrContractMonth??null,multiplier:c.multiplier??null});};
+        const c=rows[0]!.contract;resolve({conId:c.conId!,symbol:c.symbol!,secType:c.secType===SecType.STK?'STK':c.secType===SecType.OPT?'OPT':'UNKNOWN',localSymbol:c.localSymbol??null,currency:c.currency??'',exchange:c.exchange??'SMART',right:c.right===OptionType.Call?'CALL':c.right===OptionType.Put?'PUT':null,strike:c.strike??null,expiration:c.lastTradeDateOrContractMonth??null,multiplier:c.multiplier??null,tradingClass:c.tradingClass??null,twsRequestId:id});};
       const timer=setTimeout(()=>{cleanup();reject(new TwsRequestError('TIMEOUT','contract_details',id));},this.budgets.detailsMs);
       this.bus.on(EventName.contractDetails,onRow);this.bus.on(EventName.contractDetailsEnd,onEnd);this.bus.on(EventName.error,onError);
       try{this.api.reqContractDetails(id,query);}catch{cleanup();reject(new TwsRequestError('BROKER_ERROR','contract_details',id));}
