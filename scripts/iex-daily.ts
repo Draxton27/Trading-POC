@@ -7,6 +7,10 @@ import {fileURLToPath} from 'node:url';
 import {resolvePrivateDir} from '../apps/api/src/news/paths.ts';
 import {isIexProcessActive} from '../trading_poc_001_bollinger/src/phase38-iex-lock.ts';
 import {readIexLedger,type IexRecord} from '../trading_poc_001_bollinger/src/phase38-iex.ts';
+import {loadMarketCalendar} from '../trading_poc_001_bollinger/src/alpaca-calendar.ts';
+import {loadIexWarmup} from '../trading_poc_001_bollinger/src/phase38f-warmup.ts';
+import {OpportunityStore} from '../trading_poc_001_bollinger/src/phase41o-ledger.ts';
+import {observeIexOpportunities} from '../trading_poc_001_bollinger/src/phase41o-observer.ts';
 import {MAX_LIVE_AGE_MS,readIexObservations,type IexObservationRecord,type IexFrozen} from '../trading_poc_001_bollinger/src/phase38f-iex-observation.ts';
 import {appendPhase41iDecision,loadPhase41iActivation,phase41iProtocolDir,recordedPhase41iDecision,type EligibilityStatus} from '../trading_poc_001_bollinger/src/phase41i-prospective.ts';
 
@@ -83,6 +87,17 @@ export function createIexDaily(options:IexDailyOptions={}){
   const active=options.active??isIexProcessActive,readLedger=options.readLedger??readIexLedger,readObservations=options.readObservations??readIexObservations;
   const verifyModel=options.verifyModel??((bar:string)=>verifyIexDailyModel(env,bar));
   const startedAt=clock();
+  const opportunityStore=new OpportunityStore(env.TRADING_POC_OPPORTUNITY_LEDGER??
+    resolve(resolvePrivateDir({repoRoot:root,env}),'radar','opportunities.jsonl'));
+  const observeOpportunities=async()=>{
+    const calendarPath=env.TRADING_POC_IEX_CALENDAR??resolve(resolvePrivateDir({repoRoot:root,env}),'iex','calendar.json');
+    if(!existsSync(calendarPath))return;
+    const registry=env.TRADING_POC_IEX_WARMUP_REGISTRY;
+    await observeIexOpportunities({records:readLedger(ledger),calendar:loadMarketCalendar(calendarPath),
+      warmup:registry&&existsSync(registry)?loadIexWarmup(registry):undefined,
+      store:opportunityStore,nowUtc:iso(clock()),processStartedAtUtc:iso(startedAt),
+      feedActive:active(ledger)||owned!==null});
+  };
   const phase41iDir=phase41iProtocolDir(env);
   const auditSkip=(candidate:IexRecord|null,status:EligibilityStatus)=>{
     if(!candidate?.bar||Date.parse(candidate.receivedAtUtc)<startedAt)return;
@@ -139,6 +154,7 @@ export function createIexDaily(options:IexDailyOptions={}){
         if(!prediction)throw new Error('Decisión RECORDED sin predicción íntegra.');
         row.freshness=now-Date.parse(candidate!.receivedAtUtc)>MAX_LIVE_AGE_MS?'STALE':'FRESH';
         row.observationStatus='ALREADY_PRESENT';
+        try{await observeOpportunities();}catch{row.lastErrorCode='OPPORTUNITY_OBSERVATION_FAILED';}
         save(path,row);return row;
       }
       if(!candidate){row.freshness='NO_LIVE_DATA';row.observationStatus='NO_LIVE_DATA';}
@@ -146,10 +162,14 @@ export function createIexDaily(options:IexDailyOptions={}){
       else{
         row.freshness='FRESH';
         if(!collectorActive||['DISCONNECTED','OBSERVATION_ENDED','AUTH_FAILED','CONNECTION_LIMIT','SUBSCRIPTION_FAILED'].includes(lastFeed??'')){
-          row.observationStatus='FEED_DISCONNECTED';auditSkip(candidate,'FEED_DISCONNECTED');save(path,row);return row;
+          row.observationStatus='FEED_DISCONNECTED';auditSkip(candidate,'FEED_DISCONNECTED');
+          try{await observeOpportunities();}catch{row.lastErrorCode='OPPORTUNITY_OBSERVATION_FAILED';}
+          save(path,row);return row;
         }
         if(Date.parse(candidate.receivedAtUtc)<startedAt||Date.parse(candidate.receivedAtUtc)<disconnectedAt){
-          row.observationStatus='PREEXISTING_LIVE_DATA';save(path,row);return row;
+          row.observationStatus='PREEXISTING_LIVE_DATA';
+          try{await observeOpportunities();}catch{row.lastErrorCode='OPPORTUNITY_OBSERVATION_FAILED';}
+          save(path,row);return row;
         }
         const bar=candidate.bar!.startUtc;
         if(row.lastAttemptedBarStartUtc!==bar){row.lastAttemptedBarStartUtc=bar;row.attemptCount=0;row.retryAtUtc=null;}
@@ -171,6 +191,7 @@ export function createIexDaily(options:IexDailyOptions={}){
         }
       }
     }catch{row.lastErrorCode='IEX_LEDGER_OR_CALENDAR_INVALID';row.observationStatus='ERROR';}
+    try{await observeOpportunities();}catch{row.lastErrorCode='OPPORTUNITY_OBSERVATION_FAILED';}
     save(path,row);return row;
   };
   const stop=async()=>{

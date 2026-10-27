@@ -5,13 +5,14 @@ import {api,dateTime} from '../../lib/api.ts';
 import {Badge,Card,SectionTitle} from '../../components/ui.tsx';
 import TechnicalStructure from './TechnicalStructure.tsx';
 import InvestepScenarios from './InvestepScenarios.tsx';
+import OpportunityRadar,{type OpportunityContractTarget} from './OpportunityRadar.tsx';
 
 const price=(value:number|null)=>value===null?'N/D':`$${value.toFixed(2)}`;
 const percent=(value:number|null)=>value===null?'N/D':`${value.toFixed(2)} %`;
 const probability=(value:number|undefined)=>value===undefined?'N/D':`${(value*100).toFixed(1)} %`;
 const cents=(value:number|null)=>value===null?'N/D':`$${(value/100).toFixed(2)}`;
 
-export default function RadarView(){
+export default function RadarView({onNavigate}:{onNavigate?:(view:'Opciones'|'Simulador Paper',target?:OpportunityContractTarget)=>void}){
   const [right,setRight]=useState<''|'CALL'|'PUT'>('');
   const radar=useQuery<RadarResponse>({queryKey:['radar',right],queryFn:()=>api(`/radar${right?`?right=${right}`:''}`),refetchInterval:60_000});
   return <div className="content-page"><SectionTitle eyebrow="INVESTIGACIÓN DESCRIPTIVA" title="Radar de Mercado" aside={<Badge tone="warning">Solo lectura</Badge>}/>
@@ -42,6 +43,7 @@ export default function RadarView(){
       <Card role="note">{radar.data.note} El movimiento del subyacente no representa rentabilidad de una opción.</Card>
     </>}
     <InvestepScenarios/>
+    <OpportunityRadar onNavigate={onNavigate}/>
     <TechnicalStructure/>
   </div>;
 }

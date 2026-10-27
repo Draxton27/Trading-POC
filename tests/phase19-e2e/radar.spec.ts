@@ -10,6 +10,17 @@ test('Radar DEMO distingue indicadores sintéticos y ausencia de probabilidades'
   await expect(page.getByText('ASK LIVE N/D').first()).toBeVisible();
 });
 
+test('Oportunidades Paper DEMO muestra CALL, PUT y ausencia de candidatos reales sin órdenes',async({page})=>{
+  await page.goto('/');await page.getByRole('button',{name:'Radar de Mercado'}).click();
+  const section=page.getByRole('region',{name:'Oportunidades Paper'});
+  await expect(section.getByRole('heading',{name:'Oportunidades Paper'})).toBeVisible();
+  await expect(section.getByText('CALL · TECHNICAL CANDIDATE',{exact:false})).toBeVisible();
+  await expect(section.getByText('PUT · TECHNICAL CANDIDATE',{exact:false})).toBeVisible();
+  await expect(section.getByText('Sin candidatos prospectivos actuales',{exact:false})).toBeVisible();
+  await expect(section.getByText('No son candidatos reales',{exact:false})).toBeVisible();
+  await expect(section.getByText('Comprar ahora')).toHaveCount(0);
+});
+
 test('escenarios Investep DEMO muestran fuente y filtros sin operación',async({page})=>{
   await page.goto('/');await page.getByRole('button',{name:'Radar de Mercado'}).click();
   const section=page.getByRole('region',{name:'Escenarios técnicos Investep'});
