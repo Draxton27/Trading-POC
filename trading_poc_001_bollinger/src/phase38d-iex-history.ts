@@ -12,7 +12,7 @@ export type IexMinute=Candle&{tradeCount:number};
 export type IexHttp=(url:URL,headers:Record<string,string>)=>Promise<Response>;
 const minuteMs=60_000,dayMs=86_400_000,sha=(value:string)=>createHash('sha256').update(value).digest('hex');
 const stamp=(time:number)=>new Date(time).toISOString();
-function marketMinuteUtc(date:string,minute:number){
+export function marketMinuteUtc(date:string,minute:number){
   const [year,month,day]=date.split('-').map(Number),hour=Math.floor(minute/60),mins=minute%60;
   const target=Date.UTC(year!,month!-1,day!,hour,mins);let candidate=target;
   const fmt=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});

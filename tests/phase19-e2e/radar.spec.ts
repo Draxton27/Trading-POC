@@ -10,6 +10,14 @@ test('Radar DEMO distingue indicadores sintéticos y ausencia de probabilidades'
   await expect(page.getByText('ASK LIVE N/D').first()).toBeVisible();
 });
 
+test('Radar separa IEX Live indisponible en DEMO del contexto SIP histórico',async({page})=>{
+  await page.goto('/');await page.getByRole('button',{name:'Radar de Mercado'}).click();
+  await expect(page.getByRole('heading',{name:'NVDA · análisis IEX Live'})).toBeVisible();
+  await expect(page.getByText('Estado DEMO',{exact:false})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Contexto histórico SIP · NVDA, QQQ y SMH'})).toBeVisible();
+  await expect(page.getByText('Una vela reciente no constituye una señal operativa.')).toBeVisible();
+});
+
 test('Oportunidades Paper DEMO muestra CALL, PUT y ausencia de candidatos reales sin órdenes',async({page})=>{
   await page.goto('/');await page.getByRole('button',{name:'Radar de Mercado'}).click();
   const section=page.getByRole('region',{name:'Oportunidades Paper'});

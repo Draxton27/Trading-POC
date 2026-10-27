@@ -4,11 +4,14 @@ import type {IexRecord} from './phase38-iex.ts';
 import type {IexWarmup} from './phase38f-warmup.ts';
 import {OpportunityStore} from './phase41o-ledger.ts';
 import {buildOpportunityCandidates,candidateStatus,firstCompleteOpportunityBars,prepareOpportunityTechnical} from './phase41o-opportunity-engine.ts';
+import {OPPORTUNITY_CONTEXT_RULE_VERSION} from './phase41o-opportunity-engine.ts';
+import {prepareOpportunityTechnicalV2} from './phase41p-live-engine.ts';
+import {warmupAsRestContext,type RestContext} from './phase41p-continuity.ts';
 
 const QUARTER=900_000;
 
 export async function observeIexOpportunities(input:{records:IexRecord[];calendar:MarketCalendar;warmup?:IexWarmup;
-  store:OpportunityStore;nowUtc:string;processStartedAtUtc:string;feedActive?:boolean}){
+  restContext?:RestContext;store:OpportunityStore;nowUtc:string;processStartedAtUtc:string;feedActive?:boolean}){
   const {records,calendar,warmup,store,nowUtc,processStartedAtUtc}=input;
   const first=firstCompleteOpportunityBars(records,nowUtc);
   const existing=await store.read();
@@ -28,11 +31,14 @@ export async function observeIexOpportunities(input:{records:IexRecord[];calenda
   }
   if(input.feedActive===false)return {status:'FEED_DISCONNECTED',reason:'El recolector IEX no está activo.',
     candidates:0,outcomes};
-  const prepared=prepareOpportunityTechnical(records,calendar,warmup,nowUtc);
+  const prepared=input.restContext?prepareOpportunityTechnicalV2(records,calendar,
+    [warmup&&warmupAsRestContext(warmup),input.restContext].filter(x=>x!==undefined),nowUtc):
+    prepareOpportunityTechnical(records,calendar,warmup,nowUtc);
   if(prepared.status!=='READY'||!prepared.last||Date.parse(prepared.last.receivedAtUtc)<Date.parse(processStartedAtUtc))
     return {status:prepared.status,reason:prepared.reason,candidates:0,outcomes};
   let candidates=0;
-  for(const candidate of buildOpportunityCandidates(prepared,nowUtc)){
+  for(const candidate of buildOpportunityCandidates(prepared,nowUtc,
+    input.restContext?OPPORTUNITY_CONTEXT_RULE_VERSION:undefined)){
     const prior=existing.find(row=>row.kind==='DETECTED'&&row.payload.candidateId===candidate.candidateId);
     if(prior&&prior.kind==='DETECTED'){
       const latest=existing.filter(row=>row.kind==='TECHNICAL_UPDATE'&&row.payload.candidateId===candidate.candidateId).at(-1);

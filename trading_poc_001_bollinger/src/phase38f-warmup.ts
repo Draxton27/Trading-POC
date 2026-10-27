@@ -8,9 +8,9 @@ import type {Candle} from './domain.ts';
 
 const sha=(value:Buffer|string)=>createHash('sha256').update(value).digest('hex');
 type Registry={schema:'phase38f-warmup-v1';sourceDir:string;registeredAtUtc:string;hashes:Record<string,string>};
-export type IexWarmup={candles:Candle[];calendar:MarketCalendar;registeredAtUtc:string;csvSha256:string};
+export type IexWarmup={candles:Candle[];calendar:MarketCalendar;registeredAtUtc:string;csvSha256:string;manifestSha256?:string};
 const NAMES=['query.json','calendar.json','strict-15m.csv','report.json','SHA256SUMS'] as const;
-function verified(sourceDir:string){
+export function verifyIexHistoricalRun(sourceDir:string){
   const sums=readFileSync(join(sourceDir,'SHA256SUMS'),'utf8').split(/\r?\n/).filter(Boolean),declared=new Map<string,string>();
   for(const line of sums){const match=/^([a-f0-9]{64})  ([^\\/]+(?:\/[^\\/]+)*)$/.exec(line);
     if(!match||match[2]!.split('/').includes('..')||declared.has(match[2]!))throw new Error('Manifiesto IEX histórico inválido.');declared.set(match[2]!,match[1]!);}
@@ -28,12 +28,13 @@ function verified(sourceDir:string){
   if(candles.length!==report.summary.strict15m)throw new Error('Conteo de histórico IEX incompatible.');
   for(const bar of candles){const start=Date.parse(bar.timestamp);
     if(![0,5,10].every(offset=>isCalendarBar(start+offset*60_000,calendar)))throw new Error('Calentamiento IEX fuera del calendario oficial.');}
-  return {calendar,candles};
+  return {calendar,candles,query,report,manifestSha256:sha(readFileSync(join(sourceDir,'SHA256SUMS'))),
+    csvSha256:declared.get('strict-15m.csv')!};
 }
 export function registerIexWarmup(source:string,out:string,clock:()=>string=()=>new Date().toISOString()){
   const sourceDir=resolve(source),registeredAtUtc=clock(),at=Date.parse(registeredAtUtc);
   if(!Number.isFinite(at)||new Date(at).toISOString()!==registeredAtUtc)throw new Error('Hora de registro inválida.');
-  const {candles}=verified(sourceDir);
+  const {candles}=verifyIexHistoricalRun(sourceDir);
   if(candles.some(bar=>Date.parse(bar.timestamp)+900_000>at))throw new Error('El histórico contiene velas posteriores al registro.');
   const hashes=Object.fromEntries(NAMES.map(name=>[name,sha(readFileSync(join(sourceDir,name)))]));
   const registry:Registry={schema:'phase38f-warmup-v1',sourceDir,registeredAtUtc,hashes};
@@ -45,6 +46,7 @@ export function loadIexWarmup(path:string):IexWarmup{
   const row=JSON.parse(readFileSync(path,'utf8')) as Registry;
   if(row.schema!=='phase38f-warmup-v1'||!row.sourceDir||!row.registeredAtUtc||!row.hashes)throw new Error('Registro de calentamiento incompatible.');
   for(const name of NAMES)if(row.hashes[name]!==sha(readFileSync(join(row.sourceDir,name))))throw new Error('Snapshot IEX modificado tras registro.');
-  const source=verified(row.sourceDir);
-  return {...source,registeredAtUtc:row.registeredAtUtc,csvSha256:row.hashes['strict-15m.csv']!};
+  const source=verifyIexHistoricalRun(row.sourceDir);
+  return {candles:source.candles,calendar:source.calendar,registeredAtUtc:row.registeredAtUtc,
+    csvSha256:row.hashes['strict-15m.csv']!,manifestSha256:source.manifestSha256};
 }
