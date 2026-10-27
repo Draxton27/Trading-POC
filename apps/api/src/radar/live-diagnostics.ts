@@ -19,7 +19,7 @@ export const liveDiagnosticPaths=(privateDir:string,env:NodeJS.ProcessEnv=proces
   opportunities:env.TRADING_POC_OPPORTUNITY_LEDGER??resolve(privateDir,'radar','opportunities.jsonl')});
 
 export function registerLiveDiagnostics(app:FastifyInstance,options:{mode:Mode;paths:LiveDiagnosticPaths;
-  broker:()=>{connected:boolean;simulation:boolean};clock?:()=>number}){
+  broker:()=>{connected:boolean;simulation:boolean};clock?:()=>number;collectorActive?:()=>boolean}){
   const {mode,paths}=options,clock=options.clock??Date.now;
   const read=async()=>{
     if(mode==='DEMO')return {state:'DEMO' as const,reason:'Fixtures sintéticas; sin IEX Live ni IBKR real.'};
@@ -31,14 +31,15 @@ export function registerLiveDiagnostics(app:FastifyInstance,options:{mode:Mode;p
     if(paths.context){if(!existsSync(paths.context))return {state:'INVALID_SOURCE' as const,reason:'CONTEXT_REGISTRY_ABSENT'};
       rest.push(loadIexRestContext(paths.context));}
     const opportunityRows=await new OpportunityStore(paths.opportunities).read();
+    const collectorProcess=options.collectorActive?.()??isIexProcessActive(paths.ledger);
     const audit=diagnoseOpportunityContinuity({records,calendar,rest,nowUtc:new Date(clock()).toISOString(),
-      collectorActive:isIexProcessActive(paths.ledger),candidateRecords:opportunityRows});
+      collectorActive:collectorProcess,candidateRecords:opportunityRows});
     const latest=records.filter(row=>row.kind==='quarter'&&row.status==='COMPLETE'&&row.bar&&
       row.bar.startUtc===audit.live.lastBarStartUtc).find(row=>row.revision===1)??null;
     const age=latest?(clock()-Date.parse(latest.receivedAtUtc))/60_000:null;
     const state=audit.code==='CALENDAR_INCOMPATIBLE'||audit.code==='SOURCE_INCOMPATIBLE'?'INVALID_SOURCE':
       latest===null?(audit.rest.bars>0?'HISTORICAL_ONLY':'INSUFFICIENT_DATA'):
-      audit.live.feedStatus!=='SUBSCRIBED'?'FEED_DISCONNECTED':age!==null&&age>15?'STALE':
+      !collectorProcess?'FEED_DISCONNECTED':audit.live.feedStatus!=='SUBSCRIBED'?'FEED_DISCONNECTED':age!==null&&age>15?'STALE':
       audit.indicators.timeframes['15m'].smas[200].value===null||
       audit.indicators.timeframes['1h'].smas[200].value===null||
       audit.indicators.timeframes['1d'].smas[200].value===null?'PARTIAL':'CURRENT';
@@ -54,6 +55,7 @@ export function registerLiveDiagnostics(app:FastifyInstance,options:{mode:Mode;p
       barStartUtc:latest?.bar?.startUtc??null,barEndUtc:latest?.bar?.endUtc??null,
       receivedAtUtc:latest?.receivedAtUtc??null,registeredAtUtc:null,
       dataKnownAtUtc:latest?.receivedAtUtc??null,close:latest?.bar?.close??null,ageMinutes:age,
+      collectorProcessStatus:collectorProcess?'ACTIVE':'INACTIVE',
       collectorStatus:audit.live.feedStatus,broker:{connected:mode==='PAPER'&&options.broker().connected,
         simulation:options.broker().simulation},
       continuity:audit,abstentions:{detected:audit.candidate.detectedCount,byTechnicalStatus:counts,
