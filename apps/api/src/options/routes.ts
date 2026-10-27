@@ -70,6 +70,10 @@ export function registerOptionRoutes(app:FastifyInstance,hub:AgentHub,mode:'DEMO
       mismatchFields:result.mismatchFields});
     throw Object.assign(new AgentRequestError('INVALID_CONTRACT','contract_details',requestId),{mismatchFields:result.mismatchFields});
   };
+  const resolutionIssue=(error:unknown,strike:number):Issue=>{
+    const fields=error&&typeof error==='object'&&'mismatchFields' in error?(error as {mismatchFields:string[]}).mismatchFields:null;
+    return {...issue(error,strike),...(fields?{mismatchFields:fields,message:`Definición incompatible: ${fields.join(', ')}.`}:{})};
+  };
 
   app.get('/api/v1/options/expirations',async(_req,reply)=>{
     if(mode==='DEMO')return {items:['2027-01-15'],source:'DEMO sintético'};
@@ -192,8 +196,7 @@ export function registerOptionRoutes(app:FastifyInstance,hub:AgentHub,mode:'DEMO
           const response=await hub.request('option.resolve',{expiration:selectedExpiration,right:query.right,strike},remaining);
           contract=validateResolved(response.payload.contract,{right:query.right,expiration:selectedExpiration,strike},response.requestId??'');
           contractCache.set(cacheKey,{contract,until:Date.now()+60000,connectionId:hub.status().connectionId});
-        }catch(error){const fields=error&&typeof error==='object'&&'mismatchFields' in error?(error as {mismatchFields:string[]}).mismatchFields:null;
-          errors.push({...issue(error,strike),...(fields?{mismatchFields:fields,message:`Definición incompatible: ${fields.join(', ')}.`}:{})});continue;}
+        }catch(error){errors.push(resolutionIssue(error,strike));continue;}
       }
       let subscribeError:Issue|null=null;
       try{await hub.subscribe({conId:contract.conId,expiration:selectedExpiration,right:query.right,strike},query.consumerId,
@@ -220,9 +223,7 @@ export function registerOptionRoutes(app:FastifyInstance,hub:AgentHub,mode:'DEMO
   /** Bounded background inspection for 41O. Reuses parameters and the same contract cache. */
   const inspectOpportunity=async(right:'CALL'|'PUT',referencePrice:number,count:number,consumerId:string)=>{
     if(mode!=='PAPER'||!hub.status().connected)return {items:[],errors:[issue(new AgentRequestError('DISCONNECTED','backend',''))]};
-    const params=await parameters(),parts=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
-    const part=(type:string)=>parts.find(item=>item.type===type)?.value??'';
-    const today=`${part('year')}${part('month')}${part('day')}`;
+    const params=await parameters(),today=nyDateKey();
     const selectedExpiration=[...new Set(params.flatMap(p=>p.expirations))].filter(day=>day>=today).sort()[0];
     if(!selectedExpiration)return {items:[],errors:[]};
     const strikes=selectContractStrikes(availableStrikes(params,selectedExpiration),Math.min(Math.max(count,1),4),referencePrice);
@@ -234,13 +235,10 @@ export function registerOptionRoutes(app:FastifyInstance,hub:AgentHub,mode:'DEMO
       let contract=cached&&cached.until>Date.now()&&cached.connectionId===hub.status().connectionId?cached.contract:undefined;
       try{
         if(!contract){const response=await hub.request('option.resolve',{expiration:selectedExpiration,right,strike},remaining);
-          contract=response.payload.contract as Record<string,unknown>|undefined;
-          if(!contract||!Number.isSafeInteger(contract.conId)||Number(contract.conId)<=0||contract.symbol!=='NVDA'||
-            contract.right!==right||contract.expiration!==selectedExpiration||contract.strike!==strike||contract.multiplier!==100)
-            throw new AgentRequestError('INVALID_CONTRACT','contract_details',response.requestId??'');
+          contract=validateResolved(response.payload.contract,{right,expiration:selectedExpiration,strike},response.requestId??'');
           contractCache.set(cacheKey,{contract,until:Date.now()+60000,connectionId:hub.status().connectionId});
         }
-      }catch(error){errors.push(issue(error,strike));continue;}
+      }catch(error){errors.push(resolutionIssue(error,strike));continue;}
       let subscribeError:Issue|null=null;
       try{
         await hub.subscribe({conId:contract.conId,expiration:selectedExpiration,right,strike},consumerId,Math.max(1000,deadline-Date.now()));

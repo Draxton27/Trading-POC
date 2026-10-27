@@ -67,9 +67,12 @@ export default function OptionsView({mode,consumerId,initialContract}:{mode:stri
   const [centerStrike,setCenterStrike]=useState(''),[allStrikes,setAllStrikes]=useState(false),[offset,setOffset]=useState(0);
   const [draftMin,setDraftMin]=useState(''),[draftMax,setDraftMax]=useState(''),[range,setRange]=useState({min:'',max:''});
   const [now,setNow]=useState(Date.now()),[selected,setSelected]=useState<number[]>([]),[selectedRows,setSelectedRows]=useState<Record<number,ContractRow>>({});
-  const [analysisConId,setAnalysisConId]=useState<number|null>(null);
+  const [analysisConId,setAnalysisConId]=useState<number|null>(null),[analysisPinned,setAnalysisPinned]=useState(false);
   useEffect(()=>{if(!initialContract)return;setRight(initialContract.right);setExpiration(initialContract.expiration);
-    setCenterStrike(String(initialContract.strike));setAnalysisConId(initialContract.conId);},[initialContract]);
+    setCenterStrike(String(initialContract.strike));setAnalysisConId(initialContract.conId);setAnalysisPinned(false);},[initialContract]);
+  const changeRight=(next:'CALL'|'PUT')=>{if(next===right)return;setRight(next);setAnalysisConId(null);setAnalysisPinned(false);};
+  const changeExpiration=(next:string)=>{if(next===chosen)return;setExpiration(next);setCenterStrike('');setOffset(0);
+    setAnalysisConId(null);setAnalysisPinned(false);};
   useEffect(()=>{const timer=setInterval(()=>setNow(Date.now()),5000);return ()=>clearInterval(timer);},[]);
   const updateComparison=useCallback((conId:number,row:ContractRow|null)=>setSelectedRows(previous=>{
     if(!row){if(!(conId in previous))return previous;const next={...previous};delete next[conId];return next;}
@@ -103,7 +106,7 @@ export default function OptionsView({mode,consumerId,initialContract}:{mode:stri
   return <div className="content-page options-page">
     <header className="options-hero"><div><span className="eyebrow">NVDA · {mode==='DEMO'?'DEMO SINTÉTICO':'IBKR PAPER'}</span><h1>Cadena de opciones</h1>
       <p>Explore contratos y riesgo hipotético. Sin órdenes ni precios de ejecución garantizados.</p></div>
-      <div className="options-observed"><span>SUBYACENTE OBSERVADO</span><strong>{dollars(q.data?.referencePrice)}</strong>
+      <div className="options-observed"><span>{q.data?.referenceSource==='MANUAL_STRIKE'?'STRIKE DE REFERENCIA MANUAL':'SUBYACENTE OBSERVADO'}</span><strong>{dollars(q.data?.referencePrice)}</strong>
         <small>{referenceLabels[q.data?.referenceSource??'NONE']??'Sin referencia actual verificable'}</small>
         {q.data?.referenceObservedAtUtc?<small>Observado: {dateTime(q.data.referenceObservedAtUtc)}</small>:null}
         {q.data?.referenceReceivedAtUtc?<small>Recibido: {dateTime(q.data.referenceReceivedAtUtc)}</small>:null}
@@ -111,9 +114,9 @@ export default function OptionsView({mode,consumerId,initialContract}:{mode:stri
     <Card className="options-chain"><div className="options-chain-head"><div><span className="eyebrow">EXPLORAR CONTRATOS</span>
       <h2>{right} · {chosen||'Vencimiento pendiente'}</h2></div><Badge tone={mode==='DEMO'?'warning':'info'}>{mode}</Badge></div>
       <div className="options-primary-controls"><div className="segmented" role="group" aria-label="Tipo de opción">
-        <button type="button" aria-pressed={right==='CALL'} className={right==='CALL'?'selected':''} onClick={()=>setRight('CALL')}>CALL</button>
-        <button type="button" aria-pressed={right==='PUT'} className={right==='PUT'?'selected':''} onClick={()=>setRight('PUT')}>PUT</button></div>
-        <label>Vencimiento <select aria-label="Vencimiento" value={chosen} onChange={event=>{setExpiration(event.target.value);setCenterStrike('');setOffset(0);}}>
+        <button type="button" aria-pressed={right==='CALL'} className={right==='CALL'?'selected':''} onClick={()=>changeRight('CALL')}>CALL</button>
+        <button type="button" aria-pressed={right==='PUT'} className={right==='PUT'?'selected':''} onClick={()=>changeRight('PUT')}>PUT</button></div>
+        <label>Vencimiento <select aria-label="Vencimiento" value={chosen} onChange={event=>changeExpiration(event.target.value)}>
           {(expirations.data?.items??[]).map(value=><option value={value} key={value}>{value}</option>)}</select></label>
         {mode==='PAPER'?<div className="segmented" role="group" aria-label="Vista de strikes">
           <button type="button" aria-pressed={!allStrikes} className={!allStrikes?'selected':''} onClick={()=>setAllStrikes(false)}>Strikes cercanos</button>
@@ -144,7 +147,7 @@ export default function OptionsView({mode,consumerId,initialContract}:{mode:stri
             <td className="num">{dollars(analysis.premium.grossPremiumUsd)}<small>×{row.multiplier??'N/D'} acciones</small></td>
             <td>{row.expiration??'N/D'}</td><td><Badge tone={stale||analysis.quote.status!=='LIVE_RECENT'?'warning':'success'}>
               {stale?'Obsoleta':optionQualityLabel[analysis.quote.status]}</Badge><small>{mode==='DEMO'?'Datos sintéticos':labels[row.dataStatus]??row.dataStatus??'N/D'}</small></td>
-            <td><div className="options-actions"><Button variant="secondary" onClick={()=>setAnalysisConId(row.conId)}>Ver análisis</Button>
+            <td><div className="options-actions"><Button variant="secondary" onClick={()=>{setAnalysisConId(row.conId);setAnalysisPinned(false);}}>Ver análisis</Button>
               <Button variant="ghost" disabled={!selected.includes(row.conId)&&selected.length>=4}
                 onClick={()=>setSelected(ids=>toggleComparison(ids,row.conId))}>
                 {selected.includes(row.conId)?'Quitar':'Comparar'}</Button></div></td></tr>;})
@@ -163,13 +166,14 @@ export default function OptionsView({mode,consumerId,initialContract}:{mode:stri
       <p className="options-chain-foot">Se resuelven como máximo cinco contratos por consulta. Contrato validado ≠ cotización OPRA disponible.
         {q.data?.referenceSource==='ALPACA_IEX_LAST_COMPLETE_BAR'?' El cierre IEX es una vela observada, no un tick actual.':''}</p>
     </Card>
-    {analysisConId!==null?<ContractDetail conId={analysisConId} mode={mode} nowMs={now}/>:null}
+    {analysisConId!==null?<>{analysisPinned?<p className="options-pinned-note">Análisis fijado desde el comparador, independiente del filtro de la cadena. Verifique tipo y vencimiento del contrato.</p>:null}
+      <ContractDetail conId={analysisConId} mode={mode} nowMs={now}/></>:null}
     <details className="options-comparison"><summary>Comparador de contratos ({selected.length}/4)</summary>
       <Card><p>Hasta cuatro contratos. Costos brutos por contrato; comisiones desconocidas excluidas.</p>
         {selected.length?<div className="table-wrap"><table aria-label="Comparador de opciones"><thead><tr><th>Contrato</th><th>Vencimiento</th>
           <th>BID / ASK</th><th>Spread %</th><th>Costo bruto</th><th>Equilibrio</th><th>Delta / Theta</th><th>Calidad</th><th>Acción</th></tr></thead>
           <tbody>{selected.map(id=><ComparisonRow key={id} conId={id} mode={mode} nowMs={now}
-            onAnalyze={()=>setAnalysisConId(id)} onRemove={()=>setSelected(ids=>toggleComparison(ids,id))} onUpdate={updateComparison}/>)}</tbody></table></div>
+            onAnalyze={()=>{setAnalysisConId(id);setAnalysisPinned(true);}} onRemove={()=>setSelected(ids=>toggleComparison(ids,id))} onUpdate={updateComparison}/>)}</tbody></table></div>
           :<p className="subtle">Seleccione contratos de la cadena para comparar.</p>}
         <div className="options-comparison-hidden" aria-hidden="true">{Object.keys(selectedRows).length} cotizaciones cargadas</div>
       </Card></details>

@@ -10,6 +10,8 @@ El síntoma real del 27/10/2026 fue: vencimiento `20261028`, 84 strikes, cinco C
 
 `validateOptionIdentity()` valida `conId` positivo, `OPT`, NVDA, USD, lado, fecha exacta YYYYMMDD con un sufijo horario IBKR inequívoco, strike exacto, multiplicador 100 y `tradingClass=NVDA`. Acepta solo `C/CALL` y `P/PUT`; no redondea strikes ni infiere campos ausentes. Los errores parciales incluyen el campo discrepante. Un log del backend incluye `requestId`, `twsRequestId`, `conId`, valores solicitados y resueltos y `mismatchFields`, sin cuentas ni credenciales. Una respuesta ambigua del adaptador sigue siendo `AMBIGUOUS`.
 
+La inspección de contratos del Radar utiliza ahora la misma validación y normalización que la cadena principal. Una definición IBKR con vencimiento seguido de hora, lado `C/P` y campos numéricos en texto se acepta en ambas rutas si su identidad coincide; símbolos, fechas o strikes incompatibles se rechazan con los campos discrepantes. La inspección conserva su presupuesto de consultas y libera cada suscripción al terminar.
+
 **Verificación pendiente:** repetir con TWS Paper auténtico y revisar el log `contract_identity_mismatch`. Las pruebas sintéticas no acreditan que los cinco contratos reales ya se resuelvan.
 
 ## Carga inicial y procedencia
@@ -24,6 +26,8 @@ Los parámetros y definiciones conservan sus cachés de 60 segundos y los presup
 
 La vista principal muestra fuente y hora de la referencia, lado, vencimiento, strike, BID/ASK **por acción**, spread, costo bruto por contrato calculado por el motor 41L, calidad y acciones. Los datos avanzados se despliegan dentro del detalle. El comparador admite cuatro conId, incluso de vencimientos distintos, y permanece plegado inicialmente. El análisis reutiliza el motor 41L y la entrada hipotética 41M requiere confirmación manual. `N/D` sustituye cualquier precio o métrica ausente. La cotización LIVE sin timestamp de mercado verificable continúa clasificada `LIVE_UNVERIFIED`; no se crea `marketTimestampUtc`.
 
+Al cambiar CALL/PUT o vencimiento, se retira el detalle y el formulario de simulación del contrato anterior. Una selección de análisis realizada desde el comparador se identifica expresamente como independiente del filtro de la cadena. Cuando el operador elige manualmente un strike por falta de precio admisible del subyacente, la referencia se rotula «Strike de referencia manual»; ese valor no se presenta como cotización observada de NVDA.
+
 Los errores de identidad se resumen sin ocultar los contratos válidos y se pueden expandir por campo. El menú lateral tiene nombres accesibles aun cuando se oculta su texto en móvil. La tabla admite desplazamiento horizontal en pantallas pequeñas.
 
 ## Validación
@@ -31,10 +35,12 @@ Los errores de identidad se resumen sin ocultar los contratos válidos y se pued
 - Pruebas de identidad: lados, fecha, strike, multiplicador, subyacente, conId, divisa, tipo y trading class.
 - Pruebas de selección: IBKR reciente, IEX completo y conectado, fuente obsoleta o ausente.
 - API: cinco contratos con un rechazo, caché de definiciones, lectura de cotizaciones sin suscripciones adicionales, permisos y datos ausentes.
+- Paridad Radar/cadena: vencimiento IBKR con sufijo horario, normalización de lado y números, rechazo por campos incompatibles y liberación de suscripciones.
 - E2E DEMO/PAPER simulado: análisis, comparador, liberación de consumidores, fallo parcial, teclado y móvil.
+- E2E: cambio CALL/PUT y vencimiento limpia el detalle y simulador; strike manual se rotula sin atribuirlo a una cotización.
 
 No se consultaron TWS ni cuentas reales durante la automatización. La disponibilidad OPRA y la corrección de los cinco contratos auténticos requieren repetir la prueba en Paper con permisos de mercado conocidos.
 
 ### Ejecución local de esta rama
 
-`npm.cmd run typecheck`: aprobado. `npm.cmd test`: 541 pruebas Vitest y 197 pruebas históricas aprobadas. `npm.cmd run build`: aprobado. `npm.cmd run test:e2e`: 29 escenarios aprobados con servicios DEMO aislados y salida 0. Captura local: `test-results/phase19-smoke/phase19-demo-options.png` (artefacto de prueba, no se versiona). La CI Windows Node 22/24 y Python 3.12 debe comprobarse en el PR tras publicar el commit.
+La validación completa y la CI del commit correctivo se registran en el PR #77. La prueba con TWS Paper auténtico sigue pendiente; las pruebas de estas correcciones usan un agente simulado.

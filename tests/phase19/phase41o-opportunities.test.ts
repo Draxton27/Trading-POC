@@ -129,7 +129,7 @@ describe('41O: consultas y calidad de contratos',()=>{
     expect(calls).toBe(3);expect((await store.read()).filter(row=>row.kind==='CONTRACT_OBSERVED')).toHaveLength(0);
     expect((await store.read()).filter(row=>row.kind==='CONTRACT_ATTEMPT')).toHaveLength(6);
   });
-  it('resolver de 41O reutiliza parámetros y libera cada suscripción incluso si falta precio',async()=>{
+  it('Radar y cadena aceptan idéntica definición IBKR normalizada y Radar libera sus suscripciones',async()=>{
     const {database}=await fixture('DEMO'),app=Fastify();
     cleanup.push(async()=>app.close());
     const requests:string[]=[],subscriptions:number[]=[],releases:string[]=[];
@@ -138,18 +138,52 @@ describe('41O: consultas y calidad de contratos',()=>{
         requests.push(kind);
         if(kind==='option.parameters')return {payload:{items:[{exchange:'SMART',tradingClass:'NVDA',multiplier:100,
           expirations:['20271119'],strikes:[90,100,110]}]}};
-        return {requestId:'test',payload:{contract:{conId:10000+Number(payload.strike),symbol:'NVDA',
-          localSymbol:null,right:payload.right,strike:payload.strike,expiration:payload.expiration,
-          multiplier:100,currency:'USD'}}};
+        return {requestId:'test',payload:{contract:{conId:10000+Number(payload.strike),symbol:'NVDA',secType:'OPT',
+          tradingClass:'NVDA',localSymbol:null,right:payload.right==='PUT'?'P':'C',strike:String(payload.strike),
+          expiration:`${payload.expiration} 16:00:00`,multiplier:'100',currency:'USD'}}};
       },subscribe:async(value:{conId:number})=>{subscriptions.push(value.conId);},
       release:async(key:string)=>{releases.push(key);},latestQuote:()=>null} as unknown as AgentHub;
     const routes=registerOptionRoutes(app,hub,'PAPER',()=>[],database);
     const result=await routes.inspectOpportunity('CALL',102,2,'8e54c6e3-b6c7-4217-b026-0de8ff8b9fe5');
     expect(result.items).toHaveLength(2);expect(result.items.every(row=>row.quote===null)).toBe(true);
+    expect(result.items.map(row=>row.contract)).toEqual(expect.arrayContaining([
+      expect.objectContaining({right:'CALL',expiration:'20271119',strike:100,multiplier:100}),
+      expect.objectContaining({right:'CALL',expiration:'20271119',strike:110,multiplier:100})]));
     expect(requests.filter(kind=>kind==='option.parameters')).toHaveLength(1);
     expect(requests.filter(kind=>kind==='option.resolve')).toHaveLength(2);
     expect(requests.some(kind=>kind.startsWith('broker.'))).toBe(false);
     expect(releases).toEqual(subscriptions.map(String));
+    // A second route instance has an empty cache: the chain must independently accept the same raw definition.
+    const chain=Fastify();cleanup.push(async()=>chain.close());
+    registerOptionRoutes(chain,hub,'PAPER',()=>[],database);
+    const response=await chain.inject('/api/v1/options/contracts?expiration=20271119&centerStrike=102&limit=2&consumerId=8e54c6e3-b6c7-4217-b026-0de8ff8b9fe5');
+    expect(response.statusCode).toBe(200);expect(response.json().errors).toEqual([]);
+    expect(response.json().items.map((row:any)=>row.conId)).toEqual(result.items.map(row=>row.contract.conId));
+    expect(requests.filter(kind=>kind==='option.resolve')).toHaveLength(4);
+    expect(releases).toHaveLength(2); // Chain retains its visible consumer until the UI releases it.
+  });
+  it('Radar y cadena rechazan la misma definición incompatible con errores por campo',async()=>{
+    const {database}=await fixture('DEMO'),app=Fastify();cleanup.push(async()=>app.close());
+    const subscriptions:number[]=[],releases:string[]=[];
+    const hub={status:()=>({connected:true,simulation:false,connectionId:'test'}),optionPageTimeoutMs:()=>10_000,
+      request:async(kind:string,payload:Record<string,unknown>)=>kind==='option.parameters'?{payload:{items:[{
+        exchange:'SMART',tradingClass:'NVDA',multiplier:100,expirations:['20271119'],strikes:[100,110]}]}}:
+        {requestId:'identity-test',payload:{contract:{conId:10000+Number(payload.strike),symbol:payload.strike===110?'QQQ':'NVDA',
+          secType:'OPT',tradingClass:'NVDA',currency:'USD',right:'C',expiration:payload.strike===110?'20271126':'20271119 16:00:00',
+          strike:payload.strike===110?'111':'100',multiplier:'100'}}},
+      subscribe:async(value:{conId:number})=>{subscriptions.push(value.conId);},
+      release:async(key:string)=>{releases.push(key);},latestQuote:()=>null} as unknown as AgentHub;
+    const routes=registerOptionRoutes(app,hub,'PAPER',()=>[],database);
+    const inspected=await routes.inspectOpportunity('CALL',102,2,'8e54c6e3-b6c7-4217-b026-0de8ff8b9fe5');
+    expect(inspected.items).toHaveLength(1);
+    expect(inspected.errors).toMatchObject([{code:'INVALID_CONTRACT',strike:110,
+      mismatchFields:['symbol','expiration','strike']}]);
+    expect(subscriptions).toEqual([10100]);expect(releases).toEqual(['10100']);
+    const chain=Fastify();cleanup.push(async()=>chain.close());registerOptionRoutes(chain,hub,'PAPER',()=>[],database);
+    const response=await chain.inject('/api/v1/options/contracts?expiration=20271119&centerStrike=102&limit=2&consumerId=8e54c6e3-b6c7-4217-b026-0de8ff8b9fe5');
+    expect(response.json().items).toHaveLength(1);
+    expect(response.json().errors).toMatchObject([{code:'INVALID_CONTRACT',strike:110,
+      mismatchFields:['symbol','expiration','strike']}]);
   });
   it('dos trabajadores reclaman un solo presupuesto de inspección dentro del bloqueo',async()=>{
     const {dir,database}=await fixture('PAPER'),path=join(dir,'radar','opportunities.jsonl');

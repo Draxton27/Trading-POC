@@ -118,3 +118,45 @@ test('cadena de opciones mantiene controles accesibles en pantalla móvil',async
   await page.keyboard.press('Tab');
   await expect(page.locator('.options-hero')).toBeVisible();
 });
+test('cambiar CALL/PUT o vencimiento retira el detalle y el simulador del filtro anterior',async({page})=>{
+  await page.route('**/api/v1/health',route=>route.fulfill({json:{ok:true,mode:'PAPER',offlineAvailable:false,timeUtc:new Date().toISOString()}}));
+  await page.route('**/api/v1/options/expirations',route=>route.fulfill({json:{items:['20261028','20261120'],source:'IBKR Paper'}}));
+  await page.route('**/api/v1/options/strikes?*',route=>route.fulfill({json:{items:[220],total:1,offset:0,nextOffset:null,expiration:'20261028'}}));
+  const contract=(right:string,expiration:string)=>({conId:right==='CALL'?expiration==='20261028'?1101:1102:expiration==='20261028'?1201:1202,
+    symbol:'NVDA',right,strike:220,expiration,multiplier:100,currency:'USD',bid:null,ask:null,dataStatus:'cotizacion_pendiente'});
+  await page.route('**/api/v1/options/contracts?*',route=>{const url=new URL(route.request().url());
+    const right=url.searchParams.get('right')??'CALL',expiration=url.searchParams.get('expiration')??'20261028';
+    return route.fulfill({json:{items:[contract(right,expiration)],source:'IBKR Paper',errors:[],referenceSource:'IBKR_LAST_OBSERVED',referencePrice:220}});});
+  await page.route('**/api/v1/options/quotes?*',route=>route.fulfill({json:{items:[]}}));
+  await page.route('**/api/v1/options/comparison',route=>{const id=route.request().postDataJSON().conId;
+    const right=id<1200?'CALL':'PUT',expiration=id%100===1?'20261028':'20261120';
+    return route.fulfill({json:{item:contract(right,expiration)}});});
+  await page.route('**/api/v1/market/subscriptions/*',route=>route.fulfill({json:{released:'ok'}}));
+  await page.goto('/');await page.getByRole('button',{name:'Opciones'}).click();
+  await page.getByRole('button',{name:'Ver análisis'}).click();
+  await expect(page.locator('.option-analysis')).toContainText('CALL NVDA');
+  await expect(page.getByRole('button',{name:'Registrar entrada simulada'})).toBeVisible();
+  await page.getByRole('button',{name:'PUT',exact:true}).click();
+  await expect(page.locator('.option-analysis')).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'Registrar entrada simulada'})).toHaveCount(0);
+  await page.getByRole('button',{name:'Ver análisis'}).click();
+  await expect(page.locator('.option-analysis')).toContainText('PUT NVDA');
+  await page.getByRole('combobox',{name:'Vencimiento'}).selectOption('20261120');
+  await expect(page.locator('.option-analysis')).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'Registrar entrada simulada'})).toHaveCount(0);
+});
+test('strike manual no se presenta como cotización observada del subyacente',async({page})=>{
+  await page.route('**/api/v1/health',route=>route.fulfill({json:{ok:true,mode:'PAPER',offlineAvailable:false,timeUtc:new Date().toISOString()}}));
+  await page.route('**/api/v1/options/expirations',route=>route.fulfill({json:{items:['20261028'],source:'IBKR Paper'}}));
+  await page.route('**/api/v1/options/strikes?*',route=>route.fulfill({json:{items:[220,225],total:2,offset:0,nextOffset:null,expiration:'20261028'}}));
+  await page.route('**/api/v1/options/contracts?*',route=>{
+    const selected=new URL(route.request().url()).searchParams.has('centerStrike');
+    return route.fulfill({json:{items:[],errors:[],source:'IBKR Paper',selectionRequired:!selected,
+      referenceSource:selected?'MANUAL_STRIKE':'NONE',referencePrice:selected?220:null}});});
+  await page.goto('/');await page.getByRole('button',{name:'Opciones'}).click();
+  await expect(page.locator('.options-observed')).toContainText('Sin referencia actual verificable');
+  await page.getByRole('button',{name:'Todos los strikes'}).click();
+  await page.locator('.options-strike-list').getByRole('button',{name:'$220,00'}).click();
+  await expect(page.locator('.options-observed')).toContainText('STRIKE DE REFERENCIA MANUAL');
+  await expect(page.locator('.options-observed')).not.toContainText('SUBYACENTE OBSERVADO');
+});
