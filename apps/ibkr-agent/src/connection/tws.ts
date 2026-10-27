@@ -13,6 +13,13 @@ export class TwsRequestError extends Error {
   constructor(public readonly code:string,public readonly stage:string,public readonly twsRequestId:number,
     public readonly ibkrCode:number|null=null){super(code);this.name='TwsRequestError';}
 }
+export type TwsHandshakeCode='TWS_API_HANDSHAKE_TIMEOUT'|'TWS_API_AUTHORIZATION_UNCONFIRMED'|
+  'TWS_ACCOUNT_MISMATCH'|'TWS_ACCOUNT_VERIFIED'|'TWS_DISCONNECTED';
+export type TwsHandshakeDiagnostic={code:TwsHandshakeCode;socketConnected:boolean;nextValidId:boolean;
+  managedAccounts:boolean;paperAccountVerified:boolean;ibkrCode:number|null;atUtc:string};
+export class TwsHandshakeError extends Error{
+  constructor(public readonly code:TwsHandshakeCode){super(code);this.name='TwsHandshakeError';}
+}
 export function classifyIbkrError(code:number,message:string){
   if(code===200)return /ambiguous|ambig/i.test(message)?'AMBIGUOUS':'NOT_FOUND';
   if([354,10090,10186,10197].includes(code))return 'PERMISSION';
@@ -24,28 +31,44 @@ export class TwsReadOnlyAdapter implements ReadOnlyBrokerAdapter {
   private ready=false;private accountVerified=false;private req=1000;private lastRequest=0;
   private paceQueue:Promise<void>=Promise.resolve();private readonly budgets=twsRequestBudgets();
   private books=new Map<number,TickBook>();private subscriptions=new Set<number>();
+  private handshake:TwsHandshakeDiagnostic={code:'TWS_DISCONNECTED',socketConnected:false,nextValidId:false,
+    managedAccounts:false,paperAccountVerified:false,ibkrCode:null,atUtc:new Date().toISOString()};
   constructor(private readonly config:{host:string;port:number;clientId:number;expectedPaperAccount:string;aliasSecret:string}){
     if(!['127.0.0.1','localhost'].includes(config.host))throw new Error('TWS solo en loopback');
     if(!config.expectedPaperAccount||!config.aliasSecret)throw new Error('Cuenta Paper esperada y secreto local requeridos');
     this.api=new IBApi({host:config.host,port:config.port,maxReqPerSec:5});this.bus=this.api as unknown as EventEmitter;
-    this.bus.on(EventName.disconnected,()=>{this.ready=false;this.accountVerified=false;this.books.clear();});
-    this.bus.on(EventName.connectionClosed,()=>{this.ready=false;this.accountVerified=false;this.books.clear();});
+    this.bus.on(EventName.disconnected,()=>{this.ready=false;this.accountVerified=false;this.books.clear();
+      this.handshake={...this.handshake,code:'TWS_DISCONNECTED',socketConnected:false,paperAccountVerified:false,atUtc:new Date().toISOString()};});
+    this.bus.on(EventName.connectionClosed,()=>{this.ready=false;this.accountVerified=false;this.books.clear();
+      this.handshake={...this.handshake,code:'TWS_DISCONNECTED',socketConnected:false,paperAccountVerified:false,atUtc:new Date().toISOString()};});
     this.bus.on(EventName.marketDataType,(id:number,kind:number)=>this.books.get(id)?.setFeed(kind));
   }
   private async pace(){const step=this.paceQueue.then(async()=>{const wait=220-(Date.now()-this.lastRequest);
     if(wait>0)await new Promise(r=>setTimeout(r,wait));this.lastRequest=Date.now();});
     this.paceQueue=step.catch(()=>{});await step;}
   private requireReady(){if(!this.ready||!this.accountVerified||!this.api.isConnected)throw new Error('Handshake de TWS Paper incompleto');}
+  getHandshakeDiagnostic(){return {...this.handshake};}
   async connect(){
     await new Promise<void>((resolve,reject)=>{
-      let id=false,account=false;
-      const cleanup=()=>{clearTimeout(timer);this.bus.off(EventName.nextValidId,onId);this.bus.off(EventName.managedAccounts,onAccounts);};
+      let id=false,account=false,accountsSeen=false,socket=false,ibkrCode:number|null=null;
+      const snapshot=(code:TwsHandshakeCode):TwsHandshakeDiagnostic=>({code,socketConnected:socket,
+        nextValidId:id,managedAccounts:accountsSeen,paperAccountVerified:account&&id,
+        ibkrCode,atUtc:new Date().toISOString()});
+      const cleanup=()=>{clearTimeout(timer);this.bus.off(EventName.connected,onConnected);
+        this.bus.off(EventName.error,onError);this.bus.off(EventName.nextValidId,onId);
+        this.bus.off(EventName.managedAccounts,onAccounts);};
       const done=()=>{if(id&&account){cleanup();this.api.reqMarketDataType(MarketDataType.DELAYED);
-        this.ready=true;this.accountVerified=true;resolve();}};
-      const onId=()=>{id=true;done();};
-      const onAccounts=(list:string)=>{account=list.split(',').includes(this.config.expectedPaperAccount);
-        if(!account){cleanup();this.api.disconnect();reject(new Error('Cuenta Paper no coincide'));}else done();};
-      const timer=setTimeout(()=>{cleanup();this.api.disconnect();reject(new Error('Timeout handshake TWS'));},15000);
+        this.ready=true;this.accountVerified=true;this.handshake=snapshot('TWS_ACCOUNT_VERIFIED');resolve();}};
+      const onConnected=()=>{socket=true;};
+      const onError=(_error:Error,code:number)=>{if(Number.isInteger(code))ibkrCode=code;};
+      const onId=()=>{socket=true;id=true;done();};
+      const onAccounts=(list:string)=>{socket=true;accountsSeen=true;
+        account=list.split(',').includes(this.config.expectedPaperAccount);
+        if(!account){cleanup();this.api.disconnect();this.handshake=snapshot('TWS_ACCOUNT_MISMATCH');
+          reject(new TwsHandshakeError('TWS_ACCOUNT_MISMATCH'));}else done();};
+      const timer=setTimeout(()=>{const code=socket?'TWS_API_AUTHORIZATION_UNCONFIRMED':'TWS_API_HANDSHAKE_TIMEOUT';
+        cleanup();this.api.disconnect();this.handshake=snapshot(code);reject(new TwsHandshakeError(code));},15000);
+      this.bus.on(EventName.connected,onConnected);this.bus.on(EventName.error,onError);
       this.bus.on(EventName.nextValidId,onId);this.bus.on(EventName.managedAccounts,onAccounts);this.api.connect(this.config.clientId);
     });
   }

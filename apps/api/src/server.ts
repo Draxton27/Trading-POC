@@ -30,6 +30,8 @@ import {registerRadarRoutes} from './radar/routes.ts';
 import {registerScenarioRoutes} from './radar/scenarios-routes.ts';
 import {registerOpportunityRoutes,opportunityPaths} from './radar/opportunities.ts';
 import {createOpportunityBrokerWorker} from './radar/opportunity-broker.ts';
+import {registerLiveDiagnostics,liveDiagnosticPaths} from './radar/live-diagnostics.ts';
+import {classifyPaperConnectivity,paperDiagnosticPathFor,readPaperDiagnostic} from '../../ibkr-agent/src/connection/paper-diagnostic.ts';
 import {DecisionReviewService} from './research/decision-review-service.ts';
 import {registerDecisionReviewRoutes} from './research/decision-review-routes.ts';
 import {registerTechnicalContextRoutes,technicalContextFor} from './technical-context/routes.ts';
@@ -104,6 +106,17 @@ export async function createApp(options:Options={}){
   app.get('/api/v1/session',()=>({token,mode}));
   app.get('/api/v1/health',()=>({ok:true,mode,timeUtc:new Date().toISOString(),offlineAvailable:offlineAvailable(),broker:hub.status().connected}));
   app.get('/api/v1/broker/status',()=>({mode,...hub.status(),provider:mode==='DEMO'?'DEMO sintético':mode==='OFFLINE'?'archivo local':hub.status().simulation?'Agente simulado':'IBKR'}));
+  app.get('/api/v1/broker/diagnostics',()=>{
+    let last=null;try{last=readPaperDiagnostic(paperDiagnosticPathFor(privateDir));}catch{}
+    const connected=hub.status().connected,simulation=hub.status().simulation;
+    const status=classifyPaperConnectivity({mode,configured:!!process.env.IBKR_EXPECTED_PAPER_ACCOUNT,
+      portReachable:null,processPresent:null,backendConnected:connected,backendSimulation:simulation,
+      last,now:Date.now()});
+    return {code:status.code,reason:status.reason,backendConnected:connected,simulation,
+      feedType:hub.status().feedType,handshake:last?{nextValidId:last.nextValidId,
+        managedAccounts:last.managedAccounts,paperAccountVerified:last.paperAccountVerified,
+        atUtc:last.atUtc,ibkrCode:last.ibkrCode}:null};
+  });
   app.get('/api/v1/market/symbols',()=>({items:['NVDA','QQQ','SMH'].map(s=>({symbol:s,available:mode==='DEMO'||offlineAvailable(),source:mode==='DEMO'?'DEMO sintético':'Alpaca SIP local'}))}));
   const barQuery=z.object({symbol,timeframe:frame.default('15m'),before:z.iso.datetime({offset:true}).optional(),limit:z.coerce.number().int().min(1).max(500).default(260)});
   app.get('/api/v1/market/bars',async(req,reply)=>{
@@ -180,6 +193,7 @@ export async function createApp(options:Options={}){
   registerNewsRoutes(app,newsPaths({repoRoot,privateDir,newsDir,env:process.env}));
   registerRadarRoutes(app,radarDeps);
   const opportunityStore=registerOpportunityRoutes(app,{mode,paths:opportunityPaths(privateDir),broker:hub});
+  registerLiveDiagnostics(app,{mode,paths:liveDiagnosticPaths(privateDir),broker:()=>hub.status()});
   const maxContracts=Number(process.env.TRADING_POC_OPPORTUNITY_MAX_CONTRACTS??2);
   if(!Number.isInteger(maxContracts)||maxContracts<1||maxContracts>4)throw new Error('TRADING_POC_OPPORTUNITY_MAX_CONTRACTS debe ser 1 a 4');
   const opportunityWorker=createOpportunityBrokerWorker({store:opportunityStore,inspect:optionRoutes.inspectOpportunity,

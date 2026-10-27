@@ -11,7 +11,7 @@ export const OpportunityStatus=z.enum(['TECHNICAL_CANDIDATE','AWAITING_CONFIRMAT
   'CONTRACT_CONSTRAINT_FAILED','REVIEWABLE_PAPER_CANDIDATE','NO_CANDIDATE',
   'INSUFFICIENT_DATA','STALE_MARKET_DATA']);
 export type OpportunityStatus=z.infer<typeof OpportunityStatus>;
-export const OpportunityDetected=z.object({candidateId:sha,ruleVersion:z.literal('41O_V1'),
+export const OpportunityDetected=z.object({candidateId:sha,ruleVersion:z.enum(['41O_V1','41O_V2_REST_CONTEXT']),
   detectedAtUtc:utc,technicalEvidenceAvailableAtUtc:utc,marketSource:z.literal('Alpaca Market Data API'),
   marketFeed:z.literal('IEX Live'),adjustment:z.literal('raw'),symbol:z.literal('NVDA'),
   barStartUtc:utc,barEndUtc:utc,sourceBarHash:sha,sourceWindowHash:sha,calendarHash:sha,

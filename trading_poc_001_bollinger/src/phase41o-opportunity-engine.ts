@@ -13,6 +13,7 @@ import {opportunityHash} from './phase41o-ledger.ts';
 
 const QUARTER=900_000,MAX_LIVE_AGE_MS=15*60_000;
 export const OPPORTUNITY_RULE_VERSION='41O_V1' as const;
+export const OPPORTUNITY_CONTEXT_RULE_VERSION='41O_V2_REST_CONTEXT' as const;
 export const OPPORTUNITY_OUTCOME_BARS=4;
 const stamp=(n:number)=>new Date(n).toISOString();
 const localMinute=(s:string)=>{const [h,m]=newYorkBarParts(s).slot.split(':').map(Number);return h!*60+m!;};
@@ -82,14 +83,7 @@ export function prepareOpportunityTechnical(records:readonly IexRecord[],officia
   const lastEnd=last.bar!.endUtc;
   if(context.lastCompleteBarUtc!==lastEnd||context.dataStatus==='STALE')
     return {...base,status:'INSUFFICIENT_DATA',reason:'El motor técnico detectó un hueco o una vela programada faltante.',calendar};
-  const band=calculateBollinger(continuous).at(-1)!,reference=calculateVolumeReferences(continuous).at(-1)!;
-  const current=continuous.at(-1)!,sameSession=(count:number)=>continuous.length>count&&
-    newYorkBarParts(continuous.at(-1-count)!.timestamp).day===newYorkBarParts(current.timestamp).day;
-  const one=sameSession(1)?100*(current.close/continuous.at(-2)!.close-1):null;
-  const four=sameSession(4)?100*(current.close/continuous.at(-5)!.close-1):null;
-  const metrics={close:current.close,bollingerUpper:band.upper,bollingerMiddle:band.middle,
-    bollingerLower:band.lower,relativeVolume20:reference.average!==null&&reference.average>0?
-      current.volume/reference.average:null,returnOneBarPercent:one,returnFourBarsPercent:four};
+  const metrics=opportunityMetrics(continuous);
   const scenarios=buildInvestepScenarios(TechnicalContext.parse(context),metrics,true,last.receivedAtUtc);
   const newEvents=scenarios.current.filter(s=>s.family!=='BOLLINGER_VOLUME_CONTEXT'&&s.scope==='CURRENT'&&
     s.availableAtUtc!==null&&Date.parse(s.availableAtUtc)<=now&&
@@ -98,6 +92,18 @@ export function prepareOpportunityTechnical(records:readonly IexRecord[],officia
     scenarios:newEvents,sourceHashes,windowHash:opportunityHash(sourceHashes.map((hash,i)=>[hash,bars[i]!.receivedAtUtc])),
     warmup:old.length?'REST_REGISTERED':'LIVE_ONLY',warmupCsvSha256:old.length?historical!.csvSha256:null,
     warmupRegisteredAtUtc:old.length?historical!.registeredAtUtc:null,calendar};
+}
+
+/** Shared descriptive inputs; V1 and V2 retain the existing indicator formulas. */
+export function opportunityMetrics(continuous:readonly import('./domain.ts').Candle[]){
+  const band=calculateBollinger(continuous).at(-1)!,reference=calculateVolumeReferences(continuous).at(-1)!;
+  const current=continuous.at(-1)!,sameSession=(count:number)=>continuous.length>count&&
+    newYorkBarParts(continuous.at(-1-count)!.timestamp).day===newYorkBarParts(current.timestamp).day;
+  const one=sameSession(1)?100*(current.close/continuous.at(-2)!.close-1):null;
+  const four=sameSession(4)?100*(current.close/continuous.at(-5)!.close-1):null;
+  return {close:current.close,bollingerUpper:band.upper,bollingerMiddle:band.middle,
+    bollingerLower:band.lower,relativeVolume20:reference.average!==null&&reference.average>0?
+      current.volume/reference.average:null,returnOneBarPercent:one,returnFourBarsPercent:four};
 }
 
 export function candidateStatus(scenario:InvestepScenario):{status:OpportunityStatus;reasons:string[]}{
@@ -118,7 +124,8 @@ export function candidateStatus(scenario:InvestepScenario):{status:OpportunitySt
   return {status:'TECHNICAL_CANDIDATE',reasons:['Hipótesis experimental para revisión humana; la geometría no demuestra rentabilidad.']};
 }
 
-export function buildOpportunityCandidates(prepared:OpportunityPrepared,nowUtc:string):OpportunityDetected[]{
+export function buildOpportunityCandidates(prepared:OpportunityPrepared,nowUtc:string,
+  ruleVersion:typeof OPPORTUNITY_RULE_VERSION|typeof OPPORTUNITY_CONTEXT_RULE_VERSION=OPPORTUNITY_RULE_VERSION):OpportunityDetected[]{
   if(prepared.status!=='READY'||!prepared.last?.bar||!prepared.windowHash)return [];
   const bar=prepared.last.bar,session=prepared.calendar.get(newYorkBarParts(bar.startUtc).day);
   if(!session)throw new Error('CALENDAR_MISSING');
@@ -127,7 +134,7 @@ export function buildOpportunityCandidates(prepared:OpportunityPrepared,nowUtc:s
     newYorkBarParts(stamp(outcome)).day===newYorkBarParts(bar.startUtc).day?stamp(outcome):null;
   return prepared.scenarios.map(scenario=>{
     const result=candidateStatus(scenario);
-    return {candidateId:opportunityHash([OPPORTUNITY_RULE_VERSION,scenario.id]),ruleVersion:OPPORTUNITY_RULE_VERSION,
+    return {candidateId:opportunityHash([ruleVersion,scenario.id]),ruleVersion,
       detectedAtUtc:nowUtc,technicalEvidenceAvailableAtUtc:scenario.availableAtUtc!,
       marketSource:'Alpaca Market Data API',marketFeed:'IEX Live',adjustment:'raw',symbol:'NVDA',
       barStartUtc:bar.startUtc,barEndUtc:bar.endUtc,sourceBarHash:prepared.last!.recordHash,

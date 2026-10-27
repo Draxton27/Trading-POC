@@ -9,6 +9,7 @@ import {isIexProcessActive} from '../trading_poc_001_bollinger/src/phase38-iex-l
 import {readIexLedger,type IexRecord} from '../trading_poc_001_bollinger/src/phase38-iex.ts';
 import {loadMarketCalendar} from '../trading_poc_001_bollinger/src/alpaca-calendar.ts';
 import {loadIexWarmup} from '../trading_poc_001_bollinger/src/phase38f-warmup.ts';
+import {loadIexRestContext} from '../trading_poc_001_bollinger/src/phase41p-rest-context.ts';
 import {OpportunityStore} from '../trading_poc_001_bollinger/src/phase41o-ledger.ts';
 import {observeIexOpportunities} from '../trading_poc_001_bollinger/src/phase41o-observer.ts';
 import {MAX_LIVE_AGE_MS,readIexObservations,type IexObservationRecord,type IexFrozen} from '../trading_poc_001_bollinger/src/phase38f-iex-observation.ts';
@@ -93,8 +94,10 @@ export function createIexDaily(options:IexDailyOptions={}){
     const calendarPath=env.TRADING_POC_IEX_CALENDAR??resolve(resolvePrivateDir({repoRoot:root,env}),'iex','calendar.json');
     if(!existsSync(calendarPath))return;
     const registry=env.TRADING_POC_IEX_WARMUP_REGISTRY;
+    const contextRegistry=env.TRADING_POC_IEX_OPPORTUNITY_CONTEXT_REGISTRY;
     await observeIexOpportunities({records:readLedger(ledger),calendar:loadMarketCalendar(calendarPath),
       warmup:registry&&existsSync(registry)?loadIexWarmup(registry):undefined,
+      restContext:contextRegistry?loadIexRestContext(contextRegistry):undefined,
       store:opportunityStore,nowUtc:iso(clock()),processStartedAtUtc:iso(startedAt),
       feedActive:active(ledger)||owned!==null});
   };
