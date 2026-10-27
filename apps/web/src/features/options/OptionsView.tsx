@@ -66,7 +66,7 @@ function ComparisonRow({conId,mode,nowMs,onRemove,onAnalyze,onUpdate}:{conId:num
     <td>{missing.length?missing.join(' · '):'Ninguno estructural'}{analysis?.quote.status!=='LIVE_RECENT'?<small>{analysis?.quote.reason}</small>:null}</td></tr>;
 }
 
-export default function OptionsView({mode,consumerId}:{mode:string;consumerId:string}){
+export default function OptionsView({mode,consumerId,initialContract}:{mode:string;consumerId:string;initialContract?:{conId:number;right:'CALL'|'PUT';strike:number;expiration:string}|null}){
   const [right,setRight]=useState<'CALL'|'PUT'>('CALL');
   const [expiration,setExpiration]=useState('');
   const [referenceStrike,setReferenceStrike]=useState('');
@@ -76,6 +76,14 @@ export default function OptionsView({mode,consumerId}:{mode:string;consumerId:st
   const [selected,setSelected]=useState<number[]>([]);
   const [selectedRows,setSelectedRows]=useState<Record<number,ContractRow>>({});
   const [analysisConId,setAnalysisConId]=useState<number|null>(null);
+  useEffect(()=>{
+    if(!initialContract)return;
+    setRight(initialContract.right);
+    setExpiration(initialContract.expiration);
+    setReferenceStrike(String(initialContract.strike));
+    setSelected(previous=>previous.includes(initialContract.conId)?previous:[...previous,initialContract.conId].slice(0,4));
+    setAnalysisConId(initialContract.conId);
+  },[initialContract]);
   const onComparisonUpdate=useCallback((conId:number,row:ContractRow|null)=>setSelectedRows(previous=>{
     if(row===null){if(!(conId in previous))return previous;const next={...previous};delete next[conId];return next;}
     return {...previous,[conId]:row};

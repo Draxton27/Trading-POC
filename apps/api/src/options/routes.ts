@@ -163,9 +163,44 @@ export function registerOptionRoutes(app:FastifyInstance,hub:AgentHub,mode:'DEMO
     return {items,errors,source:hub.status().simulation?'Agente simulado':'IBKR Paper',
       expiration:selectedExpiration,selectionRequired,referenceSource,strikeCount:all.length};
   });
+  /** Bounded background inspection for 41O. Reuses parameters and the same contract cache. */
+  const inspectOpportunity=async(right:'CALL'|'PUT',referencePrice:number,count:number,consumerId:string)=>{
+    if(mode!=='PAPER'||!hub.status().connected)return {items:[],errors:[issue(new AgentRequestError('DISCONNECTED','backend',''))]};
+    const params=await parameters(),parts=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+    const part=(type:string)=>parts.find(item=>item.type===type)?.value??'';
+    const today=`${part('year')}${part('month')}${part('day')}`;
+    const selectedExpiration=[...new Set(params.flatMap(p=>p.expirations))].filter(day=>day>=today).sort()[0];
+    if(!selectedExpiration)return {items:[],errors:[]};
+    const strikes=selectContractStrikes(availableStrikes(params,selectedExpiration),Math.min(Math.max(count,1),4),referencePrice);
+    const items:Array<{contract:Record<string,unknown>;quote:Record<string,unknown>|null;error:Issue|null}>=[],errors:Issue[]=[];
+    const deadline=Date.now()+hub.optionPageTimeoutMs();
+    for(const strike of strikes){
+      const remaining=deadline-Date.now();if(remaining<1000){errors.push({...issue(null,strike),code:'PAGE_TIMEOUT',message:messages.PAGE_TIMEOUT!});break;}
+      const cacheKey=`${selectedExpiration}:${right}:${strike}`,cached=contractCache.get(cacheKey);
+      let contract=cached&&cached.until>Date.now()&&cached.connectionId===hub.status().connectionId?cached.contract:undefined;
+      try{
+        if(!contract){const response=await hub.request('option.resolve',{expiration:selectedExpiration,right,strike},remaining);
+          contract=response.payload.contract as Record<string,unknown>|undefined;
+          if(!contract||!Number.isSafeInteger(contract.conId)||Number(contract.conId)<=0||contract.symbol!=='NVDA'||
+            contract.right!==right||contract.expiration!==selectedExpiration||contract.strike!==strike||contract.multiplier!==100)
+            throw new AgentRequestError('INVALID_CONTRACT','contract_details',response.requestId??'');
+          contractCache.set(cacheKey,{contract,until:Date.now()+60000,connectionId:hub.status().connectionId});
+        }
+      }catch(error){errors.push(issue(error,strike));continue;}
+      let subscribeError:Issue|null=null;
+      try{
+        await hub.subscribe({conId:contract.conId,expiration:selectedExpiration,right,strike},consumerId,Math.max(1000,deadline-Date.now()));
+        if(!hub.latestQuote(String(contract.conId)))await new Promise(done=>setTimeout(done,Math.min(800,Math.max(0,deadline-Date.now()))));
+        const quote=hub.latestQuote(String(contract.conId)) as Record<string,unknown>|null;
+        items.push({contract,quote,error:null});
+      }catch(error){subscribeError=issue(error,strike);errors.push(subscribeError);items.push({contract,quote:null,error:subscribeError});}
+      finally{await hub.release(String(contract.conId),consumerId).catch(()=>{});}
+    }
+    return {items,errors};
+  };
   // Read only: simulator may use a contract already resolved for the visible chain.
   // This accessor never resolves a new contract or opens a market subscription.
-  return {cachedContract:(conId:number):Record<string,unknown>|null=>{
+  return {inspectOpportunity,cachedContract:(conId:number):Record<string,unknown>|null=>{
     if(mode==='DEMO')return (demoOptions() as Array<Record<string,unknown>>).find(row=>row.conId===conId)??null;
     if(mode!=='PAPER'||!hub.status().connected)return null;
     return [...contractCache.values()].find(entry=>entry.until>Date.now()&&

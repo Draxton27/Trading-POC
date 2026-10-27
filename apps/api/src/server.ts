@@ -28,6 +28,8 @@ import type {IexProspectivePaths} from './ml/iex-prospective-reader.ts';
 import {registerNewsRoutes} from './news/routes.ts';
 import {registerRadarRoutes} from './radar/routes.ts';
 import {registerScenarioRoutes} from './radar/scenarios-routes.ts';
+import {registerOpportunityRoutes,opportunityPaths} from './radar/opportunities.ts';
+import {createOpportunityBrokerWorker} from './radar/opportunity-broker.ts';
 import {DecisionReviewService} from './research/decision-review-service.ts';
 import {registerDecisionReviewRoutes} from './research/decision-review-routes.ts';
 import {registerTechnicalContextRoutes,technicalContextFor} from './technical-context/routes.ts';
@@ -177,6 +179,22 @@ export async function createApp(options:Options={}){
   registerIexProspectiveRoutes(app,options.iexProspectivePaths??iexProspectivePaths(privateDir));
   registerNewsRoutes(app,newsPaths({repoRoot,privateDir,newsDir,env:process.env}));
   registerRadarRoutes(app,radarDeps);
+  const opportunityStore=registerOpportunityRoutes(app,{mode,paths:opportunityPaths(privateDir),broker:hub});
+  const maxContracts=Number(process.env.TRADING_POC_OPPORTUNITY_MAX_CONTRACTS??2);
+  if(!Number.isInteger(maxContracts)||maxContracts<1||maxContracts>4)throw new Error('TRADING_POC_OPPORTUNITY_MAX_CONTRACTS debe ser 1 a 4');
+  const opportunityWorker=createOpportunityBrokerWorker({store:opportunityStore,inspect:optionRoutes.inspectOpportunity,
+    sqlite:db.sqlite,connected:()=>mode==='PAPER'&&hub.status().connected,
+    simulation:()=>hub.status().simulation,maxContracts});
+  let opportunityTimer:ReturnType<typeof setInterval>|null=null;
+  let activeOpportunity:Promise<void>|null=null;
+  const startOpportunityWorker=()=>{
+    if(mode!=='PAPER'||opportunityTimer)return;
+    opportunityTimer=setInterval(()=>{
+      if(activeOpportunity)return;
+      activeOpportunity=opportunityWorker().catch(()=>{}).finally(()=>{activeOpportunity=null;});
+    },30_000);
+    opportunityTimer.unref();
+  };
   registerScenarioRoutes(app,technicalDeps);
   registerDecisionReviewRoutes(app,new DecisionReviewService({mode,phase17Private,phase16Ledger,
     simulatorStore,iexPaths:options.iexProspectivePaths??iexProspectivePaths(privateDir),technicalDeps}));
@@ -240,11 +258,12 @@ export async function createApp(options:Options={}){
     const timer=setInterval(()=>{if(socket.readyState===1)socket.send(JSON.stringify({kind:'status',mode,broker:hub.status(),atUtc:new Date().toISOString()}));},15000);
     socket.on('close',()=>{clearInterval(timer);unsubscribe();});
   });
-  app.addHook('onClose',async()=>db.sqlite.close());
-  return {app,hub,token,database:db.sqlite};
+  app.addHook('onClose',async()=>{if(opportunityTimer)clearInterval(opportunityTimer);
+    if(activeOpportunity)await activeOpportunity;db.sqlite.close();});
+  return {app,hub,token,database:db.sqlite,startOpportunityWorker};
 }
 export async function start(){
-  const {app,hub}=await createApp();
+  const {app,hub,startOpportunityWorker}=await createApp();
   const apiHost=process.env.TRADING_POC_API_HOST??'127.0.0.1',apiPort=Number(process.env.TRADING_POC_API_PORT??4300);
   if(!['127.0.0.1','localhost'].includes(apiHost))throw new Error('API HTTP debe limitarse a localhost');
   await app.listen({host:apiHost,port:apiPort});
@@ -263,6 +282,7 @@ export async function start(){
     if(!privateHost)throw new Error('Fije una IP privada específica para el agente');
     await agent.listen({host,port:Number(process.env.TRADING_POC_AGENT_PORT??4301)});
   }
+  startOpportunityWorker();
   process.stdout.write(`Trading-POC API ${apiHost}:${apiPort}; agente ${secret?'habilitado':'deshabilitado'}\n`);
 }
 if(process.argv[1]&&import.meta.url===new URL(`file://${resolve(process.argv[1])}`).href)start().catch(e=>{process.stderr.write(String(e)+'\n');process.exitCode=1;});
