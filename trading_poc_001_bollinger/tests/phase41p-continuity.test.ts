@@ -36,10 +36,12 @@ test('41P conecta REST registrado antes de Live y conserva primera versión fren
   assert.equal(joined.length,29);
   assert.equal(joined.at(-3)?.candle.close,101);
   assert.equal(joined.at(-3)?.source,'LIVE');
-  const audit=diagnoseOpportunityContinuity({records:rows,calendar,rest:[rest()],nowUtc:now});
+  const audit=diagnoseOpportunityContinuity({records:rows,calendar,rest:[rest()],nowUtc:now,
+    collectorActive:true});
   assert.equal(audit.code,'INSUFFICIENT_DAILY_SMA_HISTORY');
   assert.equal(audit.bridge.missing15mCount,0);
   assert.equal(audit.live.revisions,1);
+  assert.equal(audit.live.collectorProcess,'ACTIVE');
   assert.equal(audit.indicators.timeframes['15m'].smas[20].missingBars,0);
   assert.equal(audit.indicators.timeframes['1d'].smas[200].value,null);
   assert.equal(audit.indicators.timeframes['1d'].smas[200].missingBars,199);

@@ -4,6 +4,7 @@ import {resolve} from 'node:path';
 import type {FastifyInstance} from 'fastify';
 import {loadMarketCalendar} from '../../../../trading_poc_001_bollinger/src/alpaca-calendar.ts';
 import {readIexLedger} from '../../../../trading_poc_001_bollinger/src/phase38-iex.ts';
+import {isIexProcessActive} from '../../../../trading_poc_001_bollinger/src/phase38-iex-lock.ts';
 import {loadIexWarmup} from '../../../../trading_poc_001_bollinger/src/phase38f-warmup.ts';
 import {loadIexRestContext} from '../../../../trading_poc_001_bollinger/src/phase41p-rest-context.ts';
 import {diagnoseOpportunityContinuity,warmupAsRestContext,type RestContext} from '../../../../trading_poc_001_bollinger/src/phase41p-continuity.ts';
@@ -31,7 +32,7 @@ export function registerLiveDiagnostics(app:FastifyInstance,options:{mode:Mode;p
       rest.push(loadIexRestContext(paths.context));}
     const opportunityRows=await new OpportunityStore(paths.opportunities).read();
     const audit=diagnoseOpportunityContinuity({records,calendar,rest,nowUtc:new Date(clock()).toISOString(),
-      candidateRecords:opportunityRows});
+      collectorActive:isIexProcessActive(paths.ledger),candidateRecords:opportunityRows});
     const latest=records.filter(row=>row.kind==='quarter'&&row.status==='COMPLETE'&&row.bar&&
       row.bar.startUtc===audit.live.lastBarStartUtc).find(row=>row.revision===1)??null;
     const age=latest?(clock()-Date.parse(latest.receivedAtUtc))/60_000:null;

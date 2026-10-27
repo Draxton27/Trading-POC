@@ -20,7 +20,7 @@ export type RestContext={candles:Candle[];calendar:MarketCalendar;registeredAtUt
   manifestSha256:string|null;kind:'38F_WARMUP'|'41P_REST_CONTEXT'};
 export type ContinuityAudit={schema:'phase41p-continuity-v1';checkedAtUtc:string;code:ContinuityCode;
   live:{firstBarStartUtc:string|null;lastBarStartUtc:string|null;lastBarEndUtc:string|null;lastReceivedAtUtc:string|null;
-    feedStatus:string|null;verified15mBars:number;revisions:number};
+    feedStatus:string|null;collectorProcess:'ACTIVE'|'INACTIVE'|'UNKNOWN';verified15mBars:number;revisions:number};
   rest:{registeredAtUtc:string|null;earliestBarStartUtc:string|null;latestBarStartUtc:string|null;
     bars:number;manifestSha256:string|null;kind:RestContext['kind']|null};
   bridge:{firstRelevantLiveBarStartUtc:string|null;firstExpectedAfterRestUtc:string|null;
@@ -62,7 +62,8 @@ export function causalIexCandles(live:readonly IexRecord[],rest:readonly RestCon
 }
 
 export function diagnoseOpportunityContinuity(input:{records:readonly IexRecord[];calendar:MarketCalendar;
-  rest?:readonly RestContext[];nowUtc:string;candidateRecords?:readonly {kind:string;registeredAtUtc:string;
+  rest?:readonly RestContext[];nowUtc:string;collectorActive?:boolean;
+  candidateRecords?:readonly {kind:string;registeredAtUtc:string;
     payload?:{candidateId?:string;status?:string;exclusionReasons?:string[]}}[]}):ContinuityAudit{
   const {records,nowUtc}=input,at=Date.parse(nowUtc);
   if(!Number.isFinite(at)||iso(at)!==nowUtc)throw new Error('INVALID_CLOCK');
@@ -158,7 +159,8 @@ export function diagnoseOpportunityContinuity(input:{records:readonly IexRecord[
   return {schema:'phase41p-continuity-v1',checkedAtUtc:nowUtc,code,
     live:{firstBarStartUtc:first[0]?.bar?.startUtc??null,lastBarStartUtc:latest?.bar?.startUtc??null,
       lastBarEndUtc:latest?.bar?.endUtc??null,lastReceivedAtUtc:latest?.receivedAtUtc??null,
-      feedStatus,verified15mBars:first.length,
+      feedStatus,collectorProcess:input.collectorActive===undefined?'UNKNOWN':input.collectorActive?'ACTIVE':'INACTIVE',
+      verified15mBars:first.length,
       revisions:records.filter(row=>row.kind==='quarter').length-first.length},
     rest:{registeredAtUtc:contextUsed?.registeredAtUtc??null,earliestBarStartUtc:restFirst,
       latestBarStartUtc:restLast,bars:allRest.length,manifestSha256:contextUsed?.manifestSha256??null,

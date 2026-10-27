@@ -5,6 +5,7 @@ import {fileURLToPath} from 'node:url';
 import {config as loadEnv} from 'dotenv';
 import {resolvePrivateDir} from '../apps/api/src/news/paths.ts';
 import {readIexLedger} from '../trading_poc_001_bollinger/src/phase38-iex.ts';
+import {isIexProcessActive} from '../trading_poc_001_bollinger/src/phase38-iex-lock.ts';
 import {loadMarketCalendar} from '../trading_poc_001_bollinger/src/alpaca-calendar.ts';
 import {loadIexWarmup} from '../trading_poc_001_bollinger/src/phase38f-warmup.ts';
 import {OpportunityStore} from '../trading_poc_001_bollinger/src/phase41o-ledger.ts';
@@ -25,7 +26,7 @@ export async function opportunityDoctor(env:NodeJS.ProcessEnv=process.env,nowUtc
   const context=contextRegistry&&existsSync(contextRegistry)?loadIexRestContext(contextRegistry):null;
   const candidates=await new OpportunityStore(opportunityPath).read();
   return diagnoseOpportunityContinuity({records,calendar,rest:[warmup,context].filter(x=>x!==null),nowUtc,
-    candidateRecords:candidates});
+    collectorActive:isIexProcessActive(ledgerPath),candidateRecords:candidates});
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
   loadEnv({path:resolve(root,'.env.local'),override:false,quiet:true});
