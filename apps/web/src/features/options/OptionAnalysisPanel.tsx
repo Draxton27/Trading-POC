@@ -1,4 +1,4 @@
-import {useState} from 'react';
+import {useEffect,useState} from 'react';
 import {Badge,Card} from '../../components/ui.tsx';
 import {fmt} from '../../lib/api.ts';
 import {analyzeComparisonRow,optionQualityLabel,optionalNumberInput} from './analysis.ts';
@@ -10,9 +10,14 @@ const percent=(value:number|null)=>value===null||!Number.isFinite(value)?'N/D':`
 const referenceLabel:Record<string,string>={ACTIVE:'Vigencia declarada',REFERENCE_DATE:'Fecha documental exacta',
   HISTORICAL_ONLY:'Histórica, sin vigencia declarada',CONFLICT:'Referencias contradictorias',NONE:'Sin referencia'};
 
-export default function OptionAnalysisPanel({row,conId,nowMs}:{row:Record<string,unknown>|null;conId:number|null;nowMs:number}){
-  const [quantity,setQuantity]=useState('1'),[capital,setCapital]=useState(''),[entryFee,setEntryFee]=useState('');
+export default function OptionAnalysisPanel({row,conId,nowMs,defaults}:{row:Record<string,unknown>|null;conId:number|null;nowMs:number;
+  defaults?:{quantity:number;capitalUsd:number|null;entryFeePerContractUsd:number|null}}){
+  const defaultQuantity=defaults?.quantity??1,defaultCapital=defaults?.capitalUsd??null,defaultFee=defaults?.entryFeePerContractUsd??null;
+  const [quantity,setQuantity]=useState(String(defaultQuantity)),[capital,setCapital]=useState(defaultCapital===null?'':String(defaultCapital));
+  const [entryFee,setEntryFee]=useState(defaultFee===null?'':String(defaultFee));
   const [expirationFee,setExpirationFee]=useState(''),[underlying,setUnderlying]=useState('');
+  useEffect(()=>{setQuantity(String(defaultQuantity));setCapital(defaultCapital===null?'':String(defaultCapital));
+    setEntryFee(defaultFee===null?'':String(defaultFee));},[defaultQuantity,defaultCapital,defaultFee]);
   const analysis=row?analyzeComparisonRow(row,{quantity:Number(quantity),capitalUsd:optionalNumberInput(capital),
     entryFeePerContractUsd:optionalNumberInput(entryFee),expirationFeePerContractUsd:optionalNumberInput(expirationFee),
     hypotheticalUnderlyingAtExpirationUsd:optionalNumberInput(underlying),asOfUtc:new Date(nowMs).toISOString()}):null;
@@ -29,6 +34,16 @@ export default function OptionAnalysisPanel({row,conId,nowMs}:{row:Record<string
         <label>NVDA hipotético al vencimiento USD <input aria-label="Precio hipotético NVDA al vencimiento USD" type="number" min="0" step="0.01" value={underlying} onChange={e=>setUnderlying(e.target.value)} placeholder="Opcional"/></label>
       </div>
       {analysis?<>
+        <section className="option-analysis-explanation"><h4>Cómo interpretar este contrato</h4>
+          <p>NVDA {analysis.identity.right??'N/D'} · precio de ejercicio {price(analysis.identity.strike)} ·
+            prima ASK por acción {price(analysis.quote.ask)} · multiplicador {analysis.identity.multiplier??'N/D'}.</p>
+          <p>Para {analysis.quantity??'N/D'} contrato(s), el costo bruto y la pérdida máxima de prima de una compra larga
+            serían {money(analysis.premium.grossPremiumUsd)}, sin comisiones desconocidas. El equilibrio bruto al vencimiento
+            sería {price(analysis.premium.breakEvenGrossUsd)} del subyacente.</p>
+          <small>{analysis.quote.status==='LIVE_RECENT'?'Cotización Live reciente verificada; no garantiza ejecución.':
+            `ASK observado: ${optionQualityLabel[analysis.quote.status]}. El importe es descriptivo, no un precio ejecutable actual.`}
+            {' '}El spread indica la diferencia entre BID y ASK, no una rentabilidad esperada.</small>
+        </section>
         <div className="option-analysis-meta"><strong>Vencimiento {analysis.expiration.expirationDate??'N/D'} · DTE {analysis.expiration.daysCalendar??'N/D'}</strong>
           <Badge tone={!unavailable&&!subscriptionFailed&&analysis.quote.status==='LIVE_RECENT'?'success':'warning'}>
             {subscriptionFailed?'Suscripción fallida':unavailable?'Cotización no disponible':
@@ -79,7 +94,8 @@ export default function OptionAnalysisPanel({row,conId,nowMs}:{row:Record<string
             <p>Rango óptimo ASK por acción: {money(analysis.academy.minAskCents===null?null:analysis.academy.minAskCents/100)} a {money(analysis.academy.maxAskCents===null?null:analysis.academy.maxAskCents/100)}.</p>
             <p>Límites documentales externos: {money(analysis.academy.outerMinCents===null?null:analysis.academy.outerMinCents/100)} a {money(analysis.academy.outerMaxCents===null?null:analysis.academy.outerMaxCents/100)}.</p>
             <p>Fecha documental: {analysis.academy.referenceDate??'N/D'} · Vigencia declarada: {analysis.academy.validFrom??'N/D'} a {analysis.academy.validTo??'N/D'} · Estado ASK: {analysis.academy.status}.</p></>:<p>Sin referencia documental evaluable en la respuesta actual.</p>}
-          <small>Estos valores son primas ASK por acción según interpretación del operador; no son rangos del precio de NVDA ni recomendaciones vigentes.</small>
+          <small>El precio de ejercicio del contrato y la prima ASK observada son distintos del rango ASK documental Investep.
+            Estos valores son primas ASK por acción según interpretación del operador; no son rangos del precio de NVDA ni recomendaciones vigentes.</small>
         </section>
         <details className="option-analysis-advanced"><summary>Detalles avanzados</summary><dl>
           <dt>conId</dt><dd>{conId??'N/D'}</dd><dt>OCC symbol</dt><dd>{analysis.identity.occSymbol??'N/D'}</dd>

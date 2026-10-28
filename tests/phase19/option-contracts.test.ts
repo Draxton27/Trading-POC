@@ -240,6 +240,66 @@ describe('Fase 41S: cadena conjunta acotada',()=>{
     expect(row.issues).toMatchObject([{right:'CALL',code:'INVALID_CONTRACT',mismatchFields:['expiration']}]);
     expect(hub.status().simulation).toBe(true);
   });
+  it('busca otro strike cercano solo tras NOT_FOUND y conserva cada identidad',async()=>{
+    const {app,hub,request,subscribe}=await prepared();
+    request.mockImplementation(async(kind,payload)=>{
+      if(kind==='option.parameters')return response(kind,{items:parameters}) as any;
+      if(Number(payload.strike)===150&&payload.right==='CALL')
+        throw new AgentRequestError('NOT_FOUND','contract_details','missing-call',200,91);
+      return response(kind,{contract:{conId:100000+Number(payload.strike)*2+(payload.right==='PUT'?1:0),
+        symbol:'NVDA',secType:'OPT',currency:'USD',tradingClass:'NVDA',right:payload.right==='PUT'?'P':'C',
+        expiration:'20261030',strike:Number(payload.strike),multiplier:100}}) as any;
+    });
+    const url=`/api/v1/options/chain?expiration=20261030&centerStrike=150&consumerId=${randomUUID()}`;
+    const first=(await app.inject(url)).json();
+    expect(first.rows.find((row:any)=>row.strike===150)).toMatchObject({call:null,put:{strike:150,right:'PUT'}});
+    expect(first.rows.find((row:any)=>row.strike===148)).toMatchObject({call:{strike:148,right:'CALL'},
+      replacementFor:{right:'CALL',requestedStrike:150}});
+    expect(first.fallback).toMatchObject({additionalAttemptLimit:2,attemptedCount:1,resolvedCount:1,
+      attempts:[{requestedStrike:150,resolvedStrike:148,right:'CALL',reason:'RESOLVED'}]});
+    expect(subscribe).toHaveBeenCalledTimes(6); // five originals (one NOT_FOUND) and one replacement
+    const before=request.mock.calls.filter(([kind,payload])=>kind==='option.resolve'&&Number(payload.strike)===150&&payload.right==='CALL').length;
+    await app.inject(url);
+    expect(request.mock.calls.filter(([kind,payload])=>kind==='option.resolve'&&Number(payload.strike)===150&&payload.right==='CALL')).toHaveLength(before);
+    connected(hub); // A new connection invalidates negative and positive definition caches.
+    await app.inject(url);
+    expect(request.mock.calls.filter(([kind,payload])=>kind==='option.resolve'&&Number(payload.strike)===150&&payload.right==='CALL')).toHaveLength(before+1);
+  });
+  it('no busca un strike alternativo ante TIMEOUT o identidad incompatible',async()=>{
+    const {app,request}=await prepared();
+    request.mockImplementation(async(kind,payload)=>{
+      if(kind==='option.parameters')return response(kind,{items:parameters}) as any;
+      if(Number(payload.strike)===150&&payload.right==='CALL')
+        throw new AgentRequestError('TIMEOUT','contract_details','slow',null,92);
+      return response(kind,{contract:{conId:100000+Number(payload.strike)*2+(payload.right==='PUT'?1:0),
+        symbol:'NVDA',secType:'OPT',currency:'USD',tradingClass:'NVDA',right:payload.right==='PUT'?'P':'C',
+        expiration:Number(payload.strike)===149&&payload.right==='PUT'?'20261106':'20261030',
+        strike:Number(payload.strike),multiplier:100}}) as any;
+    });
+    const result=(await app.inject(`/api/v1/options/chain?expiration=20261030&centerStrike=150&consumerId=${randomUUID()}`)).json();
+    expect(result.fallback.attemptedCount).toBe(0);
+    expect(result.errors).toEqual(expect.arrayContaining([expect.objectContaining({code:'TIMEOUT'}),
+      expect.objectContaining({code:'INVALID_CONTRACT'})]));
+    expect(request.mock.calls.filter(([kind])=>kind==='option.resolve')).toHaveLength(6);
+  });
+  it('detiene el fallback si el candidato adicional responde con PACING',async()=>{
+    const {app,request}=await prepared();
+    request.mockImplementation(async(kind,payload)=>{
+      if(kind==='option.parameters')return response(kind,{items:parameters}) as any;
+      if(payload.right==='CALL'&&Number(payload.strike)===150)
+        throw new AgentRequestError('NOT_FOUND','contract_details','missing',200);
+      if(payload.right==='CALL'&&Number(payload.strike)===148)
+        throw new AgentRequestError('PACING','contract_details','limited',100);
+      return response(kind,{contract:{conId:100000+Number(payload.strike)*2+(payload.right==='PUT'?1:0),
+        symbol:'NVDA',secType:'OPT',currency:'USD',tradingClass:'NVDA',right:payload.right==='PUT'?'P':'C',
+        expiration:'20261030',strike:Number(payload.strike),multiplier:100}}) as any;
+    });
+    const result=(await app.inject(`/api/v1/options/chain?expiration=20261030&centerStrike=150&consumerId=${randomUUID()}`)).json();
+    expect(result.fallback).toMatchObject({attemptedCount:1,resolvedCount:0,attempts:[{reason:'PACING'}]});
+    expect(result.errors).toEqual(expect.arrayContaining([expect.objectContaining({code:'NOT_FOUND',right:'CALL'}),
+      expect.objectContaining({code:'PACING',right:'CALL',strike:148})]));
+    expect(request.mock.calls.filter(([kind])=>kind==='option.resolve')).toHaveLength(7);
+  });
   it.each(['CALL','PUT'] as const)('propaga el 101 de TWS a través del transporte, AgentHub y la cadena para %s',async failingRight=>{
     const {app,hub}=await fixture();
     const adapter=new MockReadOnlyAdapter();await adapter.connect();

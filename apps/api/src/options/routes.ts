@@ -78,6 +78,8 @@ export function registerOptionRoutes(app:FastifyInstance,hub:AgentHub,mode:'DEMO
   let parametersCache:{until:number;connectionId:string|null;items:OptionParameter[]}|null=null;
   let parametersPending:Promise<OptionParameter[]>|null=null;
   const contractCache=new Map<string,{until:number;connectionId:string|null;contract:Record<string,unknown>}>();
+  // A negative result belongs to one exact definition and one broker connection.
+  const notFoundCache=new Map<string,{until:number;connectionId:string|null;problem:Issue}>();
   const subscriptionFailures=new Map<number,{connectionId:string|null;problem:Issue;until:number}>();
   const rememberSubscriptionFailure=(conId:number,problem:Issue)=>{
     const connectionId=hub.status().connectionId,now=Date.now();
@@ -140,6 +142,9 @@ export function registerOptionRoutes(app:FastifyInstance,hub:AgentHub,mode:'DEMO
     const remaining=deadline-Date.now();
     if(remaining<1000)return {item:null,errors:[diagnosed({...issue(null,strike),code:'PAGE_TIMEOUT',stage:'page_budget',message:messages.PAGE_TIMEOUT!})]};
     const cacheKey=`${selectedExpiration}:${right}:${strike}`,cached=contractCache.get(cacheKey);
+    const negative=notFoundCache.get(cacheKey);
+    if(negative&&negative.until>Date.now()&&negative.connectionId===hub.status().connectionId)
+      return {item:null,errors:[diagnosed(negative.problem)]};
     let resolutionRequestId:string|null=null;
     let contract=cached&&cached.until>Date.now()&&cached.connectionId===hub.status().connectionId?cached.contract:undefined;
     if(!contract){
@@ -147,7 +152,14 @@ export function registerOptionRoutes(app:FastifyInstance,hub:AgentHub,mode:'DEMO
         resolutionRequestId=response.requestId;
         contract=validateResolved(response.payload.contract,{right,expiration:selectedExpiration,strike},response.requestId??'');
         contractCache.set(cacheKey,{contract,until:Date.now()+60000,connectionId:hub.status().connectionId});
+        notFoundCache.delete(cacheKey);
       }catch(error){const failure=diagnosed(resolutionIssue(error,strike));
+        if(failure.code==='NOT_FOUND'){
+          const now=Date.now(),connectionId=hub.status().connectionId;
+          for(const [key,entry] of notFoundCache)if(entry.until<=now||entry.connectionId!==connectionId)
+            notFoundCache.delete(key);
+          notFoundCache.set(cacheKey,{until:now+60000,connectionId,problem:failure});
+        }
         app.log.warn({component:'options',event:'chain_resolution_failed',expiration:selectedExpiration,strike,right,
           requestId:failure.requestId,twsRequestId:failure.twsRequestId,stage:failure.stage,code:failure.code,
           ibkrCode:failure.ibkrCode,elapsedMs:failure.elapsedMs,mismatchFields:failure.mismatchFields});
@@ -344,7 +356,8 @@ export function registerOptionRoutes(app:FastifyInstance,hub:AgentHub,mode:'DEMO
     }
     const reference=query.centerStrike??marketReference??iexReference??historical?.referencePrice??null;
     const strikes=selectContractStrikes(all,query.strikeLevels,reference);
-    const errors:Issue[]=[],rows:Array<{strike:number;call:Record<string,unknown>|null;put:Record<string,unknown>|null;issues:Issue[]}>=[];
+    const errors:Issue[]=[],rows:Array<{strike:number;call:Record<string,unknown>|null;put:Record<string,unknown>|null;issues:Issue[];
+      replacementFor?:{right:'CALL'|'PUT';requestedStrike:number}}>=[];
     const references={CALL:selectAcademyReference(academyRanges(sqlite,'NVDA'),new Date().toISOString(),'CALL'),
       PUT:selectAcademyReference(academyRanges(sqlite,'NVDA'),new Date().toISOString(),'PUT')};
     const deadline=Date.now()+hub.optionPageTimeoutMs();
@@ -359,6 +372,42 @@ export function registerOptionRoutes(app:FastifyInstance,hub:AgentHub,mode:'DEMO
       }
       rows.push(row);
     }
+    // At most two extra contract resolutions per page, only after a definitive NOT_FOUND.
+    // A replacement is a separate, correctly identified strike, never a substituted conId.
+    let additionalAttempts=0,notFoundCount=0,resolvedCount=0;
+    const fallbackAttempts:Array<{requestedStrike:number;resolvedStrike:number|null;right:'CALL'|'PUT';expiration:string;
+      attemptedCount:number;notFoundCount:number;resolvedCount:number;reason:string}>=[];
+    const attempted=new Set(strikes.map(String));
+    const candidates=reference===null?[]:[...all].sort((a,b)=>Math.abs(a-reference)-Math.abs(b-reference)||a-b);
+    for(const missing of [...rows]){
+      for(const right of (query.side==='BOTH'?['CALL','PUT']:[query.side]) as Array<'CALL'|'PUT'>){
+        if(!missing.issues.some(item=>item.right===right&&item.code==='NOT_FOUND'))continue;
+        notFoundCount++;
+        let replacement:number|undefined,reason='BUDGET_EXHAUSTED',sideAttempts=0,sideNotFound=0,sideResolved=0;
+        while(additionalAttempts<2&&deadline-Date.now()>=1000){
+          replacement=candidates.find(strike=>{
+            if(attempted.has(String(strike)))return false;
+            const known=notFoundCache.get(`${selectedExpiration}:${right}:${strike}`);
+            return !known||known.until<=Date.now()||known.connectionId!==hub.status().connectionId;
+          });
+          if(replacement===undefined){reason='NO_CANDIDATES';break;}
+          attempted.add(String(replacement));additionalAttempts++;sideAttempts++;
+          const result=await loadContract(right,replacement,selectedExpiration,query.consumerId,deadline,references[right]);
+          const sideIssues=result.errors.map(error=>({...error,right}));errors.push(...sideIssues);
+          if(result.item){resolvedCount++;sideResolved++;reason='RESOLVED';
+            rows.push({strike:replacement,call:right==='CALL'?result.item:null,put:right==='PUT'?result.item:null,
+              issues:sideIssues,replacementFor:{right,requestedStrike:missing.strike}});break;
+          }
+          if(sideIssues.length){rows.push({strike:replacement,call:null,put:null,issues:sideIssues,
+            replacementFor:{right,requestedStrike:missing.strike}});}
+          if(!sideIssues.some(item=>item.code==='NOT_FOUND')){reason=sideIssues[0]?.code??'NO_RESULT';break;}
+          notFoundCount++;sideNotFound++;reason='NOT_FOUND';
+        }
+        fallbackAttempts.push({requestedStrike:missing.strike,resolvedStrike:sideResolved?replacement??null:null,
+          right,expiration:selectedExpiration,attemptedCount:sideAttempts,notFoundCount:sideNotFound,
+          resolvedCount:sideResolved,reason});
+      }
+    }
     rows.sort((a,b)=>a.strike-b.strike);
     return {expiration:selectedExpiration,rows,errors,source:hub.status().simulation?'Agente simulado':'IBKR Paper',
       selectionRequired:reference===null&&all.length>0,referenceSource:query.centerStrike!==undefined?'MANUAL_STRIKE':
@@ -369,7 +418,8 @@ export function registerOptionRoutes(app:FastifyInstance,hub:AgentHub,mode:'DEMO
       referenceKind:historical&&query.centerStrike===undefined&&marketReference===null&&iexReference===null?'HISTORICAL_EXPLORATION':'CURRENT_OR_MANUAL',
       sessionDate:historical?.sessionDate??null,ageTradingSessions:historical?.ageTradingSessions??null,
       isCurrent:marketReference!==null||iexReference!==null,isExecutable:false,
-      subscriptionStatus:{requested:strikes.length*(query.side==='BOTH'?2:1),limit:10}};
+      subscriptionStatus:{requested:strikes.length*(query.side==='BOTH'?2:1),limit:10},
+      fallback:{additionalAttemptLimit:2,attemptedCount:additionalAttempts,notFoundCount,resolvedCount,attempts:fallbackAttempts}};
   });
   /** Bounded background inspection for 41O. Reuses parameters and the same contract cache. */
   const inspectOpportunity=async(right:'CALL'|'PUT',referencePrice:number,count:number,consumerId:string)=>{
