@@ -4,11 +4,12 @@ import {realpathSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {assertPortsFree,npmCli} from './dev.mjs';
-import {ensureLocalAgentSecret,loadLocalEnvironment,redactedAccount,repoRoot,validPaperAccount} from './local-config.mjs';
+import {ensureLocalAgentSecret,loadLocalEnvironment,redactedAccount,repoRoot} from './local-config.mjs';
+import {resolveIbkrConnection} from './ibkr-connection.mjs';
 
-const usage='Use npm run dev:paper, npm run dev:mock o npm run dev:offline.';
+const usage='Use npm run dev:paper, npm run dev:gateway, npm run dev:mock o npm run dev:offline.';
 const mode=process.argv[2]?.toUpperCase();
-if(!['PAPER','MOCK','OFFLINE'].includes(mode??''))throw new Error(usage);
+if(!['PAPER','GATEWAY','MOCK','OFFLINE'].includes(mode??''))throw new Error(usage);
 
 const env=loadLocalEnvironment();
 const agentRequired=mode!=='OFFLINE';
@@ -18,7 +19,10 @@ const configured={...env,...(ensured?{TRADING_POC_AGENT_SECRET:ensured.secret}:{
   TRADING_POC_API_HOST:'127.0.0.1',TRADING_POC_AGENT_HOST:'127.0.0.1',
   TRADING_POC_BACKEND_AGENT_URL:`ws://127.0.0.1:${env.TRADING_POC_AGENT_PORT??'4301'}/agent/v1/connect`};
 if(mode==='MOCK')configured.TRADING_POC_AGENT_MODE='MOCK';
-if(mode==='PAPER')configured.TRADING_POC_AGENT_MODE='TWS';
+if(mode==='PAPER'||mode==='GATEWAY'){
+  configured.TRADING_POC_AGENT_MODE='TWS';
+  configured.TRADING_POC_IBKR_CONNECTION=mode==='GATEWAY'?'GATEWAY_PAPER':'TWS_PAPER';
+}
 if(!agentRequired)configured.TRADING_POC_DISABLE_AGENT='1';
 
 function port(name,value){
@@ -27,16 +31,7 @@ function port(name,value){
   return parsed;
 }
 const ports={api:port('API',configured.TRADING_POC_API_PORT??'4300'),web:port('frontend',configured.TRADING_POC_WEB_PORT??'5173'),agent:port('agente',configured.TRADING_POC_AGENT_PORT??'4301')};
-function clientId(value){
-  const parsed=Number(value);
-  if(!Number.isInteger(parsed)||parsed<0||parsed>2147483647)throw new Error(`IBKR_CLIENT_ID invÃ¡lido: ${value}`);
-  return parsed;
-}
-if(mode==='PAPER'){
-  if(!validPaperAccount(configured.IBKR_EXPECTED_PAPER_ACCOUNT))throw new Error('PAPER requiere IBKR_EXPECTED_PAPER_ACCOUNT con una cuenta Paper DU válida en .env.local. No se aceptan cuentas reales.');
-  if(!['127.0.0.1','localhost'].includes(configured.IBKR_TWS_HOST??'127.0.0.1'))throw new Error('IBKR_TWS_HOST debe ser 127.0.0.1 o localhost.');
-  port('TWS',configured.IBKR_TWS_PORT??'7497');clientId(configured.IBKR_CLIENT_ID??'119');
-}
+const ibkr=mode==='PAPER'||mode==='GATEWAY'?resolveIbkrConnection(configured,configured.TRADING_POC_IBKR_CONNECTION):null;
 
 function wait(ms){return new Promise(resolve=>setTimeout(resolve,ms));}
 async function waitHttp(url,label){
@@ -82,9 +77,10 @@ async function main(){
     if(agentRequired){await waitTcp(ports.agent,'WebSocket del agente');start('dev:agent');}
     start('dev:web');await waitHttp(`http://127.0.0.1:${ports.web}/`,'Frontend');
     const ollama=await ollamaStatus();
-    console.log(`\nTrading-POC: ${mode==='MOCK'?'PAPER (agente simulado)':mode}`);
+    console.log(`\nTrading-POC: ${mode==='MOCK'?'PAPER (agente simulado)':mode==='GATEWAY'?'PAPER (IB Gateway)':mode}`);
     console.log(`API: ${ports.api}\nFrontend: ${ports.web}\nAgente: ${agentRequired?ports.agent:'deshabilitado'}\nOllama: ${ollama}`);
-    console.log(`TWS: ${mode==='PAPER'?'pendiente de conexión':'no requerido'}\nCuenta Paper: ${mode==='PAPER'?`configurada (${redactedAccount(configured.IBKR_EXPECTED_PAPER_ACCOUNT)})`:'no requerida'}`);
+    console.log(`IBKR: ${ibkr?.connectionApplication??'no requerida'}${ibkr?` ${ibkr.host}:${ibkr.port}`:''}`);
+    console.log(`IBKR Paper: ${ibkr?'pendiente de conexion':'no requerido'}\nCuenta Paper: ${ibkr?`configurada (${redactedAccount(ibkr.expectedPaperAccount)})`:'no requerida'}`);
     if(ensured?.created)console.log('Se creó .env.local con un secreto local persistente. No se mostró su valor.');
   }catch(error){console.error(error instanceof Error?error.message:String(error));await stop(1);}
 }

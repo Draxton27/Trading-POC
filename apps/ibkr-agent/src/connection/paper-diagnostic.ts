@@ -11,17 +11,18 @@ export type PaperDiagnosticCode='TWS_PROCESS_NOT_AVAILABLE'|'TWS_PORT_NOT_REACHA
   'TWS_ACCOUNT_VERIFIED'|'AGENT_BACKEND_DISCONNECTED'|'AGENT_READY'|'UNKNOWN_CAUSE';
 export type PaperDiagnostic={schema:'phase41p-paper-diagnostic-v1';atUtc:string;code:PaperDiagnosticCode;
   socketConnected:boolean;nextValidId:boolean;managedAccounts:boolean;paperAccountVerified:boolean;
-  backendConnected:boolean;ibkrCode:number|null};
+  backendConnected:boolean;ibkrCode:number|null;connectionApplication?:'TWS_PAPER'|'GATEWAY_PAPER'};
 export const paperDiagnosticPath=(env:NodeJS.ProcessEnv=process.env)=>
   env.TRADING_POC_IBKR_DIAGNOSTIC??resolve(resolvePrivateDir({repoRoot:root,env}),'ibkr','paper-diagnostic.json');
 export const paperDiagnosticPathFor=(privateDir:string,env:NodeJS.ProcessEnv=process.env)=>
   env.TRADING_POC_IBKR_DIAGNOSTIC??resolve(privateDir,'ibkr','paper-diagnostic.json');
 export function paperDiagnostic(code:PaperDiagnosticCode,handshake?:TwsHandshakeDiagnostic,
-  backendConnected=false,clock:()=>string=()=>new Date().toISOString()):PaperDiagnostic{
+  backendConnected=false,clock:()=>string=()=>new Date().toISOString(),
+  connectionApplication?:'TWS_PAPER'|'GATEWAY_PAPER'):PaperDiagnostic{
   return {schema:'phase41p-paper-diagnostic-v1',atUtc:clock(),code,
     socketConnected:handshake?.socketConnected??false,nextValidId:handshake?.nextValidId??false,
     managedAccounts:handshake?.managedAccounts??false,paperAccountVerified:handshake?.paperAccountVerified??false,
-    backendConnected,ibkrCode:handshake?.ibkrCode??null};
+    backendConnected,ibkrCode:handshake?.ibkrCode??null,...(connectionApplication?{connectionApplication}:{})};
 }
 export function writePaperDiagnostic(path:string,value:PaperDiagnostic){
   mkdirSync(dirname(path),{recursive:true});const temporary=`${path}.${randomUUID()}.tmp`;
@@ -39,25 +40,26 @@ export function readPaperDiagnostic(path:string):PaperDiagnostic|null{
     !Number.isFinite(Date.parse(row.atUtc))||new Date(row.atUtc).toISOString()!==row.atUtc||
     ['socketConnected','nextValidId','managedAccounts','paperAccountVerified','backendConnected'].some(key=>
       typeof row[key as keyof PaperDiagnostic]!=='boolean')||
-    row.ibkrCode!==null&&!Number.isInteger(row.ibkrCode))throw new Error('PAPER_DIAGNOSTIC_INVALID');
+    row.ibkrCode!==null&&!Number.isInteger(row.ibkrCode)||
+    row.connectionApplication!==undefined&&!['TWS_PAPER','GATEWAY_PAPER'].includes(row.connectionApplication))throw new Error('PAPER_DIAGNOSTIC_INVALID');
   return row;
 }
 export function classifyPaperConnectivity(input:{mode:'DEMO'|'OFFLINE'|'PAPER';configured:boolean;
   portReachable:boolean|null;processPresent:boolean|null;backendConnected:boolean;backendSimulation:boolean;
   last:PaperDiagnostic|null;now:number}){
   const {mode,last}=input;
-  if(mode!=='PAPER')return {code:'UNKNOWN_CAUSE' as const,reason:'TWS no requerido en este modo.'};
+  if(mode!=='PAPER')return {code:'UNKNOWN_CAUSE' as const,reason:'IBKR no requerido en este modo.'};
   if(!input.configured)return {code:'UNKNOWN_CAUSE' as const,reason:'Falta configuración Paper válida.'};
   if(input.backendConnected&&!input.backendSimulation)return {code:'AGENT_READY' as const,reason:'Backend recibió agente Paper verificado.'};
   if(input.processPresent===false&&input.portReachable===false)
-    return {code:'TWS_PROCESS_NOT_AVAILABLE' as const,reason:'No se detectó el proceso TWS y el puerto no responde.'};
-  if(input.portReachable===false)return {code:'TWS_PORT_NOT_REACHABLE' as const,reason:'El puerto TWS configurado no responde en loopback.'};
+    return {code:'TWS_PROCESS_NOT_AVAILABLE' as const,reason:'La aplicación IBKR configurada no responde en su puerto.'};
+  if(input.portReachable===false)return {code:'TWS_PORT_NOT_REACHABLE' as const,reason:'El puerto IBKR configurado no responde en loopback.'};
   if(last&&input.now-Date.parse(last.atUtc)<=120_000){
     if(last.code==='TWS_ACCOUNT_MISMATCH')return {code:last.code,reason:'La cuenta recibida no coincide con la cuenta Paper configurada.'};
     if(last.code==='TWS_API_HANDSHAKE_TIMEOUT'||last.code==='TWS_API_AUTHORIZATION_UNCONFIRMED')
-      return {code:last.code,reason:'El handshake de API no completó nextValidId y managedAccounts; verificar autorización en TWS.'};
+      return {code:last.code,reason:'El handshake de API no completó nextValidId y managedAccounts; verificar autorización en la aplicación IBKR.'};
     if(last.code==='AGENT_BACKEND_DISCONNECTED'||last.code==='TWS_ACCOUNT_VERIFIED')
       return {code:'AGENT_BACKEND_DISCONNECTED' as const,reason:'La cuenta Paper fue verificada, pero el backend no tiene un agente conectado.'};
   }
-  return {code:'UNKNOWN_CAUSE' as const,reason:'No hay evidencia suficiente para atribuir la causa a TWS, autorización o backend.'};
+  return {code:'UNKNOWN_CAUSE' as const,reason:'No hay evidencia suficiente para atribuir la causa a la aplicación IBKR, autorización o backend.'};
 }
