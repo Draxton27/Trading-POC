@@ -170,3 +170,58 @@ describe('API de contratos Paper simulados',()=>{
     expect(resolve).toHaveBeenCalledTimes(calls+1); // Only the mismatching definition is retried.
   });
 });
+
+describe('Fase 41S: cadena conjunta acotada',()=>{
+  const prepared=async()=>{
+    const {app,hub}=await fixture();
+    const request=vi.spyOn(hub,'request').mockImplementation(async(kind,payload)=>kind==='option.parameters'?
+      response(kind,{items:parameters}) as any:response(kind,{contract:{conId:100000+Number(payload.strike)*2+(payload.right==='PUT'?1:0),
+        symbol:'NVDA',secType:'OPT',currency:'USD',tradingClass:'NVDA',right:payload.right==='PUT'?'P':'C',
+        expiration:'20261030 16:00:00',strike:String(payload.strike),multiplier:'100'}}) as any);
+    const subscribe=vi.spyOn(hub,'subscribe').mockResolvedValue(undefined);
+    return {app,hub,request,subscribe};
+  };
+  it.each([[3,6],[5,10]])('consulta %i strikes y a lo sumo %i definiciones entre CALL y PUT',async(levels,definitions)=>{
+    const {app,request,subscribe}=await prepared();
+    const result=await app.inject(`/api/v1/options/chain?expiration=20261030&centerStrike=150&strikeLevels=${levels}&consumerId=${randomUUID()}`);
+    expect(result.statusCode).toBe(200);
+    const body=result.json();expect(body.rows).toHaveLength(levels);
+    expect(body.rows.every((row:any)=>row.call?.right==='CALL'&&row.put?.right==='PUT'&&
+      row.call.strike===row.put.strike&&row.call.multiplier===100&&row.put.multiplier===100)).toBe(true);
+    expect(body.subscriptionStatus).toMatchObject({requested:definitions,limit:10});
+    expect(request.mock.calls.filter(([kind])=>kind==='option.resolve')).toHaveLength(definitions);
+    expect(subscribe).toHaveBeenCalledTimes(definitions);
+    const ids=body.rows.flatMap((row:any)=>[row.call.conId,row.put.conId]);
+    const refreshed=await app.inject('/api/v1/options/quotes?conIds='+ids.join(','));
+    expect(refreshed.statusCode).toBe(200);expect(refreshed.json().items).toHaveLength(definitions);
+    expect(subscribe).toHaveBeenCalledTimes(definitions);
+  });
+  it('conserva el PUT aunque CALL tenga identidad incompatible',async()=>{
+    const {app,hub,request}=await prepared();
+    request.mockImplementation(async(kind,payload)=>kind==='option.parameters'?response(kind,{items:parameters}) as any:
+      response(kind,{contract:{conId:100000+Number(payload.strike)*2+(payload.right==='PUT'?1:0),symbol:'NVDA',
+        secType:'OPT',currency:'USD',tradingClass:'NVDA',right:payload.right==='PUT'?'P':'C',
+        expiration:payload.right==='CALL'&&Number(payload.strike)===150?'20261106':'20261030 16:00:00',
+        strike:String(payload.strike),multiplier:'100'}}) as any);
+    const result=await app.inject(`/api/v1/options/chain?expiration=20261030&centerStrike=150&consumerId=${randomUUID()}`);
+    const row=result.json().rows.find((item:any)=>item.strike===150);
+    expect(row.call).toBeNull();expect(row.put).toMatchObject({right:'PUT',strike:150});
+    expect(row.issues).toMatchObject([{right:'CALL',code:'INVALID_CONTRACT',mismatchFields:['expiration']}]);
+    expect(hub.status().simulation).toBe(true);
+  });
+  it('reporta presupuesto insuficiente por lado sin ocultar contratos válidos',async()=>{
+    const {app,hub}=await prepared();let count=0;
+    vi.spyOn(hub,'subscribe').mockImplementation(async()=>{if(++count>4)throw new Error('Límite de 10 suscripciones IBKR');});
+    const result=await app.inject(`/api/v1/options/chain?expiration=20261030&centerStrike=150&strikeLevels=3&consumerId=${randomUUID()}`);
+    const body=result.json();expect(result.statusCode).toBe(200);
+    expect(body.rows.flatMap((row:any)=>[row.call,row.put]).filter(Boolean)).toHaveLength(6);
+    expect(body.errors).toHaveLength(2);
+    expect(body.rows.flatMap((row:any)=>[row.call,row.put]).filter((item:any)=>item?.dataStatus==='suscripcion_fallida')).toHaveLength(2);
+  });
+  it('no inventa un centro ni cotizaciones si no hay precio admisible',async()=>{
+    const {app,hub}=await prepared();
+    const result=await app.inject(`/api/v1/options/chain?expiration=20261030&consumerId=${randomUUID()}`);
+    expect(result.json()).toMatchObject({rows:[],selectionRequired:true,referenceSource:'NONE'});
+    expect(hub.status().connected).toBe(true);
+  });
+});
