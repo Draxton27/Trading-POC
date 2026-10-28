@@ -9,6 +9,7 @@ import {loadIexWarmup} from '../../../../trading_poc_001_bollinger/src/phase38f-
 import {loadIexRestContext} from '../../../../trading_poc_001_bollinger/src/phase41p-rest-context.ts';
 import {diagnoseOpportunityContinuity,warmupAsRestContext,type RestContext} from '../../../../trading_poc_001_bollinger/src/phase41p-continuity.ts';
 import {OpportunityStore} from '../../../../trading_poc_001_bollinger/src/phase41o-ledger.ts';
+import {previousIexSessionReference} from '../options/exploration-reference.ts';
 
 type Mode='DEMO'|'OFFLINE'|'PAPER';
 export type LiveDiagnosticPaths={ledger:string;calendar:string;warmup:string|null;context:string|null;opportunities:string};
@@ -51,7 +52,8 @@ export function registerLiveDiagnostics(app:FastifyInstance,options:{mode:Mode;p
     const counts=Object.entries(statuses).reduce((result,[,status])=>{
       result[status]=(result[status]??0)+1;return result;
     },{} as Record<string,number>);
-    return {state,reason:audit.code,source:'Alpaca IEX Live',feed:'iex',adjustment:'raw',symbol:'NVDA',
+    const explorationReference=previousIexSessionReference(records,calendar,new Date(clock()).toISOString());
+    return {state,reason:audit.code,source:'Alpaca IEX Live',feed:'iex',adjustment:'raw',symbol:'NVDA',explorationReference,
       barStartUtc:latest?.bar?.startUtc??null,barEndUtc:latest?.bar?.endUtc??null,
       receivedAtUtc:latest?.receivedAtUtc??null,registeredAtUtc:null,
       dataKnownAtUtc:latest?.receivedAtUtc??null,close:latest?.bar?.close??null,ageMinutes:age,

@@ -9,11 +9,13 @@ import {describeMoneyness,expiryLabel,type Side} from './chain-view.ts';
 import type {InvestepScenarioResponse} from '@trading-poc/contracts';
 
 type ContractRow=Record<string,any>;
-type Issue={strike:number|null;right?:'CALL'|'PUT';code:string;message:string;requestId:string|null;ibkrCode:number|null;mismatchFields?:string[]};
+type Issue={strike:number|null;right?:'CALL'|'PUT';code:string;message:string;requestId:string|null;ibkrCode:number|null;
+  twsRequestId?:number|null;elapsedMs?:number;mismatchFields?:string[]};
 type Strikes={items:number[];total:number;offset:number;nextOffset:number|null;expiration:string|null};
 type ChainRow={strike:number;call:ContractRow|null;put:ContractRow|null;issues:Issue[]};
 type Chain={rows:ChainRow[];errors:Issue[];source:string;selectionRequired?:boolean;referenceSource?:string;
   referencePrice?:number|null;referenceObservedAtUtc?:string|null;referenceReceivedAtUtc?:string|null;
+  referenceKind?:string;sessionDate?:string|null;ageTradingSessions?:number|null;isCurrent?:boolean;isExecutable?:boolean;
   subscriptionStatus?:{requested:number;limit:number}};
 const number=(n:number|null|undefined,digits=2)=>n==null||!Number.isFinite(n)?'N/D':fmt(n,digits);
 const dollars=(n:number|null|undefined)=>n==null||!Number.isFinite(n)?'N/D':`$${number(n)}`;
@@ -22,6 +24,7 @@ const labels:Record<string,string>={cotizacion_pendiente:'Cotización pendiente'
   obsoleto:'Cotización obsoleta',recibido:'Cotización recibida'};
 const referenceLabels:Record<string,string>={IBKR_LAST_OBSERVED:'IBKR · último precio observado',
   ALPACA_IEX_LAST_COMPLETE_BAR:'Alpaca IEX · última vela completa',MANUAL_STRIKE:'Strike elegido manualmente',
+  ALPACA_IEX_VERIFIED_SESSION_CLOSE:'Alpaca IEX · última vela de la sesión regular verificada',
   MANUAL_RANGE_ASCENDING:'Rango elegido manualmente',DEMO_SYNTHETIC:'DEMO · referencia sintética',NONE:'Sin referencia actual verificable'};
 const stateLabels:Record<string,string>={IBKR_DISCONNECTED:'IBKR Paper desconectado',LOADING_EXPIRATIONS:'Cargando vencimientos…',
   LOADING_CONTRACTS:'Consultando contratos…',CONTRACTS_AVAILABLE:'Contratos disponibles',
@@ -98,11 +101,12 @@ function ContractDetail({conId,mode,nowMs,candidateId,onClose}:{conId:number|nul
     {q.error?<p role="alert">No se pudo cargar el contrato exacto: {(q.error as Error).message}</p>:null}</aside>;
 }
 
-function ChainCell({row,right,now,referenceSource,referencePrice,visual,selected,compareDisabled,onAnalyze,onCompare}:{row:ContractRow|null;
+function ChainCell({row,issue,right,now,referenceSource,referencePrice,visual,selected,compareDisabled,onAnalyze,onCompare}:{row:ContractRow|null;
+  issue?:Issue;
   right:'CALL'|'PUT';now:number;referenceSource:string;referencePrice:number|null;
   visual:{advanced:boolean;cost:boolean;spread:boolean;moneyness:boolean};selected:boolean;compareDisabled:boolean;
   onAnalyze:()=>void;onCompare:()=>void}){
-  if(!row)return <div className="chain-side-empty">Contrato no disponible <small>BID / ASK N/D</small></div>;
+  if(!row)return <div className="chain-side-empty">{issue?`${issue.code}: ${issue.message}`:'Contrato no disponible'} <small>BID / ASK N/D</small></div>;
   const analysis=analyzeComparisonRow(row,{quantity:1,capitalUsd:null,entryFeePerContractUsd:null,
     expirationFeePerContractUsd:null,hypotheticalUnderlyingAtExpirationUsd:null,asOfUtc:new Date(now).toISOString()});
   const stale=referenceSource!=='DEMO_SYNTHETIC'&&!!row.receivedAtUtc&&now-Date.parse(row.receivedAtUtc)>30000;
@@ -131,6 +135,7 @@ export default function OptionsView({mode,consumerId,initialContract}:{mode:stri
   const [side,setSide]=useState<Side>('BOTH'),[mobileSide,setMobileSide]=useState<'CALL'|'PUT'>('CALL');
   const [levels,setLevels]=useState<3|5>(3),[expiration,setExpiration]=useState('');
   const [centerStrike,setCenterStrike]=useState(''),[allStrikes,setAllStrikes]=useState(false),[offset,setOffset]=useState(0);
+  const [nearInput,setNearInput]=useState(''),[near,setNear]=useState('');
   const [now,setNow]=useState(Date.now()),[selected,setSelected]=useState<number[]>([]),[selectedRows,setSelectedRows]=useState<Record<number,ContractRow>>({});
   const [analysisConId,setAnalysisConId]=useState<number|null>(null),[analysisPinned,setAnalysisPinned]=useState(false);
   const [target,setTarget]=useState(initialContract??null),[comparisonOpen,setComparisonOpen]=useState(false);
@@ -148,9 +153,9 @@ export default function OptionsView({mode,consumerId,initialContract}:{mode:stri
     return {...previous,[conId]:row};}),[]);
   const expirations=useQuery<{items:string[];source:string}>({queryKey:['option-expirations',mode],queryFn:()=>api('/options/expirations')});
   const chosen=expiration||expirations.data?.items[0]||'';
-  const strikeQuery=useQuery<Strikes>({queryKey:['option-strikes',mode,chosen,offset],
+  const strikeQuery=useQuery<Strikes>({queryKey:['option-strikes',mode,chosen,offset,near],
     enabled:mode==='PAPER'&&!!chosen,queryFn:()=>api('/options/strikes?'+new URLSearchParams({expiration:chosen,
-      offset:String(offset),limit:'50'}))});
+      offset:String(offset),limit:'50',...(near?{near}:{})}))});
   const params=new URLSearchParams({consumerId,strikeLevels:String(levels),side});
   if(chosen&&mode==='PAPER')params.set('expiration',chosen);
   if(centerStrike)params.set('centerStrike',centerStrike);
@@ -171,6 +176,11 @@ export default function OptionsView({mode,consumerId,initialContract}:{mode:stri
     if(q.data.rows.some(row=>row.call?.conId===target.conId||row.put?.conId===target.conId))setAnalysisConId(target.conId);
   },[target,q.data]);
   const problems=q.data?.errors??[],mismatch=problems.filter(problem=>problem.code==='INVALID_CONTRACT').length;
+  const requested=q.data?.subscriptionStatus?.requested??0;
+  const definitions=rows.flatMap(row=>[row.call,row.put]).filter(Boolean) as ContractRow[];
+  const completeQuotes=definitions.filter(row=>row.bid!=null&&row.ask!=null).length;
+  const partialQuotes=definitions.filter(row=>(row.bid!=null)!==(row.ask!=null)||row.marketDataStatus==='partial').length;
+  const reasons=Object.entries(problems.reduce((counts,problem)=>({...counts,[problem.code]:(counts[problem.code]??0)+1}),{} as Record<string,number>));
   const chooseStrike=(value:number)=>{setCenterStrike(String(value));setAllStrikes(false);setAnalysisConId(null);setTarget(null);};
   const state=mode==='PAPER'&&q.data?.source==='IBKR desconectado'?'IBKR_DISCONNECTED':
     expirations.isLoading?'LOADING_EXPIRATIONS':q.isLoading?'LOADING_CONTRACTS':rows.length?'CONTRACTS_AVAILABLE':
@@ -188,10 +198,12 @@ export default function OptionsView({mode,consumerId,initialContract}:{mode:stri
       <div className="options-observed"><span>{q.data?.referenceSource==='MANUAL_STRIKE'?'STRIKE DE REFERENCIA MANUAL':
         q.data?.referenceSource==='DEMO_SYNTHETIC'?'REFERENCIA SINTÉTICA':
         q.data?.referenceSource==='ALPACA_IEX_LAST_COMPLETE_BAR'?'REFERENCIA IEX APROXIMADA':
+        q.data?.referenceSource==='ALPACA_IEX_VERIFIED_SESSION_CLOSE'?'ÚLTIMA OBSERVACIÓN VERIFICADA DE NVDA':
         q.data?.referenceSource==='NONE'||!q.data?.referenceSource?'REFERENCIA NO DISPONIBLE':'SUBYACENTE OBSERVADO'}</span><strong>{dollars(q.data?.referencePrice)}</strong>
         <small>{referenceLabels[q.data?.referenceSource??'NONE']??'Sin referencia actual verificable'}</small>
         {q.data?.referenceObservedAtUtc?<small>Observado: {dateTime(q.data.referenceObservedAtUtc)}</small>:null}
         {q.data?.referenceReceivedAtUtc?<small>Recibido: {dateTime(q.data.referenceReceivedAtUtc)}</small>:null}
+        {referenceSource==='ALPACA_IEX_VERIFIED_SESSION_CLOSE'?<small>Sesión {q.data?.sessionDate} · Histórico, no es precio actual ni ejecutable.</small>:null}
         <small>{mode==='DEMO'?'DEMO sintético':expirations.data?.source??'Comprobando IBKR Paper'}</small></div></header>
     <Card className="options-chain"><div className="options-chain-head"><div><span className="eyebrow">EXPLORAR CONTRATOS</span>
       <h2>CALL · {chosen?expiryLabel(chosen):'Vencimiento pendiente'} · PUT</h2></div><Badge tone={mode==='DEMO'?'warning':'info'}>{mode}</Badge></div>
@@ -210,6 +222,9 @@ export default function OptionsView({mode,consumerId,initialContract}:{mode:stri
           <button type="button" aria-pressed={allStrikes} className={allStrikes?'selected':''} onClick={()=>setAllStrikes(value=>!value)}>Más strikes</button></div>:null}
         <Button variant="ghost" onClick={()=>{void expirations.refetch();void strikeQuery.refetch();void q.refetch();}}>Actualizar</Button></div>
       {mode==='PAPER'&&allStrikes?<div className="options-strike-browser"><p>{strikeQuery.data?.total??0} strikes reportados por IBKR. Seleccione uno como centro manual, sin convertirlo en precio observado.</p>
+        <form onSubmit={event=>{event.preventDefault();const value=Number(nearInput);if(Number.isFinite(value)&&value>0){setNear(String(value));setOffset(0);}}}>
+          <label>Buscar cerca del precio o strike <input type="number" min="0.01" step="any" value={nearInput} onChange={event=>setNearInput(event.target.value)}/></label>
+          <Button type="submit">Buscar strikes</Button></form>
         <div className="options-strike-list">{strikeQuery.data?.items.map(strike=><button type="button" key={strike}
           className={centerStrike===String(strike)?'selected':''} onClick={()=>chooseStrike(strike)}>{dollars(strike)}</button>)}</div>
         <div className="options-pager"><Button variant="ghost" disabled={offset===0} onClick={()=>setOffset(Math.max(0,offset-50))}>Anteriores</Button>
@@ -218,8 +233,13 @@ export default function OptionsView({mode,consumerId,initialContract}:{mode:stri
         {([['advanced','Modo avanzado'],['cost','Mostrar costo bruto'],['spread','Mostrar spread'],
           ['moneyness','Mostrar ITM / OTM']] as const).map(([key,label])=><label key={key}>
           <input type="checkbox" checked={visual[key]} onChange={()=>flip(key)}/>{label}</label>)}</div></details>
-      <div className="options-state" role="status" data-state={state}><span>{stateLabels[state]}</span>{q.isFetching&&!q.isLoading?' · Actualizando cotizaciones…':''}
+      <div className="options-state" role="status" data-state={state}><span>{problems.length&&definitions.length?'Consulta parcial':stateLabels[state]}</span>{q.isFetching&&!q.isLoading?' · Actualizando cotizaciones…':''}
         {q.data?.selectionRequired?' · Sin referencia actual verificable. Elija un strike disponible.':''}</div>
+      {requested>0?<div className="options-chain-summary" aria-label="Resumen de cadena">
+        {requested} contratos solicitados · {definitions.length} definiciones válidas · {problems.length} incidencias ·
+        cotizaciones completas {completeQuotes} · parciales {partialQuotes}.
+        {reasons.length?<small>Motivos: {reasons.map(([code,count])=>`${code} ${count}`).join(' · ')}.</small>:null}
+      </div>:null}
       {target&&q.data&&!rows.some(row=>row.call?.conId===target.conId||row.put?.conId===target.conId)?
         <p className="options-target-warning" role="alert">El contrato exacto conId {target.conId} enviado por Radar no está disponible.
           No se sustituye por otro strike. Revise identidad y disponibilidad temporal.</p>:null}
@@ -234,13 +254,13 @@ export default function OptionsView({mode,consumerId,initialContract}:{mode:stri
           if(index===marker)result.push(<tr key={`marker-${row.strike}`} className="chain-reference-row"><td colSpan={3}>
             Referencia {referenceSource==='DEMO_SYNTHETIC'?'sintética':referenceSource==='ALPACA_IEX_LAST_COMPLETE_BAR'?'IEX aproximada':'IBKR observada'}: {dollars(referencePrice)}</td></tr>);
           result.push(<tr key={row.strike} className="chain-strike-row">
-            <td className="chain-call-cell">{side==='PUT'?<span className="chain-side-empty">CALL oculto</span>:<ChainCell row={row.call} right="CALL"
+            <td className="chain-call-cell">{side==='PUT'?<span className="chain-side-empty">CALL oculto</span>:<ChainCell row={row.call} issue={row.issues.find(item=>item.right==='CALL')} right="CALL"
               now={now} referenceSource={referenceSource} referencePrice={referencePrice} visual={visual}
               selected={!!row.call&&selected.includes(row.call.conId)} compareDisabled={!!row.call&&!selected.includes(row.call.conId)&&selected.length>=4}
               onAnalyze={()=>{if(row.call){setAnalysisConId(row.call.conId);setAnalysisPinned(false);setTarget(null);}}}
               onCompare={()=>row.call&&setSelected(ids=>toggleComparison(ids,row.call!.conId))}/>}</td>
             <td className="options-strike-cell"><strong>{dollars(row.strike)}</strong><small>Ejercicio</small></td>
-            <td className="chain-put-cell">{side==='CALL'?<span className="chain-side-empty">PUT oculto</span>:<ChainCell row={row.put} right="PUT"
+            <td className="chain-put-cell">{side==='CALL'?<span className="chain-side-empty">PUT oculto</span>:<ChainCell row={row.put} issue={row.issues.find(item=>item.right==='PUT')} right="PUT"
               now={now} referenceSource={referenceSource} referencePrice={referencePrice} visual={visual}
               selected={!!row.put&&selected.includes(row.put.conId)} compareDisabled={!!row.put&&!selected.includes(row.put.conId)&&selected.length>=4}
               onAnalyze={()=>{if(row.put){setAnalysisConId(row.put.conId);setAnalysisPinned(false);setTarget(null);}}}
@@ -255,7 +275,9 @@ export default function OptionsView({mode,consumerId,initialContract}:{mode:stri
           {problem.right??'N/D'} · strike {problem.strike??'N/D'} · {problem.code} · {problem.message}
           {problem.mismatchFields?.length?` Campos: ${problem.mismatchFields.join(', ')}`:''}
           {problem.ibkrCode!==null?` · IBKR ${problem.ibkrCode}`:''}
-          {problem.requestId?` · Solicitud ${problem.requestId}`:''}</p>)}</details>
+          {problem.requestId?` · Solicitud ${problem.requestId}`:''}
+          {problem.twsRequestId!=null?` · TWS ${problem.twsRequestId}`:''}
+          {problem.elapsedMs!=null?` · ${problem.elapsedMs} ms`:''}</p>)}</details>
         <Button variant="ghost" onClick={()=>void q.refetch()}>Reintentar</Button></div>:null}
       <p className="options-chain-foot">Máximo {levels*(side==='BOTH'?2:1)} definiciones en esta consulta; límite global de 10 suscripciones
         compartidas con Radar y comparador. Contrato validado ≠ cotización OPRA disponible.

@@ -8,7 +8,9 @@ import type Database from 'better-sqlite3';
 import {academyRanges,evaluateAcademyAskRange,selectAcademyReference} from '../academy/service.ts';
 import {OptionComparisonRequest} from '@trading-poc/contracts';
 
-type Issue={strike:number|null;code:string;message:string;stage:string;requestId:string|null;ibkrCode:number|null;mismatchFields?:string[];right?:'CALL'|'PUT'};
+type Issue={strike:number|null;code:string;message:string;stage:string;requestId:string|null;ibkrCode:number|null;
+  twsRequestId?:number|null;elapsedMs?:number;resolved?:boolean;subscribed?:boolean;quoteReceived?:boolean;
+  mismatchFields?:string[];right?:'CALL'|'PUT'};
 const messages:Record<string,string>={
   TIMEOUT:'La solicitud tardó demasiado; vuelva a intentar este contrato.',
   PAGE_TIMEOUT:'Se agotó el tiempo de esta página; reduzca el número de contratos.',
@@ -17,18 +19,38 @@ const messages:Record<string,string>={
   PERMISSION:'Permisos de mercado insuficientes para esta solicitud.',
   PACING:'IBKR limitó las solicitudes; espere antes de reintentar.',
   DISCONNECTED:'El agente Paper se desconectó.',
-  LIMIT:'Se alcanzó el límite de suscripciones visibles.',
+  SUBSCRIPTION_LIMIT:'Se alcanzó el límite de suscripciones de mercado.',
   INVALID_CONTRACT:'La definición recibida no coincide con el contrato solicitado.',
-  BROKER_ERROR:'IBKR no pudo completar la solicitud.'
+  BROKER_ERROR:'IBKR no pudo completar la solicitud.',
+  PARTIAL_MARKET_DATA:'IBKR indicó que faltan permisos para algunos ticks; los precios recibidos se conservan.',
+  DELAYED_DATA_UNAVAILABLE:'IBKR indicó que los datos retrasados solicitados no están habilitados.',
+  SESSION_CONFLICT_REPORTED:'IBKR informó un conflicto de sesiones de datos de mercado.'
 };
 function issue(error:unknown,strike:number|null=null):Issue{
   const e=error instanceof AgentRequestError?error:null;
-  const code=e?.code??(error instanceof Error&&/límite de 10/i.test(error.message)?'LIMIT':'BROKER_ERROR');
+  const code=e?.code??(error instanceof Error&&/límite de 10/i.test(error.message)?'SUBSCRIPTION_LIMIT':'BROKER_ERROR');
   return {strike,code,message:messages[code]??messages.BROKER_ERROR!,stage:e?.stage??'backend',
-    requestId:e?.requestId||null,ibkrCode:e?.ibkrCode??null};
+    requestId:e?.requestId||null,ibkrCode:e?.ibkrCode??null,twsRequestId:e?.twsRequestId??null};
 }
 const decimal=z.coerce.number().finite().nonnegative();
 const expiration=z.string().regex(/^\d{8}$/);
+export function quoteStatus(received:{receivedAtUtc?:string;bid?:number|null;ask?:number|null;feedType?:string;
+  marketDataStatus?:string;ibkrErrorCode?:number}|null,now=Date.now()){
+  if(received?.ibkrErrorCode===10197)return 'SESSION_CONFLICT_REPORTED';
+  if(received?.ibkrErrorCode===10186)return 'DELAYED_DATA_UNAVAILABLE';
+  if(received?.ibkrErrorCode===101)return 'SUBSCRIPTION_LIMIT';
+  if(received?.marketDataStatus==='permission_denied'||received?.ibkrErrorCode===10089)return 'PERMISSION_DENIED';
+  if(!received)return 'MISSING';
+  const receivedAt=received.receivedAtUtc?Date.parse(received.receivedAtUtc):NaN;
+  if(!Number.isFinite(receivedAt)||receivedAt>now||now-receivedAt>30000)return 'STALE';
+  const complete=received.bid!=null&&received.ask!=null;
+  const partial=received.marketDataStatus==='partial'||received.ibkrErrorCode===10090||received.ibkrErrorCode===10091||!complete;
+  if(received.feedType==='DELAYED_FROZEN')return partial?'DELAYED_FROZEN_PARTIAL':'DELAYED_FROZEN';
+  if(received.feedType==='DELAYED')return partial?'DELAYED_PARTIAL':'DELAYED';
+  if(received.feedType==='FROZEN')return partial?'FROZEN_PARTIAL':'FROZEN';
+  if(partial)return 'PARTIAL';
+  return received.feedType==='LIVE'?'LIVE_UNVERIFIED':'UNKNOWN';
+}
 function nyDateKey(now=new Date()){
   const parts=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(now);
   const part=(type:string)=>parts.find(item=>item.type===type)?.value??'';
@@ -68,38 +90,68 @@ export function registerOptionRoutes(app:FastifyInstance,hub:AgentHub,mode:'DEMO
       requestedSecType:'OPT',resolvedSecType:c.secType??null,requestedTradingClass:'NVDA',
       resolvedTradingClass:c.tradingClass??null,requestedCurrency:'USD',resolvedCurrency:c.currency??null,
       mismatchFields:result.mismatchFields});
-    throw Object.assign(new AgentRequestError('INVALID_CONTRACT','contract_details',requestId),{mismatchFields:result.mismatchFields});
+    throw Object.assign(new AgentRequestError('INVALID_CONTRACT','contract_details',requestId,null,
+      typeof c.twsRequestId==='number'?c.twsRequestId:null),{mismatchFields:result.mismatchFields});
   };
   const resolutionIssue=(error:unknown,strike:number):Issue=>{
     const fields=error&&typeof error==='object'&&'mismatchFields' in error?(error as {mismatchFields:string[]}).mismatchFields:null;
     return {...issue(error,strike),...(fields?{mismatchFields:fields,message:`Definición incompatible: ${fields.join(', ')}.`}:{})};
   };
+  const iexReferences=async()=>{
+    try{const response=await app.inject({method:'GET',url:'/api/v1/market/live-technical-context'});
+      if(response.statusCode!==200)return {current:null,historical:null,snapshot:null};
+      const snapshot=response.json() as Record<string,unknown>;
+      const historical=z.object({referencePrice:z.number().positive(),referenceKind:z.literal('HISTORICAL_EXPLORATION'),
+        referenceSource:z.literal('ALPACA_IEX_VERIFIED_SESSION_CLOSE'),observedAtUtc:z.iso.datetime(),
+        receivedAtUtc:z.iso.datetime(),sessionDate:z.string(),ageTradingSessions:z.number().int().min(0).max(1),
+        isCurrent:z.literal(false),isExecutable:z.literal(false)}).safeParse(snapshot.explorationReference);
+      return {current:iexBarReference(snapshot),historical:historical.success?historical.data:null,snapshot};
+    }catch{return {current:null,historical:null,snapshot:null};}
+  };
   const loadContract=async(right:'CALL'|'PUT',strike:number,selectedExpiration:string,consumerId:string,deadline:number,
     academyReference:ReturnType<typeof selectAcademyReference>):Promise<{item:Record<string,unknown>|null;errors:Issue[]}>=>{
+    const startedAt=Date.now();
+    const diagnosed=(problem:Issue,resolved=false,subscribed=false,quoteReceived=false):Issue=>
+      ({...problem,elapsedMs:Date.now()-startedAt,resolved,subscribed,quoteReceived});
     const remaining=deadline-Date.now();
-    if(remaining<1000)return {item:null,errors:[{...issue(null,strike),code:'PAGE_TIMEOUT',message:messages.PAGE_TIMEOUT!}]};
+    if(remaining<1000)return {item:null,errors:[diagnosed({...issue(null,strike),code:'PAGE_TIMEOUT',stage:'page_budget',message:messages.PAGE_TIMEOUT!})]};
     const cacheKey=`${selectedExpiration}:${right}:${strike}`,cached=contractCache.get(cacheKey);
+    let resolutionRequestId:string|null=null;
     let contract=cached&&cached.until>Date.now()&&cached.connectionId===hub.status().connectionId?cached.contract:undefined;
     if(!contract){
       try{const response=await hub.request('option.resolve',{expiration:selectedExpiration,right,strike},remaining);
+        resolutionRequestId=response.requestId;
         contract=validateResolved(response.payload.contract,{right,expiration:selectedExpiration,strike},response.requestId??'');
         contractCache.set(cacheKey,{contract,until:Date.now()+60000,connectionId:hub.status().connectionId});
-      }catch(error){return {item:null,errors:[resolutionIssue(error,strike)]};}
+      }catch(error){const failure=diagnosed(resolutionIssue(error,strike));
+        app.log.warn({component:'options',event:'chain_resolution_failed',expiration:selectedExpiration,strike,right,
+          requestId:failure.requestId,twsRequestId:failure.twsRequestId,stage:failure.stage,code:failure.code,
+          ibkrCode:failure.ibkrCode,elapsedMs:failure.elapsedMs,mismatchFields:failure.mismatchFields});
+        return {item:null,errors:[failure]};}
     }
     let subscribeError:Issue|null=null;
     try{await hub.subscribe({conId:contract.conId,expiration:selectedExpiration,right,strike},consumerId,deadline-Date.now());}
-    catch(error){subscribeError=issue(error,strike);}
+    catch(error){subscribeError=diagnosed(issue(error,strike),true);}
     const received=hub.latestQuote(String(contract.conId)) as {receivedAtUtc?:string;marketTimestampUtc?:string;bid?:number|null;ask?:number|null;feedType?:string;marketDataStatus?:string;ibkrErrorCode?:number;provider?:string}|null;
     const stale=!!received&&(!received.receivedAtUtc||Date.now()-Date.parse(received.receivedAtUtc)>30000);
     const noBidAsk=!received||received.bid==null&&received.ask==null;
     const evaluatedQuote=received&&hub.status().simulation?{...received,provider:'PAPER SIMULADO'}:received;
     const academyEvaluation=evaluateAcademyAskRange(academyReference,evaluatedQuote,Date.now(),String(contract.currency??'USD'),Number(contract.multiplier??100));
+    const quoteState=quoteStatus(received);
     const item={...contract,...(received??{}),academyEvaluation,spread:spread(received?.bid??null,received?.ask??null),
+      definitionStatus:'VALID',subscriptionStatus:subscribeError?'FAILED':'ACTIVE',quoteStatus:quoteState,
+      diagnostic:{expiration:selectedExpiration,strike,right,requestId:resolutionRequestId,
+        twsRequestId:typeof contract.twsRequestId==='number'?contract.twsRequestId:null,
+        stage:subscribeError?.stage??'quote',elapsedMs:Date.now()-startedAt,resolved:true,
+        subscribed:!subscribeError,quoteReceived:!!received},
       dataStatus:subscribeError?subscribeError.code==='PERMISSION'?'permisos_insuficientes':'suscripcion_fallida':
         !received?'cotizacion_pendiente':stale?'obsoleto':received.marketDataStatus==='permission_denied'?'permisos_insuficientes':
         received.marketDataStatus==='partial'?'cotizacion_parcial':received.marketDataStatus==='unavailable'||noBidAsk?'cotizacion_no_disponible':'recibido',
       stale,permissions:subscribeError?.code==='PERMISSION'||received?.marketDataStatus==='permission_denied'?'Insuficientes':'No verificados',
       provider:hub.status().simulation?'PAPER SIMULADO':'IBKR'};
+    app.log.info({component:'options',event:'chain_contract_checked',expiration:selectedExpiration,strike,right,
+      requestId:resolutionRequestId,twsRequestId:item.diagnostic.twsRequestId,elapsedMs:item.diagnostic.elapsedMs,
+      resolved:true,subscribed:!subscribeError,quoteReceived:!!received,quoteStatus:quoteState});
     return {item,errors:subscribeError?[subscribeError]:[]};
   };
 
@@ -111,6 +163,7 @@ export function registerOptionRoutes(app:FastifyInstance,hub:AgentHub,mode:'DEMO
   });
   app.get('/api/v1/options/strikes',async(req,reply)=>{
     const parsed=z.object({expiration:expiration.optional(),minPrice:decimal.optional(),maxPrice:decimal.optional(),
+      near:decimal.positive().optional(),
       offset:z.coerce.number().int().min(0).max(100000).default(0),
       limit:z.coerce.number().int().min(1).max(200).default(50)}).safeParse(req.query);
     if(!parsed.success||parsed.data.minPrice!==undefined&&parsed.data.maxPrice!==undefined&&parsed.data.minPrice>parsed.data.maxPrice)
@@ -119,8 +172,9 @@ export function registerOptionRoutes(app:FastifyInstance,hub:AgentHub,mode:'DEMO
     try{
       const params=await parameters();const selected=parsed.data.expiration??params.flatMap(p=>p.expirations).filter(day=>day>=nyDateKey()).sort()[0]??null;
       const all=selected?availableStrikes(params,selected,parsed.data.minPrice,parsed.data.maxPrice):[];
+      const ordered=parsed.data.near===undefined?all:[...all].sort((a,b)=>Math.abs(a-parsed.data.near!)-Math.abs(b-parsed.data.near!)||a-b);
       const {offset,limit}=parsed.data;
-      return {items:all.slice(offset,offset+limit),expiration:selected,total:all.length,offset,
+      return {items:ordered.slice(offset,offset+limit),expiration:selected,total:ordered.length,offset,
         nextOffset:offset+limit<all.length?offset+limit:null,source:hub.status().simulation?'Agente simulado':'IBKR Paper'};
     }catch(error){return unavailable(reply,error);}
   });
@@ -134,7 +188,8 @@ export function registerOptionRoutes(app:FastifyInstance,hub:AgentHub,mode:'DEMO
       return {item:{...item,academyEvaluation:{status:'INSUFFICIENT_DATA',referenceStatus:'NONE',reference:null,askCents:null,distancePercent:null,quoteReceivedAtUtc:null,reason:'DEMO usa contratos sinteticos; no se comparan con referencias documentales'}},source:'DEMO sintetico'};
     }
     if(mode!=='PAPER'||!hub.status().connected)return reply.code(503).send({error:'IBKR Paper desconectado'});
-    const cached=[...contractCache.values()].find(entry=>entry.contract.conId===conId);
+    const cached=[...contractCache.values()].find(entry=>entry.until>Date.now()&&
+      entry.connectionId===hub.status().connectionId&&entry.contract.conId===conId);
     if(!cached)return reply.code(404).send({error:'Contrato no disponible; vuelva a consultarlo en la cadena'});
     const contract=cached.contract;
     let subscribeError:Issue|null=null;
@@ -148,6 +203,7 @@ export function registerOptionRoutes(app:FastifyInstance,hub:AgentHub,mode:'DEMO
       received&&hub.status().simulation?{...received,provider:'PAPER SIMULADO'}:received;
     const academyEvaluation=evaluateAcademyAskRange(reference,evaluatedQuote,Date.now(),String(contract.currency??'USD'),Number(contract.multiplier??100));
     return {item:{...contract,...(received??{}),academyEvaluation,spread:spread(received?.bid??null,received?.ask??null),
+      definitionStatus:'VALID',subscriptionStatus:subscribeError?'FAILED':'ACTIVE',quoteStatus:quoteStatus(received),
       dataStatus:subscribeError?subscribeError.code==='PERMISSION'?'permisos_insuficientes':'suscripcion_fallida':
         !received?'cotizacion_pendiente':stale?'obsoleto':received.marketDataStatus==='permission_denied'?'permisos_insuficientes':
         received.marketDataStatus==='partial'?'cotizacion_parcial':received.marketDataStatus==='unavailable'||received.bid==null&&received.ask==null?'cotizacion_no_disponible':'recibido',
@@ -167,12 +223,13 @@ export function registerOptionRoutes(app:FastifyInstance,hub:AgentHub,mode:'DEMO
       if(!entry)return [];
       const contract=entry.contract;
       const received=hub.latestQuote(String(conId)) as {receivedAtUtc?:string;marketTimestampUtc?:string;bid?:number|null;ask?:number|null;
-        feedType?:string;marketDataStatus?:string;provider?:string}|null;
+        feedType?:string;marketDataStatus?:string;ibkrErrorCode?:number;provider?:string}|null;
       const stale=!!received&&(!received.receivedAtUtc||Date.now()-Date.parse(received.receivedAtUtc)>30000);
       const reference=selectAcademyReference(academyRanges(sqlite,'NVDA'),new Date().toISOString(),contract.right==='PUT'?'PUT':'CALL');
       const evaluatedQuote=received&&hub.status().simulation?{...received,provider:'PAPER SIMULADO'}:received;
       const academyEvaluation=evaluateAcademyAskRange(reference,evaluatedQuote,Date.now(),String(contract.currency??'USD'),Number(contract.multiplier));
       return [{...contract,...(received??{}),academyEvaluation,spread:spread(received?.bid??null,received?.ask??null),
+        definitionStatus:'VALID',subscriptionStatus:'NOT_VERIFIED_BY_READ',quoteStatus:quoteStatus(received),
         dataStatus:!received?'cotizacion_pendiente':stale?'obsoleto':received.marketDataStatus==='permission_denied'?'permisos_insuficientes':
           received.marketDataStatus==='partial'?'cotizacion_parcial':received.marketDataStatus==='unavailable'||received.bid==null&&received.ask==null?
           'cotizacion_no_disponible':'recibido',stale,permissions:received?.marketDataStatus==='permission_denied'?'Insuficientes':'No verificados',
@@ -197,31 +254,34 @@ export function registerOptionRoutes(app:FastifyInstance,hub:AgentHub,mode:'DEMO
     const all=availableStrikes(params,selectedExpiration,query.minPrice,query.maxPrice);
     const quote=hub.latestQuote('NVDA') as {last?:unknown;receivedAtUtc?:unknown;feedType?:unknown;provider?:unknown}|null;
     const marketReference=hub.status().simulation?null:quoteReference(quote);
-    let iexReference:number|null=null,iexSnapshot:Record<string,unknown>|null=null;
+    let iexReference:number|null=null,iexSnapshot:Record<string,unknown>|null=null,historical:Awaited<ReturnType<typeof iexReferences>>['historical']=null;
     if(query.centerStrike===undefined&&marketReference===null){
-      try{const response=await app.inject({method:'GET',url:'/api/v1/market/live-technical-context'});
-        if(response.statusCode===200){const snapshot=response.json() as Record<string,unknown>;
-          iexReference=iexBarReference(snapshot);if(iexReference!==null)iexSnapshot=snapshot;}}catch{/* No verified IEX reference. */}
+      const found=await iexReferences();iexReference=found.current;historical=found.historical;
+      if(iexReference!==null)iexSnapshot=found.snapshot;
     }
-    const reference=query.centerStrike??marketReference??iexReference;
+    const reference=query.centerStrike??marketReference??iexReference??historical?.referencePrice??null;
     const strikes=reference!==null?selectContractStrikes(all,query.limit,reference):
       query.minPrice!==undefined||query.maxPrice!==undefined?all.slice(0,query.limit):[];
     const selectionRequired=strikes.length===0&&all.length>0&&reference===null&&
       query.minPrice===undefined&&query.maxPrice===undefined;
     const referenceSource=query.centerStrike!==undefined?'MANUAL_STRIKE':marketReference!==null?
-      'IBKR_LAST_OBSERVED':iexReference!==null?'ALPACA_IEX_LAST_COMPLETE_BAR':query.minPrice!==undefined||query.maxPrice!==undefined?'MANUAL_RANGE_ASCENDING':'NONE';
+      'IBKR_LAST_OBSERVED':iexReference!==null?'ALPACA_IEX_LAST_COMPLETE_BAR':historical?'ALPACA_IEX_VERIFIED_SESSION_CLOSE':query.minPrice!==undefined||query.maxPrice!==undefined?'MANUAL_RANGE_ASCENDING':'NONE';
     const items:Array<Record<string,unknown>>=[],errors:Issue[]=[];
     const academyReference=selectAcademyReference(academyRanges(sqlite,'NVDA'),new Date().toISOString(),query.right);
     const deadline=Date.now()+hub.optionPageTimeoutMs();
-    for(const strike of strikes){
+    // Resolve nearby strikes first. Sequential requests preserve IBKR pacing.
+    for(const strike of [...strikes].sort((a,b)=>Math.abs(a-reference!)-Math.abs(b-reference!)||a-b)){
       const result=await loadContract(query.right,strike,selectedExpiration,query.consumerId,deadline,academyReference);
       if(result.item)items.push(result.item);
       errors.push(...result.errors);
     }
     return {items,errors,source:hub.status().simulation?'Agente simulado':'IBKR Paper',
       expiration:selectedExpiration,selectionRequired,referenceSource,referencePrice:reference,
-      referenceObservedAtUtc:query.centerStrike!==undefined?null:marketReference!==null?quote?.receivedAtUtc??null:iexSnapshot?.barEndUtc??null,
-      referenceReceivedAtUtc:query.centerStrike!==undefined?null:marketReference!==null?quote?.receivedAtUtc??null:iexSnapshot?.receivedAtUtc??null,
+      referenceObservedAtUtc:query.centerStrike!==undefined?null:marketReference!==null?quote?.receivedAtUtc??null:iexReference!==null?iexSnapshot?.barEndUtc??null:historical?.observedAtUtc??null,
+      referenceReceivedAtUtc:query.centerStrike!==undefined?null:marketReference!==null?quote?.receivedAtUtc??null:iexReference!==null?iexSnapshot?.receivedAtUtc??null:historical?.receivedAtUtc??null,
+      referenceKind:historical&&query.centerStrike===undefined&&marketReference===null&&iexReference===null?'HISTORICAL_EXPLORATION':'CURRENT_OR_MANUAL',
+      sessionDate:historical?.sessionDate??null,ageTradingSessions:historical?.ageTradingSessions??null,
+      isCurrent:marketReference!==null||iexReference!==null,isExecutable:false,
       strikeCount:all.length};
   });
   app.get('/api/v1/options/chain',async(req,reply)=>{
@@ -249,19 +309,19 @@ export function registerOptionRoutes(app:FastifyInstance,hub:AgentHub,mode:'DEMO
     const all=availableStrikes(params,selectedExpiration);
     const quote=hub.latestQuote('NVDA') as {last?:unknown;receivedAtUtc?:unknown;feedType?:unknown;provider?:unknown}|null;
     const marketReference=hub.status().simulation?null:quoteReference(quote);
-    let iexReference:number|null=null,iexSnapshot:Record<string,unknown>|null=null;
+    let iexReference:number|null=null,iexSnapshot:Record<string,unknown>|null=null,historical:Awaited<ReturnType<typeof iexReferences>>['historical']=null;
     if(query.centerStrike===undefined&&marketReference===null){
-      try{const response=await app.inject({method:'GET',url:'/api/v1/market/live-technical-context'});
-        if(response.statusCode===200){const snapshot=response.json() as Record<string,unknown>;
-          iexReference=iexBarReference(snapshot);if(iexReference!==null)iexSnapshot=snapshot;}}catch{/* No verified IEX reference. */}
+      const found=await iexReferences();iexReference=found.current;historical=found.historical;
+      if(iexReference!==null)iexSnapshot=found.snapshot;
     }
-    const reference=query.centerStrike??marketReference??iexReference;
+    const reference=query.centerStrike??marketReference??iexReference??historical?.referencePrice??null;
     const strikes=selectContractStrikes(all,query.strikeLevels,reference);
     const errors:Issue[]=[],rows:Array<{strike:number;call:Record<string,unknown>|null;put:Record<string,unknown>|null;issues:Issue[]}>=[];
     const references={CALL:selectAcademyReference(academyRanges(sqlite,'NVDA'),new Date().toISOString(),'CALL'),
       PUT:selectAcademyReference(academyRanges(sqlite,'NVDA'),new Date().toISOString(),'PUT')};
     const deadline=Date.now()+hub.optionPageTimeoutMs();
-    for(const strike of strikes){
+    // A shared page budget reaches the central CALL/PUT pair first; keep the displayed rows sorted.
+    for(const strike of [...strikes].sort((a,b)=>Math.abs(a-reference!)-Math.abs(b-reference!)||a-b)){
       const row:{strike:number;call:Record<string,unknown>|null;put:Record<string,unknown>|null;issues:Issue[]}=
         {strike,call:null,put:null,issues:[]};
       for(const right of (query.side==='BOTH'?['CALL','PUT']:[query.side]) as Array<'CALL'|'PUT'>){
@@ -271,12 +331,16 @@ export function registerOptionRoutes(app:FastifyInstance,hub:AgentHub,mode:'DEMO
       }
       rows.push(row);
     }
+    rows.sort((a,b)=>a.strike-b.strike);
     return {expiration:selectedExpiration,rows,errors,source:hub.status().simulation?'Agente simulado':'IBKR Paper',
       selectionRequired:reference===null&&all.length>0,referenceSource:query.centerStrike!==undefined?'MANUAL_STRIKE':
-        marketReference!==null?'IBKR_LAST_OBSERVED':iexReference!==null?'ALPACA_IEX_LAST_COMPLETE_BAR':'NONE',
+        marketReference!==null?'IBKR_LAST_OBSERVED':iexReference!==null?'ALPACA_IEX_LAST_COMPLETE_BAR':historical?'ALPACA_IEX_VERIFIED_SESSION_CLOSE':'NONE',
       referencePrice:reference,
-      referenceObservedAtUtc:query.centerStrike!==undefined?null:marketReference!==null?quote?.receivedAtUtc??null:iexSnapshot?.barEndUtc??null,
-      referenceReceivedAtUtc:query.centerStrike!==undefined?null:marketReference!==null?quote?.receivedAtUtc??null:iexSnapshot?.receivedAtUtc??null,
+      referenceObservedAtUtc:query.centerStrike!==undefined?null:marketReference!==null?quote?.receivedAtUtc??null:iexReference!==null?iexSnapshot?.barEndUtc??null:historical?.observedAtUtc??null,
+      referenceReceivedAtUtc:query.centerStrike!==undefined?null:marketReference!==null?quote?.receivedAtUtc??null:iexReference!==null?iexSnapshot?.receivedAtUtc??null:historical?.receivedAtUtc??null,
+      referenceKind:historical&&query.centerStrike===undefined&&marketReference===null&&iexReference===null?'HISTORICAL_EXPLORATION':'CURRENT_OR_MANUAL',
+      sessionDate:historical?.sessionDate??null,ageTradingSessions:historical?.ageTradingSessions??null,
+      isCurrent:marketReference!==null||iexReference!==null,isExecutable:false,
       subscriptionStatus:{requested:strikes.length*(query.side==='BOTH'?2:1),limit:10}};
   });
   /** Bounded background inspection for 41O. Reuses parameters and the same contract cache. */
