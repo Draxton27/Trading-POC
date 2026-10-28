@@ -29,7 +29,9 @@ export function analyzeComparisonRow(raw:unknown,options:{quantity:number;capita
       receivedAtUtc:string(row.receivedAtUtc),marketTimestampUtc:string(row.marketTimestampUtc),
       feedType:row.feedType==='LIVE'||row.feedType==='DELAYED'||row.feedType==='FROZEN'||
         row.feedType==='DELAYED_FROZEN'?row.feedType:'UNKNOWN',provider:string(row.provider),
-      marketDataStatus:row.marketDataStatus==='permission_denied'||row.marketDataStatus==='unavailable'||
+      marketDataStatus:row.subscriptionStatus==='FAILED'&&row.dataStatus==='permisos_insuficientes'?'permission_denied':
+        row.subscriptionStatus==='FAILED'?'unavailable':
+        row.marketDataStatus==='permission_denied'||row.marketDataStatus==='unavailable'||
         row.marketDataStatus==='partial'?row.marketDataStatus:null,
       permissionDenied:row.permissions==='Insuficientes'||row.dataStatus==='permisos_insuficientes'},
     quantity:options.quantity,capitalUsd:options.capitalUsd,entryFeePerContractUsd:options.entryFeePerContractUsd,

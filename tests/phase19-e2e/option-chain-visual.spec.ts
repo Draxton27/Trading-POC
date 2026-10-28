@@ -81,3 +81,41 @@ test('41T: referencia histórica IEX y fallos parciales no parecen cotizaciones 
   await expect(page.getByRole('table',{name:'Cadena de opciones'})).not.toContainText('ITM');
   await page.screenshot({path:join(directory,'paper-historical-partial.png'),animations:'disabled'});
 });
+
+test('41T: BID/ASK presentes no implican frescura ni disponibilidad',async({page})=>{
+  const now=Date.now(),receivedAtUtc=new Date(now).toISOString(),oldUtc=new Date(now-60_000).toISOString();
+  await page.route('**/api/v1/health',route=>route.fulfill({json:{ok:true,mode:'PAPER',offlineAvailable:false,timeUtc:receivedAtUtc}}));
+  await page.route('**/api/v1/options/expirations',route=>route.fulfill({json:{items:['20261030'],source:'IBKR Paper'}}));
+  const quote=(conId:number,strike:number,feedType:string,at:string,marketDataStatus:string,subscriptionStatus='ACTIVE')=>({
+    conId,symbol:'NVDA',right:'CALL',strike,expiration:'20261030',multiplier:100,currency:'USD',provider:'IBKR',
+    bid:2,ask:2.2,feedType,receivedAtUtc:at,marketTimestampUtc:at,marketDataStatus,subscriptionStatus,
+    dataStatus:subscriptionStatus==='FAILED'?'suscripcion_fallida':marketDataStatus==='unavailable'?'cotizacion_no_disponible':
+      at===oldUtc?'obsoleto':'recibido'});
+  const items=[quote(301,140,'DELAYED',receivedAtUtc,'available'),quote(302,141,'FROZEN',receivedAtUtc,'available'),
+    quote(303,142,'LIVE',oldUtc,'available'),quote(304,143,'LIVE',receivedAtUtc,'unavailable'),
+    quote(305,144,'LIVE',receivedAtUtc,'available','FAILED')];
+  await page.route('**/api/v1/options/chain?*',route=>route.fulfill({json:{expiration:'20261030',
+    rows:items.map(item=>({strike:item.strike,call:item,put:null,issues:[]})),errors:[],source:'IBKR Paper',
+    referenceSource:'MANUAL_STRIKE',referencePrice:140,subscriptionStatus:{requested:5,limit:10}}}));
+  await page.route('**/api/v1/options/quotes?*',route=>route.fulfill({json:{items:[]}}));
+  await page.route('**/api/v1/options/comparison',route=>{
+    const conId=Number(route.request().postDataJSON()?.conId);
+    void route.fulfill({json:{item:items.find(item=>item.conId===conId)??null,source:'IBKR Paper'}});
+  });
+  await page.goto('/');await page.getByRole('button',{name:'Opciones'}).click();
+  const summary=page.getByLabel('Resumen de cadena'),table=page.getByRole('table',{name:'Cadena de opciones'});
+  await expect(summary).toContainText('BID/ASK presentes (no necesariamente vigentes) 5');
+  await expect(summary).not.toContainText('cotizaciones completas');
+  await expect(table.locator('.chain-contract.call').nth(0)).toContainText('Retrasado');
+  await expect(table.locator('.chain-contract.call').nth(1)).toContainText('Congelado');
+  await expect(table.locator('.chain-contract.call').nth(2)).toContainText('Obsoleta');
+  await expect(table.locator('.chain-contract.call').nth(3)).toContainText('Cotización no disponible');
+  await expect(table.locator('.chain-contract.call').nth(4)).toContainText('Suscripción fallida');
+  await expect(table).not.toContainText('LIVE reciente');
+  await page.getByRole('button',{name:/Analizar CALL strike 143/}).click();
+  await expect(page.getByRole('dialog',{name:'Panel de contrato'})).toContainText('Cotización no disponible');
+  await page.getByRole('button',{name:'Cerrar panel de contrato'}).click();
+  await page.getByRole('button',{name:/Analizar CALL strike 144/}).click();
+  await expect(page.getByRole('dialog',{name:'Panel de contrato'})).toContainText('Suscripción fallida');
+  await expect(page.getByRole('dialog',{name:'Panel de contrato'})).not.toContainText('LIVE reciente');
+});

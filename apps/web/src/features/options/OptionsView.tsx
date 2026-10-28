@@ -19,7 +19,7 @@ type Chain={rows:ChainRow[];errors:Issue[];source:string;selectionRequired?:bool
   subscriptionStatus?:{requested:number;limit:number}};
 const number=(n:number|null|undefined,digits=2)=>n==null||!Number.isFinite(n)?'N/D':fmt(n,digits);
 const dollars=(n:number|null|undefined)=>n==null||!Number.isFinite(n)?'N/D':`$${number(n)}`;
-const labels:Record<string,string>={cotizacion_pendiente:'Cotización pendiente',cotizacion_no_disponible:'Sin BID/ASK',
+const labels:Record<string,string>={cotizacion_pendiente:'Cotización pendiente',cotizacion_no_disponible:'Cotización no disponible',
   permisos_insuficientes:'Permisos insuficientes',suscripcion_fallida:'Suscripción fallida',cotizacion_parcial:'Cotización parcial',
   obsoleto:'Cotización obsoleta',recibido:'Cotización recibida'};
 const referenceLabels:Record<string,string>={IBKR_LAST_OBSERVED:'IBKR · último precio observado',
@@ -111,6 +111,8 @@ function ChainCell({row,issue,right,now,referenceSource,referencePrice,visual,se
     expirationFeePerContractUsd:null,hypotheticalUnderlyingAtExpirationUsd:null,asOfUtc:new Date(now).toISOString()});
   const stale=referenceSource!=='DEMO_SYNTHETIC'&&!!row.receivedAtUtc&&now-Date.parse(row.receivedAtUtc)>30000;
   const moneyness=describeMoneyness(right,Number(row.strike),referencePrice,referenceSource);
+  const unavailable=row.quoteStatus==='UNAVAILABLE'||row.quoteStatus==='SUBSCRIPTION_FAILED'||
+    row.quoteStatus==='SUBSCRIPTION_LIMIT'||row.subscriptionStatus==='FAILED';
   return <div className={`chain-contract ${right.toLowerCase()}`} data-conid={row.conId}>
     <button type="button" className="chain-prices" onClick={onAnalyze}
       aria-label={`Seleccionar ${right} strike ${number(row.strike)}`}><span><small>BID</small><strong>{dollars(row.bid)}</strong></span>
@@ -121,8 +123,8 @@ function ChainCell({row,issue,right,now,referenceSource,referencePrice,visual,se
       {visual.moneyness&&moneyness?<span className="chain-moneyness">{moneyness}</span>:null}
       {visual.advanced?<span>Δ {number(row.delta,3)} · Θ {number(row.theta,3)}</span>:null}
     </div>
-    <div className="chain-contract-foot"><Badge tone={analysis.quote.status==='LIVE_RECENT'&&!stale?'success':'warning'}>
-      {stale?'Obsoleta':optionQualityLabel[analysis.quote.status]}</Badge>
+    <div className="chain-contract-foot"><Badge tone={!unavailable&&analysis.quote.status==='LIVE_RECENT'&&!stale?'success':'warning'}>
+      {unavailable?labels[row.dataStatus]??'Cotización no disponible':stale?'Obsoleta':optionQualityLabel[analysis.quote.status]}</Badge>
       <small>{labels[row.dataStatus]??row.dataStatus??'N/D'}</small></div>
     <div className="chain-contract-actions"><Button variant="secondary" onClick={onAnalyze} aria-label={`Analizar ${right} strike ${number(row.strike)}`}>Analizar</Button>
       <Button variant="ghost" disabled={compareDisabled} onClick={onCompare}
@@ -178,7 +180,7 @@ export default function OptionsView({mode,consumerId,initialContract}:{mode:stri
   const problems=q.data?.errors??[],mismatch=problems.filter(problem=>problem.code==='INVALID_CONTRACT').length;
   const requested=q.data?.subscriptionStatus?.requested??0;
   const definitions=rows.flatMap(row=>[row.call,row.put]).filter(Boolean) as ContractRow[];
-  const completeQuotes=definitions.filter(row=>row.bid!=null&&row.ask!=null).length;
+  const bidAskPresent=definitions.filter(row=>row.bid!=null&&row.ask!=null).length;
   const partialQuotes=definitions.filter(row=>(row.bid!=null)!==(row.ask!=null)||row.marketDataStatus==='partial').length;
   const reasons=Object.entries(problems.reduce((counts,problem)=>({...counts,[problem.code]:(counts[problem.code]??0)+1}),{} as Record<string,number>));
   const chooseStrike=(value:number)=>{setCenterStrike(String(value));setAllStrikes(false);setAnalysisConId(null);setTarget(null);};
@@ -237,7 +239,7 @@ export default function OptionsView({mode,consumerId,initialContract}:{mode:stri
         {q.data?.selectionRequired?' · Sin referencia actual verificable. Elija un strike disponible.':''}</div>
       {requested>0?<div className="options-chain-summary" aria-label="Resumen de cadena">
         {requested} contratos solicitados · {definitions.length} definiciones válidas · {problems.length} incidencias ·
-        cotizaciones completas {completeQuotes} · parciales {partialQuotes}.
+        BID/ASK presentes (no necesariamente vigentes) {bidAskPresent} · un lado o ticks parciales {partialQuotes}.
         {reasons.length?<small>Motivos: {reasons.map(([code,count])=>`${code} ${count}`).join(' · ')}.</small>:null}
       </div>:null}
       {target&&q.data&&!rows.some(row=>row.call?.conId===target.conId||row.put?.conId===target.conId)?

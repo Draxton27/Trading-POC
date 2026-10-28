@@ -8,7 +8,9 @@ import {createApp} from '../../apps/api/src/server.ts';
 import {AgentHub,AgentRequestError} from '../../apps/api/src/streams/agent-hub.ts';
 import {availableStrikes,quoteReference,selectContractStrikes} from '../../apps/api/src/options/selection.ts';
 import {agentRequestBudgets,twsRequestBudgets} from '../../packages/contracts/src/request-budgets.ts';
-import {classifyIbkrError} from '../../apps/ibkr-agent/src/connection/tws.ts';
+import {classifyIbkrError,TwsRequestError} from '../../apps/ibkr-agent/src/connection/tws.ts';
+import {AgentTransport} from '../../apps/ibkr-agent/src/transport/client.ts';
+import {MockReadOnlyAdapter} from '../../apps/ibkr-agent/src/connection/mock.ts';
 import {quoteStatus} from '../../apps/api/src/options/routes.ts';
 
 class Socket extends EventEmitter {
@@ -57,6 +59,8 @@ describe('presupuestos y errores de IBKR',()=>{
     expect(quoteStatus({receivedAtUtc:at,feedType:'DELAYED',bid:2,ask:3,ibkrErrorCode:10091})).toBe('DELAYED_PARTIAL');
     expect(quoteStatus({receivedAtUtc:at,feedType:'UNKNOWN',ibkrErrorCode:10089})).toBe('PERMISSION_DENIED');
     expect(quoteStatus({receivedAtUtc:at,feedType:'UNKNOWN',ibkrErrorCode:101})).toBe('SUBSCRIPTION_LIMIT');
+    for(const feedType of ['LIVE','DELAYED'] as const)for(const prices of [{bid:2,ask:3},{bid:null,ask:null}])
+      expect(quoteStatus({receivedAtUtc:at,feedType,marketDataStatus:'unavailable',...prices})).toBe('UNAVAILABLE');
     expect(quoteStatus({receivedAtUtc:at,feedType:'FROZEN',bid:2,ask:3})).toBe('FROZEN');
     expect(quoteStatus({receivedAtUtc:at,feedType:'DELAYED_FROZEN',bid:2,ask:3})).toBe('DELAYED_FROZEN');
     expect(quoteStatus({receivedAtUtc:at,feedType:'UNKNOWN',bid:null,ask:null,ibkrErrorCode:10197})).toBe('SESSION_CONFLICT_REPORTED');
@@ -236,6 +240,38 @@ describe('Fase 41S: cadena conjunta acotada',()=>{
     expect(row.issues).toMatchObject([{right:'CALL',code:'INVALID_CONTRACT',mismatchFields:['expiration']}]);
     expect(hub.status().simulation).toBe(true);
   });
+  it.each(['CALL','PUT'] as const)('propaga el 101 de TWS a través del transporte, AgentHub y la cadena para %s',async failingRight=>{
+    const {app,hub}=await fixture();
+    const adapter=new MockReadOnlyAdapter();await adapter.connect();
+    vi.spyOn(adapter,'getOptionParameters').mockResolvedValue([{exchange:'SMART',tradingClass:'NVDA',multiplier:100,
+      expirations:['20261030'],strikes:[150]}]);
+    const original=adapter.resolveOption.bind(adapter);
+    vi.spyOn(adapter,'resolveOption').mockImplementation(async query=>({...await original(query),
+      conId:query.right==='CALL'?90001:90002,tradingClass:'NVDA'}));
+    const originalSubscribe=adapter.subscribeQuotes.bind(adapter);
+    vi.spyOn(adapter,'subscribeQuotes').mockImplementation(async(contracts,callback)=>{
+      if(contracts[0]?.right===failingRight)throw new TwsRequestError(classifyIbkrError(101,'Max number of tickers'),
+        'market_data',711,101);
+      return originalSubscribe(contracts,callback);
+    });
+    const transport=new AgentTransport(adapter,{url:'ws://127.0.0.1:4301/agent/v1/connect',agentId:'synthetic-agent',secret:'synthetic-secret'});
+    const bridge=new Socket();
+    bridge.send=(raw:string)=>{bridge.sent.push(JSON.parse(raw));void (transport as any).onMessage(raw);};
+    (transport as any).socket={readyState:1,send:(raw:string)=>bridge.emit('message',raw),close:()=>{}};
+    hub.attach(bridge);
+    (transport as any).send('agent.hello',{environment:'PAPER',accountVerified:true,simulation:true,
+      status:{feedType:'UNKNOWN'}});
+    cleanup.push(async()=>{await transport.close();await adapter.disconnect();});
+    const result=await app.inject(`/api/v1/options/chain?expiration=20261030&centerStrike=150&consumerId=${randomUUID()}`);
+    const body=result.json(),row=body.rows[0];
+    expect(result.statusCode).toBe(200);
+    expect(row.issues).toContainEqual(expect.objectContaining({right:failingRight,strike:150,code:'SUBSCRIPTION_LIMIT',
+      ibkrCode:101,twsRequestId:711,stage:'market_data',resolved:true,subscribed:false}));
+    expect(body.errors).toContainEqual(expect.objectContaining({right:failingRight,ibkrCode:101,twsRequestId:711}));
+    expect(row[failingRight.toLowerCase()]).toMatchObject({definitionStatus:'VALID',subscriptionStatus:'FAILED',
+      quoteStatus:'SUBSCRIPTION_LIMIT',strike:150});
+    expect(row[failingRight==='CALL'?'put':'call']).toMatchObject({definitionStatus:'VALID',strike:150});
+  });
   it('separa un NOT_FOUND y un PACING de las definiciones válidas del mismo strike',async()=>{
     const {app,request}=await prepared();
     request.mockImplementation(async(kind,payload)=>{
@@ -276,6 +312,37 @@ describe('Fase 41S: cadena conjunta acotada',()=>{
     const result=await app.inject(`/api/v1/options/chain?expiration=20261030&centerStrike=150&consumerId=${randomUUID()}`);
     expect(result.json().rows.find((item:any)=>item.strike===150).call).toMatchObject({
       definitionStatus:'VALID',subscriptionStatus:'ACTIVE',quoteStatus:'DELAYED_PARTIAL',bid:2,ask:null,ibkrErrorCode:10090});
+  });
+  it('no eleva ticks anteriores a Live cuando IBKR declara la cotización no disponible',async()=>{
+    const {app,hub}=await prepared();
+    vi.spyOn(hub,'latestQuote').mockImplementation(key=>key==='100300'?{
+      conId:100300,provider:'IBKR',feedType:'LIVE',receivedAtUtc:new Date().toISOString(),
+      marketTimestampUtc:new Date().toISOString(),marketDataStatus:'unavailable',bid:2,ask:2.2} as any:null);
+    const result=await app.inject(`/api/v1/options/chain?expiration=20261030&centerStrike=150&consumerId=${randomUUID()}`);
+    const call=result.json().rows.find((item:any)=>item.strike===150).call;
+    expect(call).toMatchObject({definitionStatus:'VALID',quoteStatus:'UNAVAILABLE',dataStatus:'cotizacion_no_disponible',
+      bid:2,ask:2.2});
+    const refresh=await app.inject(`/api/v1/options/quotes?conIds=${call.conId}`);
+    expect(refresh.json().items[0]).toMatchObject({quoteStatus:'UNAVAILABLE',dataStatus:'cotizacion_no_disponible'});
+  });
+  it('no revalida ticks previos tras fallar la suscripción y recupera el estado al reintentar',async()=>{
+    const {app,hub}=await prepared();
+    const subscribe=vi.spyOn(hub,'subscribe').mockRejectedValueOnce(new AgentRequestError('SUBSCRIPTION_LIMIT',
+      'market_data','subscribe-101',101,812));
+    vi.spyOn(hub,'latestQuote').mockImplementation(key=>key==='100300'?{
+      conId:100300,provider:'IBKR',feedType:'LIVE',receivedAtUtc:new Date().toISOString(),
+      marketTimestampUtc:new Date().toISOString(),marketDataStatus:'available',bid:2,ask:2.2} as any:null);
+    const url=`/api/v1/options/chain?expiration=20261030&centerStrike=150&side=CALL&consumerId=${randomUUID()}`;
+    const first=await app.inject(url),call=first.json().rows.find((item:any)=>item.strike===150).call;
+    expect(call).toMatchObject({subscriptionStatus:'FAILED',quoteStatus:'SUBSCRIPTION_LIMIT',dataStatus:'suscripcion_fallida'});
+    expect(first.json().errors).toContainEqual(expect.objectContaining({right:'CALL',ibkrCode:101,twsRequestId:812}));
+    const refresh=await app.inject(`/api/v1/options/quotes?conIds=${call.conId}`);
+    expect(refresh.json().items[0]).toMatchObject({subscriptionStatus:'FAILED',quoteStatus:'SUBSCRIPTION_LIMIT'});
+    subscribe.mockResolvedValue(undefined);
+    const second=await app.inject(url);
+    expect(second.json().rows.find((item:any)=>item.strike===150).call.subscriptionStatus).toBe('ACTIVE');
+    const recovered=await app.inject(`/api/v1/options/quotes?conIds=${call.conId}`);
+    expect(recovered.json().items[0].quoteStatus).not.toBe('SUBSCRIPTION_LIMIT');
   });
   it('no inventa un centro ni cotizaciones si no hay precio admisible',async()=>{
     const {app,hub}=await prepared();

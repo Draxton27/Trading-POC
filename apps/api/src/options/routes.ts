@@ -40,6 +40,7 @@ export function quoteStatus(received:{receivedAtUtc?:string;bid?:number|null;ask
   if(received?.ibkrErrorCode===10186)return 'DELAYED_DATA_UNAVAILABLE';
   if(received?.ibkrErrorCode===101)return 'SUBSCRIPTION_LIMIT';
   if(received?.marketDataStatus==='permission_denied'||received?.ibkrErrorCode===10089)return 'PERMISSION_DENIED';
+  if(received?.marketDataStatus==='unavailable')return 'UNAVAILABLE';
   if(!received)return 'MISSING';
   const receivedAt=received.receivedAtUtc?Date.parse(received.receivedAtUtc):NaN;
   if(!Number.isFinite(receivedAt)||receivedAt>now||now-receivedAt>30000)return 'STALE';
@@ -51,6 +52,22 @@ export function quoteStatus(received:{receivedAtUtc?:string;bid?:number|null;ask
   if(partial)return 'PARTIAL';
   return received.feedType==='LIVE'?'LIVE_UNVERIFIED':'UNKNOWN';
 }
+function quoteDataStatus(received:{bid?:number|null;ask?:number|null}|null,state:string,subscriptionError:Issue|null=null){
+  if(subscriptionError)return subscriptionError.code==='PERMISSION'?'permisos_insuficientes':'suscripcion_fallida';
+  if(state==='PERMISSION_DENIED')return 'permisos_insuficientes';
+  if(state==='UNAVAILABLE'||state==='DELAYED_DATA_UNAVAILABLE'||state==='SESSION_CONFLICT_REPORTED'||
+    state==='SUBSCRIPTION_LIMIT')return 'cotizacion_no_disponible';
+  if(!received)return 'cotizacion_pendiente';
+  if(state==='STALE')return 'obsoleto';
+  if(received.bid==null&&received.ask==null)return 'cotizacion_no_disponible';
+  if(state==='PARTIAL'||state.endsWith('_PARTIAL'))return 'cotizacion_parcial';
+  return 'recibido';
+}
+function subscriptionQuoteStatus(received:Parameters<typeof quoteStatus>[0],subscriptionError:Issue|null){
+  if(!subscriptionError)return quoteStatus(received);
+  return subscriptionError.code==='PERMISSION'?'PERMISSION_DENIED':
+    subscriptionError.code==='SUBSCRIPTION_LIMIT'?'SUBSCRIPTION_LIMIT':'SUBSCRIPTION_FAILED';
+}
 function nyDateKey(now=new Date()){
   const parts=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(now);
   const part=(type:string)=>parts.find(item=>item.type===type)?.value??'';
@@ -61,6 +78,13 @@ export function registerOptionRoutes(app:FastifyInstance,hub:AgentHub,mode:'DEMO
   let parametersCache:{until:number;connectionId:string|null;items:OptionParameter[]}|null=null;
   let parametersPending:Promise<OptionParameter[]>|null=null;
   const contractCache=new Map<string,{until:number;connectionId:string|null;contract:Record<string,unknown>}>();
+  const subscriptionFailures=new Map<number,{connectionId:string|null;problem:Issue;until:number}>();
+  const rememberSubscriptionFailure=(conId:number,problem:Issue)=>{
+    const connectionId=hub.status().connectionId,now=Date.now();
+    for(const [id,entry] of subscriptionFailures)if(entry.connectionId!==connectionId||entry.until<=now)
+      subscriptionFailures.delete(id);
+    subscriptionFailures.set(conId,{connectionId,problem,until:now+60000});
+  };
   const parameters=async():Promise<OptionParameter[]>=>{
     if(mode!=='PAPER'||!hub.status().connected)return [];
     if(parametersCache&&parametersCache.until>Date.now()&&parametersCache.connectionId===hub.status().connectionId)return parametersCache.items;
@@ -130,23 +154,23 @@ export function registerOptionRoutes(app:FastifyInstance,hub:AgentHub,mode:'DEMO
         return {item:null,errors:[failure]};}
     }
     let subscribeError:Issue|null=null;
-    try{await hub.subscribe({conId:contract.conId,expiration:selectedExpiration,right,strike},consumerId,deadline-Date.now());}
-    catch(error){subscribeError=diagnosed(issue(error,strike),true);}
+    try{await hub.subscribe({conId:contract.conId,expiration:selectedExpiration,right,strike},consumerId,deadline-Date.now());
+      subscriptionFailures.delete(Number(contract.conId));}
+    catch(error){subscribeError=diagnosed(issue(error,strike),true);
+      rememberSubscriptionFailure(Number(contract.conId),subscribeError);}
     const received=hub.latestQuote(String(contract.conId)) as {receivedAtUtc?:string;marketTimestampUtc?:string;bid?:number|null;ask?:number|null;feedType?:string;marketDataStatus?:string;ibkrErrorCode?:number;provider?:string}|null;
     const stale=!!received&&(!received.receivedAtUtc||Date.now()-Date.parse(received.receivedAtUtc)>30000);
-    const noBidAsk=!received||received.bid==null&&received.ask==null;
-    const evaluatedQuote=received&&hub.status().simulation?{...received,provider:'PAPER SIMULADO'}:received;
+    const evaluatedQuote=subscribeError?{...(received??{}),marketDataStatus:subscribeError.code==='PERMISSION'?'permission_denied':'unavailable'}:
+      received&&hub.status().simulation?{...received,provider:'PAPER SIMULADO'}:received;
     const academyEvaluation=evaluateAcademyAskRange(academyReference,evaluatedQuote,Date.now(),String(contract.currency??'USD'),Number(contract.multiplier??100));
-    const quoteState=quoteStatus(received);
+    const quoteState=subscriptionQuoteStatus(received,subscribeError);
     const item={...contract,...(received??{}),academyEvaluation,spread:spread(received?.bid??null,received?.ask??null),
       definitionStatus:'VALID',subscriptionStatus:subscribeError?'FAILED':'ACTIVE',quoteStatus:quoteState,
       diagnostic:{expiration:selectedExpiration,strike,right,requestId:resolutionRequestId,
         twsRequestId:typeof contract.twsRequestId==='number'?contract.twsRequestId:null,
         stage:subscribeError?.stage??'quote',elapsedMs:Date.now()-startedAt,resolved:true,
         subscribed:!subscribeError,quoteReceived:!!received},
-      dataStatus:subscribeError?subscribeError.code==='PERMISSION'?'permisos_insuficientes':'suscripcion_fallida':
-        !received?'cotizacion_pendiente':stale?'obsoleto':received.marketDataStatus==='permission_denied'?'permisos_insuficientes':
-        received.marketDataStatus==='partial'?'cotizacion_parcial':received.marketDataStatus==='unavailable'||noBidAsk?'cotizacion_no_disponible':'recibido',
+      dataStatus:quoteDataStatus(received,quoteState,subscribeError),
       stale,permissions:subscribeError?.code==='PERMISSION'||received?.marketDataStatus==='permission_denied'?'Insuficientes':'No verificados',
       provider:hub.status().simulation?'PAPER SIMULADO':'IBKR'};
     app.log.info({component:'options',event:'chain_contract_checked',expiration:selectedExpiration,strike,right,
@@ -193,20 +217,21 @@ export function registerOptionRoutes(app:FastifyInstance,hub:AgentHub,mode:'DEMO
     if(!cached)return reply.code(404).send({error:'Contrato no disponible; vuelva a consultarlo en la cadena'});
     const contract=cached.contract;
     let subscribeError:Issue|null=null;
-    try{await hub.subscribe({conId,expiration:contract.expiration,right:contract.right,strike:contract.strike},consumerId);}
-    catch(error){subscribeError=issue(error,Number(contract.strike));}
+    try{await hub.subscribe({conId,expiration:contract.expiration,right:contract.right,strike:contract.strike},consumerId);
+      subscriptionFailures.delete(conId);}
+    catch(error){subscribeError=issue(error,Number(contract.strike));
+      rememberSubscriptionFailure(conId,subscribeError);}
     const received=hub.latestQuote(String(conId)) as {receivedAtUtc?:string;marketTimestampUtc?:string;bid?:number|null;ask?:number|null;feedType?:string;marketDataStatus?:string;provider?:string}|null;
     const stale=!!received&&(!received.receivedAtUtc||Date.now()-Date.parse(received.receivedAtUtc)>30000);
     const right=contract.right==='PUT'?'PUT':'CALL';
     const reference=selectAcademyReference(academyRanges(sqlite,'NVDA'),new Date().toISOString(),right);
-    const evaluatedQuote=subscribeError?.code==='PERMISSION'?{...(received??{}),marketDataStatus:'permission_denied'}:
+    const evaluatedQuote=subscribeError?{...(received??{}),marketDataStatus:subscribeError.code==='PERMISSION'?'permission_denied':'unavailable'}:
       received&&hub.status().simulation?{...received,provider:'PAPER SIMULADO'}:received;
     const academyEvaluation=evaluateAcademyAskRange(reference,evaluatedQuote,Date.now(),String(contract.currency??'USD'),Number(contract.multiplier??100));
+    const quoteState=subscriptionQuoteStatus(received,subscribeError);
     return {item:{...contract,...(received??{}),academyEvaluation,spread:spread(received?.bid??null,received?.ask??null),
-      definitionStatus:'VALID',subscriptionStatus:subscribeError?'FAILED':'ACTIVE',quoteStatus:quoteStatus(received),
-      dataStatus:subscribeError?subscribeError.code==='PERMISSION'?'permisos_insuficientes':'suscripcion_fallida':
-        !received?'cotizacion_pendiente':stale?'obsoleto':received.marketDataStatus==='permission_denied'?'permisos_insuficientes':
-        received.marketDataStatus==='partial'?'cotizacion_parcial':received.marketDataStatus==='unavailable'||received.bid==null&&received.ask==null?'cotizacion_no_disponible':'recibido',
+      definitionStatus:'VALID',subscriptionStatus:subscribeError?'FAILED':'ACTIVE',quoteStatus:quoteState,
+      dataStatus:quoteDataStatus(received,quoteState,subscribeError),
       permissions:subscribeError?.code==='PERMISSION'||received?.marketDataStatus==='permission_denied'?'Insuficientes':'No verificados',
       stale,provider:hub.status().simulation?'PAPER SIMULADO':'IBKR'},error:subscribeError,source:hub.status().simulation?'Agente simulado':'IBKR Paper'};
   });
@@ -222,17 +247,20 @@ export function registerOptionRoutes(app:FastifyInstance,hub:AgentHub,mode:'DEMO
         value.connectionId===hub.status().connectionId&&value.contract.conId===conId);
       if(!entry)return [];
       const contract=entry.contract;
+      const recorded=subscriptionFailures.get(conId);
+      const subscribeError=recorded?.connectionId===hub.status().connectionId&&recorded.until>Date.now()?recorded.problem:null;
       const received=hub.latestQuote(String(conId)) as {receivedAtUtc?:string;marketTimestampUtc?:string;bid?:number|null;ask?:number|null;
         feedType?:string;marketDataStatus?:string;ibkrErrorCode?:number;provider?:string}|null;
       const stale=!!received&&(!received.receivedAtUtc||Date.now()-Date.parse(received.receivedAtUtc)>30000);
       const reference=selectAcademyReference(academyRanges(sqlite,'NVDA'),new Date().toISOString(),contract.right==='PUT'?'PUT':'CALL');
-      const evaluatedQuote=received&&hub.status().simulation?{...received,provider:'PAPER SIMULADO'}:received;
+      const evaluatedQuote=subscribeError?{...(received??{}),marketDataStatus:subscribeError.code==='PERMISSION'?'permission_denied':'unavailable'}:
+        received&&hub.status().simulation?{...received,provider:'PAPER SIMULADO'}:received;
       const academyEvaluation=evaluateAcademyAskRange(reference,evaluatedQuote,Date.now(),String(contract.currency??'USD'),Number(contract.multiplier));
+      const quoteState=subscriptionQuoteStatus(received,subscribeError);
       return [{...contract,...(received??{}),academyEvaluation,spread:spread(received?.bid??null,received?.ask??null),
-        definitionStatus:'VALID',subscriptionStatus:'NOT_VERIFIED_BY_READ',quoteStatus:quoteStatus(received),
-        dataStatus:!received?'cotizacion_pendiente':stale?'obsoleto':received.marketDataStatus==='permission_denied'?'permisos_insuficientes':
-          received.marketDataStatus==='partial'?'cotizacion_parcial':received.marketDataStatus==='unavailable'||received.bid==null&&received.ask==null?
-          'cotizacion_no_disponible':'recibido',stale,permissions:received?.marketDataStatus==='permission_denied'?'Insuficientes':'No verificados',
+        definitionStatus:'VALID',subscriptionStatus:subscribeError?'FAILED':'NOT_VERIFIED_BY_READ',quoteStatus:quoteState,
+        dataStatus:quoteDataStatus(received,quoteState,subscribeError),stale,
+        permissions:subscribeError?.code==='PERMISSION'||received?.marketDataStatus==='permission_denied'?'Insuficientes':'No verificados',
         provider:hub.status().simulation?'PAPER SIMULADO':'IBKR'}];
     });
     return {items,source:hub.status().simulation?'Agente simulado':'IBKR Paper'};

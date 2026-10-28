@@ -94,7 +94,7 @@ export class AgentTransport {
     }catch(e){
       const error=e as {code?:unknown;stage?:unknown;ibkrCode?:unknown;twsRequestId?:unknown};
       const code=typeof error.code==='string'&&['TIMEOUT','NOT_FOUND','AMBIGUOUS','PERMISSION','PACING','DISCONNECTED','BROKER_ERROR',
-        'PARTIAL_MARKET_DATA','DELAYED_DATA_UNAVAILABLE','SESSION_CONFLICT_REPORTED'].includes(error.code)?error.code:'BROKER_ERROR';
+        'PARTIAL_MARKET_DATA','DELAYED_DATA_UNAVAILABLE','SESSION_CONFLICT_REPORTED','SUBSCRIPTION_LIMIT'].includes(error.code)?error.code:'BROKER_ERROR';
       const stage=typeof error.stage==='string'&&['contract_details','option_parameters','market_data','agent'].includes(error.stage)?error.stage:'agent';
       const ibkrCode=typeof error.ibkrCode==='number'?error.ibkrCode:null;
       const twsRequestId=typeof error.twsRequestId==='number'&&Number.isSafeInteger(error.twsRequestId)?error.twsRequestId:null;
