@@ -23,7 +23,11 @@ export class TwsHandshakeError extends Error{
 }
 export function classifyIbkrError(code:number,message:string){
   if(code===200)return /ambiguous|ambig/i.test(message)?'AMBIGUOUS':'NOT_FOUND';
-  if([354,10090,10186,10197].includes(code))return 'PERMISSION';
+  if(code===354||code===10089)return 'PERMISSION';
+  if(code===10090||code===10091)return 'PARTIAL_MARKET_DATA';
+  if(code===10186)return 'DELAYED_DATA_UNAVAILABLE';
+  if(code===10197)return 'SESSION_CONFLICT_REPORTED';
+  if(code===101)return 'SUBSCRIPTION_LIMIT';
   if(code===100)return 'PACING';
   return 'BROKER_ERROR';
 }
@@ -139,7 +143,8 @@ export class TwsReadOnlyAdapter implements ReadOnlyBrokerAdapter {
     const onSize=(id:number,field:number,value:number)=>{if(this.books.get(id)?.size(field,value))emit(id);};
     const onGreek=(id:number,field:number,_attr:number,iv:number,delta:number,_opt:number,_pv:number,gamma:number,vega:number,theta:number)=>{if(this.books.get(id)?.greeks(field,iv,delta,gamma,vega,theta))emit(id);};
     const onError=(_error:Error,code:number,id:number)=>{if(!byId.has(id))return;
-      const status=code===10090?'partial':[354,10186,10197].includes(code)?'permission_denied':code===200?'unavailable':null;
+      const status=[10090,10091].includes(code)?'partial':[354,10089].includes(code)?'permission_denied':
+        [101,10186,10197,200].includes(code)?'unavailable':null;
       if(!status)return;
       console.warn(JSON.stringify({component:'tws',stage:'market_data',twsRequestId:id,ibkrCode:code}));
       qualityById.set(id,{marketDataStatus:status,ibkrErrorCode:code});

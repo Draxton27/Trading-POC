@@ -16,6 +16,8 @@ export default function OptionAnalysisPanel({row,conId,nowMs}:{row:Record<string
   const analysis=row?analyzeComparisonRow(row,{quantity:Number(quantity),capitalUsd:optionalNumberInput(capital),
     entryFeePerContractUsd:optionalNumberInput(entryFee),expirationFeePerContractUsd:optionalNumberInput(expirationFee),
     hypotheticalUnderlyingAtExpirationUsd:optionalNumberInput(underlying),asOfUtc:new Date(nowMs).toISOString()}):null;
+  const subscriptionFailed=row?.subscriptionStatus==='FAILED';
+  const unavailable=row?.quoteStatus==='UNAVAILABLE'||row?.marketDataStatus==='unavailable';
   return <Card className="option-analysis"><span className="eyebrow">DETALLE DEL CONTRATO</span><h3>{analysis?.identity.right??'Contrato'} NVDA · strike {price(analysis?.identity.strike??null)}</h3>
     <p>Ejercicio local e hipotético de compra para abrir. No consulta saldos, no envía órdenes y no garantiza precios de ejecución.</p>
     {!row?<p className="subtle">{conId===null?'Seleccione un contrato para analizarlo.':`Consultando el contrato ${conId} o sin datos disponibles.`}</p>:<>
@@ -28,8 +30,12 @@ export default function OptionAnalysisPanel({row,conId,nowMs}:{row:Record<string
       </div>
       {analysis?<>
         <div className="option-analysis-meta"><strong>Vencimiento {analysis.expiration.expirationDate??'N/D'} · DTE {analysis.expiration.daysCalendar??'N/D'}</strong>
-          <Badge tone={analysis.quote.status==='LIVE_RECENT'?'success':'warning'}>{optionQualityLabel[analysis.quote.status]}</Badge>
-          <span>{analysis.quote.reason}</span></div>
+          <Badge tone={!unavailable&&!subscriptionFailed&&analysis.quote.status==='LIVE_RECENT'?'success':'warning'}>
+            {subscriptionFailed?'Suscripción fallida':unavailable?'Cotización no disponible':
+              optionQualityLabel[analysis.quote.status]}</Badge>
+          <span>{subscriptionFailed?'La suscripción falló; BID/ASK anteriores no verifican una cotización actual.':
+            unavailable?'IBKR marcó la cotización como no disponible; BID/ASK anteriores no verifican un precio actual.':
+            analysis.quote.reason}</span></div>
         <details className="option-analysis-advanced"><summary>Qué significan prima, spread, strike, DTE y equilibrio</summary>
           <p>ASK es la prima indicada por acción para comprar, sin garantía de ejecución. El costo bruto multiplica ASK por el multiplicador y la cantidad; las comisiones desconocidas quedan fuera.</p>
           <p>BID es el precio indicado para vender. El spread es la diferencia BID/ASK; comprar al ASK y vender de inmediato al BID implica una diferencia negativa antes de comisiones cuando ambas cotizaciones son utilizables.</p>

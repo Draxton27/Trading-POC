@@ -6,7 +6,7 @@ type Socket={send:(data:string)=>void;close:(code?:number,reason?:string)=>void;
 const MAX_BYTES=65536;
 export class AgentRequestError extends Error {
   constructor(public readonly code:string,public readonly stage:string,public readonly requestId:string,
-    public readonly ibkrCode:number|null=null){super(code==='DISCONNECTED'?'Agente desconectado':code);this.name='AgentRequestError';}
+    public readonly ibkrCode:number|null=null,public readonly twsRequestId:number|null=null){super(code==='DISCONNECTED'?'Agente desconectado':code);this.name='AgentRequestError';}
 }
 const diagnostic=(event:string,kind:string,requestId:string,durationMs:number,stage:string,code?:string,ibkrCode?:number|null)=>
   console.warn(JSON.stringify({component:'agent-hub',event,kind,requestId,durationMs,stage,...(code?{code}:{}),...(ibkrCode!=null?{ibkrCode}:{})}));
@@ -144,8 +144,9 @@ export class AgentHub {
       const code=typeof result.payload.code==='string'?result.payload.code:'BROKER_ERROR';
       const stage=typeof result.payload.stage==='string'?result.payload.stage:'agent';
       const ibkrCode=typeof result.payload.ibkrCode==='number'?result.payload.ibkrCode:null;
+      const twsRequestId=typeof result.payload.twsRequestId==='number'&&Number.isSafeInteger(result.payload.twsRequestId)?result.payload.twsRequestId:null;
       diagnostic('agent_error',kind,requestId,Date.now()-startedAt,stage,code,ibkrCode);
-      throw new AgentRequestError(code,stage,requestId,ibkrCode);
+      throw new AgentRequestError(code,stage,requestId,ibkrCode,twsRequestId);
     }
     diagnostic('completed',kind,requestId,Date.now()-startedAt,'agent');
     if(kind==='market.subscribe'||kind==='market.unsubscribe'){
