@@ -5,7 +5,7 @@ import {api,dateTime} from '../../lib/api.ts';
 import {Badge,Card} from '../../components/ui.tsx';
 
 type Case=OpportunityCase;
-export type OpportunityContractTarget={conId:number;right:'CALL'|'PUT';strike:number;expiration:string};
+export type OpportunityContractTarget={conId:number;right:'CALL'|'PUT';strike:number;expiration:string;candidateId?:string};
 const money=(value:number|null)=>value===null?'N/D':`$${value.toFixed(2)}`;
 const pct=(value:number|null)=>value===null?'N/D':`${value.toFixed(2)} %`;
 const title=(value:string)=>value.replaceAll('_',' ');
@@ -40,7 +40,8 @@ function Candidate({item,onNavigate}:{item:Case;onNavigate?:(view:'Opciones'|'Si
         <td><button type="button" disabled={!contract.contract.right||contract.contract.strike===null||!contract.contract.expiration} onClick={()=>{
           if(contract.contract.right&&contract.contract.strike!==null&&contract.contract.expiration)
             onNavigate?.('Opciones',{conId:contract.conId,right:contract.contract.right,
-              strike:contract.contract.strike,expiration:contract.contract.expiration});
+              strike:contract.contract.strike,expiration:contract.contract.expiration,
+              candidateId:candidate.candidateId});
         }}>Revisar conId {contract.conId}</button></td></tr>)}</tbody></table></div>}
     <p>Limitaciones: {[...candidate.exclusionReasons,...item.technicalUpdates.flatMap(u=>u.exclusionReasons),...item.contracts.flatMap(c=>c.exclusionReasons)].join(' ')||'Sin información adicional.'}</p>
     <p>Desenlace del subyacente: {item.underlyingOutcome?`${pct(item.underlyingOutcome.movementPercent)} al ${dateTime(item.underlyingOutcome.outcomeEndUtc)}`:'pendiente o no evaluable'}.
