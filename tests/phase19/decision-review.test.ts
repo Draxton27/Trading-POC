@@ -316,12 +316,12 @@ describe('41N: API y ledgers aislados',()=>{
   it('mantiene vencimiento sin resolución y no infiere liquidación',async()=>{
     const path=temp(),store=new SimulatorStore(join(path,'simulator'));
     const sim=new SimulatorService({store,mode:'PAPER',contract:()=>({conId:101,occSymbol:null,
-      symbol:'NVDA',right:'CALL',strike:220,expiration:'2026-10-27',multiplier:100,currency:'USD'}),quote:()=>null});
+      symbol:'NVDA',right:'CALL',strike:220,expiration:'2099-01-16',multiplier:100,currency:'USD'}),quote:()=>null});
     const at=new Date().toISOString();await sim.open({idempotencyKey:randomUUID(),conId:101,quantity:1,
       premiumPerShare:2,priceOrigin:'MANUAL_INPUT',entryFeeUsd:0,decisionAtUtc:at,simulatedEntryAtUtc:at,
       confirmHypothetical:true});
     const base=reviewService(path,store),future=new DecisionReviewService({...base.deps,
-      clock:()=>Date.parse('2026-10-30T20:00:00.000Z')});
+      clock:()=>Date.parse('2099-01-20T20:00:00.000Z')});
     const item=(await future.read()).cases[0]!;
     expect(item.postOutcomeReview.tradeOutcome?.status).toBe('EXPIRED_UNRESOLVED');
     expect(item.postOutcomeReview.tradeOutcome?.realizedGrossUsd).toBe(0);

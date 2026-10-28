@@ -32,6 +32,7 @@ import {registerOpportunityRoutes,opportunityPaths} from './radar/opportunities.
 import {createOpportunityBrokerWorker} from './radar/opportunity-broker.ts';
 import {registerLiveDiagnostics,liveDiagnosticPaths} from './radar/live-diagnostics.ts';
 import {classifyPaperConnectivity,paperDiagnosticPathFor,readPaperDiagnostic} from '../../ibkr-agent/src/connection/paper-diagnostic.ts';
+import {resolveIbkrConnection} from '../../../scripts/ibkr-connection.mjs';
 import {DecisionReviewService} from './research/decision-review-service.ts';
 import {registerDecisionReviewRoutes} from './research/decision-review-routes.ts';
 import {registerTechnicalContextRoutes,technicalContextFor} from './technical-context/routes.ts';
@@ -105,9 +106,18 @@ export async function createApp(options:Options={}){
   const barsFor=(s:Symbol,t:Timeframe)=>mode==='DEMO'?demoBars(s,t):offlineBars(s,t);
   app.get('/api/v1/session',()=>({token,mode}));
   app.get('/api/v1/health',()=>({ok:true,mode,timeUtc:new Date().toISOString(),offlineAvailable:offlineAvailable(),broker:hub.status().connected}));
-  app.get('/api/v1/broker/status',()=>({mode,...hub.status(),provider:mode==='DEMO'?'DEMO sintético':mode==='OFFLINE'?'archivo local':hub.status().simulation?'Agente simulado':'IBKR'}));
+  app.get('/api/v1/broker/status',()=>{
+    let connection:ReturnType<typeof resolveIbkrConnection>|null=null;
+    if(mode==='PAPER')try{connection=resolveIbkrConnection(process.env);}catch{}
+    const account=connection?.expectedPaperAccount??'';
+    return {mode,...hub.status(),provider:mode==='DEMO'?'DEMO sintético':mode==='OFFLINE'?'archivo local':hub.status().simulation?'Agente simulado':'IBKR',
+      connectionApplication:mode==='PAPER'?connection?.connectionApplication??process.env.TRADING_POC_IBKR_CONNECTION??'TWS_PAPER':null,
+      effectivePort:connection?.port??null,paperAccountMasked:account?`${account.slice(0,2)}${'•'.repeat(Math.max(0,account.length-4))}${account.slice(-2)}`:null};
+  });
   app.get('/api/v1/broker/diagnostics',()=>{
     let last=null;try{last=readPaperDiagnostic(paperDiagnosticPathFor(privateDir));}catch{}
+    const selectedApplication=process.env.TRADING_POC_IBKR_CONNECTION??'TWS_PAPER';
+    if(last&&(last.connectionApplication??'TWS_PAPER')!==selectedApplication)last=null;
     const connected=hub.status().connected,simulation=hub.status().simulation;
     const status=classifyPaperConnectivity({mode,configured:!!process.env.IBKR_EXPECTED_PAPER_ACCOUNT,
       portReachable:null,processPresent:null,backendConnected:connected,backendSimulation:simulation,
