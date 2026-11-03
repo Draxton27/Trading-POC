@@ -101,7 +101,7 @@ describe('Fase 41V: historial real aislado',()=>{
 describe('Airtable REST de solo lectura',()=>{
   const base={token:'fixture-token',baseId:'appRLKun7tUrD1eI2',table:'Ejecuciones IBKR'};
   it('página con offset y registros equivalentes',async()=>{
-    const urls:string[]=[];const fake=async(input:URL|RequestInfo)=>{urls.push(String(input));return Response.json(urls.length===1?{records:[record()],offset:'next'}:{records:[record({'ID ejecucion':'EX-2'},'rec12345678901235')]});};
+    const urls:string[]=[];const fake=async(input:URL|RequestInfo)=>{urls.push(String(input));return Response.json(urls.length===1?{records:[{...record(),createdTime:'2026-03-06T23:50:00.000Z'}],offset:'next'}:{records:[record({'ID ejecucion':'EX-2'},'rec12345678901235')]});};
     const records=[];for await(const row of airtableRecords({...base,fetchImpl:fake as typeof fetch}))records.push(row);
     expect(records).toHaveLength(2);expect(urls[1]).toContain('offset=next');
   });

@@ -4,7 +4,7 @@ import {z} from 'zod';
 import {parseCsvRows} from '../../../../trading_poc_001_bollinger/src/phase17-csv.ts';
 import {DEFAULT_FIELDS,type FieldMap,type InputRecord} from './normalize.ts';
 
-const airtableRecord=z.object({id:z.string().regex(/^rec[A-Za-z0-9]{14}$/),fields:z.record(z.string(),z.unknown())}).strict();
+const airtableRecord=z.object({id:z.string().regex(/^rec[A-Za-z0-9]{14}$/),createdTime:z.iso.datetime({offset:true}).optional(),fields:z.record(z.string(),z.unknown())}).strict();
 const airtablePage=z.object({records:z.array(airtableRecord).max(100),offset:z.string().min(1).max(500).optional()}).strict();
 export type AirtableOptions={token?:string;baseId:string;table:string;fetchImpl?:typeof fetch;sleep?:(ms:number)=>Promise<void>;timeoutMs?:number;maxRecords?:number};
 export class AirtableReadError extends Error{constructor(readonly code:string){super(code);}}
