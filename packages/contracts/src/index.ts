@@ -1,5 +1,6 @@
 import {z} from 'zod';
 export * from './ml.ts';
+export * from './real-trades.ts';
 export * from './radar.ts';
 export * from './technical-context.ts';
 export * from './investep-scenarios.ts';

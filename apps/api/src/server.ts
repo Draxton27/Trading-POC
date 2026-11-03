@@ -39,6 +39,7 @@ import {registerTechnicalContextRoutes,technicalContextFor} from './technical-co
 import {buildRadar} from './radar/service.ts';
 import {marketEvidence,quoteEvidence} from './assistant/routes.ts';
 import {newsPaths,resolveNewsDir,resolvePrivateDir} from './news/paths.ts';
+import {realTradeDiagnostic} from './real-trades/service.ts';
 
 type Options={mode?:'DEMO'|'OFFLINE'|'PAPER';privateDir?:string;simulatorDir?:string;newsDir?:string;phase17Private?:string;phase16Ledger?:string;dbPath?:string;agentSecret?:string;assistantFetch?:typeof fetch;assistantTimeoutMs?:number;mlRunDir?:string|null;mlInferenceLog?:string|null;mlIngestionLog?:string|null;mlForwardObservationLog?:string|null;mlCollectorStatus?:string|null;mlEvaluationLog?:string|null;mlEvaluationStatus?:string|null;radarFrozenDir?:string|null;radarObservationLog?:string|null;iexProspectivePaths?:IexProspectivePaths};
 const repoRoot=fileURLToPath(new URL('../../../',import.meta.url));
@@ -106,6 +107,10 @@ export async function createApp(options:Options={}){
   const barsFor=(s:Symbol,t:Timeframe)=>mode==='DEMO'?demoBars(s,t):offlineBars(s,t);
   app.get('/api/v1/session',()=>({token,mode}));
   app.get('/api/v1/health',()=>({ok:true,mode,timeUtc:new Date().toISOString(),offlineAvailable:offlineAvailable(),broker:hub.status().connected}));
+  app.get('/api/v1/real-trades/diagnostics',(request,reply)=>{
+    if(!validToken(request.headers['x-local-token'] as string|undefined,token))return bad(reply,'Token local requerido',403);
+    return realTradeDiagnostic(db.sqlite,!!process.env.TRADING_POC_AIRTABLE_TOKEN);
+  });
   app.get('/api/v1/broker/status',()=>{
     let connection:ReturnType<typeof resolveIbkrConnection>|null=null;
     if(mode==='PAPER')try{connection=resolveIbkrConnection(process.env);}catch{}
