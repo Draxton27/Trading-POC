@@ -1,4 +1,5 @@
 import {afterEach,describe,expect,it} from 'vitest';
+import {createHash} from 'node:crypto';
 import {mkdtempSync,mkdirSync,rmSync,writeFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
@@ -42,6 +43,49 @@ describe('Fase 41V: historial real aislado',()=>{
     expect(await importer.run([record({'Comision USD':-2},'rec12345678901236')])).toMatchObject({conflicts:1,status:'PARTIAL_COVERAGE_UNVERIFIED'});
     expect(sqlite.prepare('SELECT revision,kind FROM real_trade_versions ORDER BY revision').all()).toMatchObject([{revision:1,kind:'ORIGINAL'},{revision:2,kind:'REVISION'},{revision:3,kind:'CONFLICT'}]);
     expect(sqlite.prepare('SELECT normalized FROM real_trade_versions WHERE id=(SELECT latest_version_id FROM real_trade_executions)').get()).toMatchObject({normalized:expect.stringContaining('"commission":"-1.25"')});sqlite.close();
+  });
+  it('un ID Airtable estable que cambia executionId queda como conflicto, sin segunda ejecución',async()=>{
+    const {sqlite}=fixture(),importer=new RealTradeImporter(sqlite,'AIRTABLE');
+    const original=record({'ID ejecucion':'EX-ORIGINAL'}),corrected=record({'ID ejecucion':'EX-CORREGIDO'});
+    expect(await importer.run([original])).toMatchObject({inserted:1});
+    const originalVersion=sqlite.prepare('SELECT id,content_hash FROM real_trade_versions').get();
+    expect(await importer.run([corrected])).toMatchObject({conflicts:1,inserted:0,revised:0});
+    expect(sqlite.prepare('SELECT COUNT(*) n FROM real_trade_executions').get()).toEqual({n:1});
+    expect(sqlite.prepare('SELECT execution_id,conflict FROM real_trade_executions').get()).toEqual({execution_id:'EX-ORIGINAL',conflict:1});
+    expect(sqlite.prepare('SELECT kind,normalized FROM real_trade_versions ORDER BY revision').all()).toMatchObject([
+      {kind:'ORIGINAL',normalized:expect.stringContaining('EX-ORIGINAL')},
+      {kind:'IDENTITY_CONFLICT',normalized:expect.stringContaining('EX-CORREGIDO')}
+    ]);
+    expect(sqlite.prepare('SELECT id,content_hash FROM real_trade_versions WHERE revision=1').get()).toEqual(originalVersion);
+    expect(sqlite.prepare('SELECT COUNT(*) n FROM real_trade_provenance').get()).toEqual({n:2});
+    expect(await importer.run([corrected])).toMatchObject({unchanged:1,conflicts:0});
+    expect(sqlite.prepare('SELECT COUNT(*) n FROM real_trade_versions').get()).toEqual({n:2});
+    expect(realTradeDiagnostic(sqlite,false)).toMatchObject({executionCount:1,conflictCount:1,pendingReconciliationCount:1});sqlite.close();
+  });
+  it('IDs de origen diferentes con executionId diferentes son dos ejecuciones legítimas',async()=>{
+    const {sqlite}=fixture();expect(await new RealTradeImporter(sqlite,'AIRTABLE').run([
+      record({'ID ejecucion':'EX-1'},'rec12345678901234'),record({'ID ejecucion':'EX-2'},'rec12345678901235')
+    ])).toMatchObject({inserted:2,conflicts:0});
+    expect(sqlite.prepare('SELECT COUNT(*) n FROM real_trade_executions').get()).toEqual({n:2});sqlite.close();
+  });
+  it('un historial anterior con identidad duplicada se conserva y se señala para conciliación',async()=>{
+    const {sqlite}=fixture();await new RealTradeImporter(sqlite,'AIRTABLE',undefined,()=> '2026-10-20T14:00:00.000Z').run([record({'ID ejecucion':'EX-1'})]);
+    const legacyKey=createHash('sha256').update('REAL\0Primary\0EX-2').digest('hex');
+    const legacyValue=normalizeExecution(record({'ID ejecucion':'EX-2'}));
+    sqlite.prepare('INSERT INTO real_trade_executions(id,environment,account_alias,execution_id,latest_version_id,quality,conflict) VALUES (?,?,?,?,?,?,0)').run(legacyKey,'REAL','Primary','EX-2','legacy-version',legacyValue.quality);
+    sqlite.prepare('INSERT INTO real_trade_versions(id,execution_id,revision,content_hash,normalized,source,source_record_id,imported_at_utc,kind) VALUES (?,?,?,?,?,?,?,?,?)').run('legacy-version',legacyKey,1,'legacy-hash',JSON.stringify(legacyValue),'AIRTABLE',record().id,'2026-10-21T14:00:00.000Z','ORIGINAL');
+    sqlite.prepare('INSERT INTO real_trade_provenance(id,version_id,source,source_record_id,first_seen_at_utc) VALUES (?,?,?,?,?)').run('legacy-provenance','legacy-version','AIRTABLE',record().id,'2026-10-21T14:00:00.000Z');
+    expect(await new RealTradeImporter(sqlite,'AIRTABLE').run([record({'ID ejecucion':'EX-2'})])).toMatchObject({conflicts:1,inserted:0});
+    expect(sqlite.prepare('SELECT COUNT(*) n FROM real_trade_executions').get()).toEqual({n:2});
+    expect(sqlite.prepare('SELECT SUM(conflict) n FROM real_trade_executions').get()).toEqual({n:2});sqlite.close();
+  });
+  it('CSV sin ID estable no se confunde con Airtable; ID rec explícito solo bloquea duplicación',async()=>{
+    const {sqlite}=fixture(),importer=new RealTradeImporter(sqlite,'CSV');
+    const csvRecord=(executionId:string):InputRecord=>({fields:fields({'ID ejecucion':executionId,'ID registro Airtable':'rec12345678901234'})});
+    await importer.run([csvRecord('EX-1')]);
+    expect(await importer.run([csvRecord('EX-2')])).toMatchObject({conflicts:1,revised:0,inserted:0});
+    expect(sqlite.prepare('SELECT COUNT(*) n FROM real_trade_executions').get()).toEqual({n:1});
+    expect(await importer.run([csvRecord('EX-2')])).toMatchObject({unchanged:1});sqlite.close();
   });
   it('CSV sin ID de registro no convierte cambios de contenido en revisión confiable',async()=>{
     const {sqlite}=fixture(),importer=new RealTradeImporter(sqlite,'CSV');
@@ -87,6 +131,27 @@ describe('Fase 41V: historial real aislado',()=>{
     async function* broken(){yield record();throw new Error('NETWORK_ERROR');}
     expect(await importer.run(broken())).toMatchObject({inserted:1,errorCode:'NETWORK_ERROR',status:'PARTIAL_COVERAGE_UNVERIFIED'});
     expect(await importer.run([record(),record({'ID ejecucion':'EX-2'},'rec12345678901235')])).toMatchObject({unchanged:1,inserted:1});sqlite.close();
+  });
+  it('distingue RUNNING reciente de lote abandonado y conserva ambos tras recuperar',async()=>{
+    const {sqlite}=fixture();const old='2026-10-20T14:00:00.000Z',fresh='2026-10-20T15:00:00.000Z';
+    sqlite.prepare("INSERT INTO real_trade_import_runs(id,source,started_at_utc,last_activity_at_utc,owner_pid,status,received,inserted,unchanged,revised,conflicts,rejected,coverage) VALUES (?,?,?,?,?, 'RUNNING',0,0,0,0,0,0,'UNVERIFIED')").run('abandoned','AIRTABLE',old,old,process.pid);
+    expect(realTradeDiagnostic(sqlite,false,()=> '2026-10-20T14:02:00.000Z')).toMatchObject({lastRun:{status:'RUNNING',activity:'ACTIVE',finishedAtUtc:null},interruptedRunCount:0});
+    expect(realTradeDiagnostic(sqlite,false,()=> '2026-10-20T14:02:00.000Z',()=>false)).toMatchObject({lastRun:{status:'RUNNING',activity:'INTERRUPTED'},interruptedRunCount:1});
+    expect(realTradeDiagnostic(sqlite,false,()=>fresh)).toMatchObject({lastRun:{status:'RUNNING',activity:'INTERRUPTED',finishedAtUtc:null},interruptedRunCount:1});
+    const result=await new RealTradeImporter(sqlite,'AIRTABLE',undefined,()=>fresh).run([record()]);
+    expect(result).toMatchObject({inserted:1,status:'SUCCESS_COVERAGE_UNVERIFIED'});
+    expect(realTradeDiagnostic(sqlite,false,()=>fresh)).toMatchObject({lastRun:{status:'SUCCESS_COVERAGE_UNVERIFIED',activity:'COMPLETED'},interruptedRunCount:1,executionCount:1});
+    expect(sqlite.prepare('SELECT status,finished_at_utc FROM real_trade_import_runs WHERE id=?').get('abandoned')).toEqual({status:'RUNNING',finished_at_utc:null});sqlite.close();
+  });
+  it('migra bases 41V existentes sin tocar ejecuciones ni lotes RUNNING previos',async()=>{
+    const {dir,sqlite}=fixture();await new RealTradeImporter(sqlite,'AIRTABLE',undefined,()=> '2026-10-19T14:00:00.000Z').run([record()]);
+    sqlite.prepare("INSERT INTO real_trade_import_runs(id,source,started_at_utc,status,received,inserted,unchanged,revised,conflicts,rejected,coverage) VALUES (?,? ,?,'RUNNING',0,0,0,0,0,0,'UNVERIFIED')").run('legacy','AIRTABLE','2026-10-20T14:00:00.000Z');
+    sqlite.exec('ALTER TABLE real_trade_import_runs DROP COLUMN last_activity_at_utc; ALTER TABLE real_trade_import_runs DROP COLUMN owner_pid; DELETE FROM __drizzle_migrations WHERE created_at=1793750400000');sqlite.close();
+    const reopened=openDatabase(join(dir,'db.sqlite'));
+    try{
+      expect(reopened.sqlite.prepare('SELECT COUNT(*) n FROM real_trade_executions').get()).toEqual({n:1});
+      expect(realTradeDiagnostic(reopened.sqlite,false,()=> '2026-10-21T14:00:00.000Z')).toMatchObject({lastRun:{status:'RUNNING',activity:'INTERRUPTED',lastActivityAtUtc:null},interruptedRunCount:1});
+    }finally{reopened.sqlite.close();}
   });
   it('API local exige token y expone solo diagnósticos aun en DEMO/OFFLINE/PAPER',async()=>{
     for(const mode of ['DEMO','OFFLINE','PAPER'] as const){
