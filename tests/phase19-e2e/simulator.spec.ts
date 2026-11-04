@@ -27,7 +27,7 @@ test('DEMO registra entrada y salida hipotéticas sin consultar órdenes ni ejec
   await page.getByRole('checkbox',{name:'Confirmar salida simulada'}).check();
   await page.getByRole('button',{name:'Confirmar salida simulada'}).click();
   await expect(page.getByText('PARTIALLY_CLOSED',{exact:false}).first()).toBeVisible();
-  await expect(page.getByText('1/2')).toBeVisible();
+  await expect(page.getByRole('cell',{name:'1/2',exact:true})).toBeVisible();
   expect(forbidden).toEqual([]);
 });
 

@@ -101,10 +101,10 @@ describe('Radar de Mercado',()=>{
     const r=(await app.inject('/api/v1/radar?symbols=NVDA&right=CALL')).json().assets[0].academy;
     expect(r).toMatchObject({status:'HISTORICAL_ONLY',minAskCents:8000,maxAskCents:17000,outerMinCents:7500,outerMaxCents:17500,liveAskCents:null});
     expect(r.reason).toMatch(/ASK actual N\/D/);
-    database.prepare('UPDATE academy_ask_ranges SET valid_from=?,valid_to=? WHERE asset=?').run('2026-10-01','2026-11-01','NVDA');
+    database.prepare('UPDATE academy_ask_ranges SET valid_from=?,valid_to=? WHERE asset=?').run('2026-10-01','2099-12-31','NVDA');
     expect((await app.inject('/api/v1/radar?symbols=NVDA&right=CALL')).json().assets[0].academy.status).toBe('ACTIVE');
     importAcademyDocument(database,Buffer.from('TICKER,RANGO ÓPTIMO,FECHA\nNVDA,$90 - $180,2026-02-17\n'),'fixture-conflict.csv');
-    database.prepare('UPDATE academy_ask_ranges SET valid_from=?,valid_to=? WHERE asset=? AND min_ask_cents=?').run('2026-10-01','2026-11-01','NVDA',9000);
+    database.prepare('UPDATE academy_ask_ranges SET valid_from=?,valid_to=? WHERE asset=? AND min_ask_cents=?').run('2026-10-01','2099-12-31','NVDA',9000);
     expect((await app.inject('/api/v1/radar?symbols=NVDA&right=CALL')).json().assets[0].academy).toMatchObject({status:'CONFLICT',minAskCents:null,liveAskCents:null});
   });
   it('consulta el panorama y las probabilidades sin Ollama, pero conserva validación adversarial',async()=>{
