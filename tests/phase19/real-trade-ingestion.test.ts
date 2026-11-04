@@ -146,7 +146,7 @@ describe('Fase 41V: historial real aislado',()=>{
   it('migra bases 41V existentes sin tocar ejecuciones ni lotes RUNNING previos',async()=>{
     const {dir,sqlite}=fixture();await new RealTradeImporter(sqlite,'AIRTABLE',undefined,()=> '2026-10-19T14:00:00.000Z').run([record()]);
     sqlite.prepare("INSERT INTO real_trade_import_runs(id,source,started_at_utc,status,received,inserted,unchanged,revised,conflicts,rejected,coverage) VALUES (?,? ,?,'RUNNING',0,0,0,0,0,0,'UNVERIFIED')").run('legacy','AIRTABLE','2026-10-20T14:00:00.000Z');
-    sqlite.exec('ALTER TABLE real_trade_import_runs DROP COLUMN last_activity_at_utc; ALTER TABLE real_trade_import_runs DROP COLUMN owner_pid; DELETE FROM __drizzle_migrations WHERE created_at=1793750400000');sqlite.close();
+    sqlite.exec('DROP TABLE real_flex_records; DROP TABLE real_flex_documents; DROP TABLE real_reconstruction_snapshots; ALTER TABLE real_trade_import_runs DROP COLUMN last_activity_at_utc; ALTER TABLE real_trade_import_runs DROP COLUMN owner_pid; DELETE FROM __drizzle_migrations WHERE created_at>=1793750400000');sqlite.close();
     const reopened=openDatabase(join(dir,'db.sqlite'));
     try{
       expect(reopened.sqlite.prepare('SELECT COUNT(*) n FROM real_trade_executions').get()).toEqual({n:1});
