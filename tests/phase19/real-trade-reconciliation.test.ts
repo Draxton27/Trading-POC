@@ -4,8 +4,9 @@ import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {openDatabase} from '../../apps/api/src/persistence/db.ts';
 import {RealTradeImporter} from '../../apps/api/src/real-trades/service.ts';
-import {importFlexFile,parseFlexXml} from '../../apps/api/src/real-trades/flex.ts';
+import {importFlexFile,parseFlexXml,sha256} from '../../apps/api/src/real-trades/flex.ts';
 import {reconcile,reconstruct,rebuildSnapshot} from '../../apps/api/src/real-trades/reconciliation.ts';
+import {compareCommission} from '../../apps/api/src/real-trades/commission.ts';
 import {createApp} from '../../apps/api/src/server.ts';
 
 const dirs:string[]=[];afterEach(()=>{for(const d of dirs.splice(0))rmSync(d,{recursive:true,force:true});});
@@ -15,6 +16,62 @@ function fixture(){const dir=mkdtempSync(join(tmpdir(),'phase41w-'));dirs.push(d
 const record=(id:string,side='BUY',qty=1,price=1.5,time='2026-03-06T15:00:00Z')=>({id:`rec${id.padStart(14,'0')}`,fields:{'ID ejecucion':id,'Fecha y hora':time,'Activo':'NVDA','Lado':side,'Cantidad':qty,'Prima USD':price}});
 
 describe('41W Flex y reconciliación',()=>{
+  it('compara convenciones y precisión sin convertir créditos en costos',()=>{
+    expect(compareCommission('AIRTABLE','0.35','USD','-0.35000000','USD')).toMatchObject({status:'EXACT',normalizedSourceCashEffect:'-0.35',difference:'0'});
+    expect(compareCommission('AIRTABLE','0.35','USD','-0.354','USD')).toMatchObject({status:'POSSIBLE_ROUNDING',difference:'0.004',tolerance:'0.005',assumedDecimalPlaces:2});
+    expect(compareCommission('AIRTABLE','0.35','USD','-0.355','USD').status).toBe('POSSIBLE_ROUNDING');
+    expect(compareCommission('AIRTABLE','0.35','USD','-0.35500001','USD').status).toBe('MATERIAL_DIFFERENCE');
+    expect(compareCommission('AIRTABLE','0.3500','USD','-0.35004','USD')).toMatchObject({status:'POSSIBLE_ROUNDING',tolerance:'0.00005',assumedDecimalPlaces:4});
+    expect(compareCommission('AIRTABLE','0.3500','USD','-0.3501','USD').status).toBe('MATERIAL_DIFFERENCE');
+    expect(compareCommission('AIRTABLE','-0.35','USD','0.35','USD').status).toBe('EXACT');
+    expect(compareCommission('AIRTABLE','-0.35','USD','-0.35','USD').status).toBe('MATERIAL_DIFFERENCE');
+    expect(compareCommission('CSV','0.35','USD','-0.35','USD').status).toBe('UNKNOWN_SOURCE_CONVENTION');
+    expect(compareCommission('AIRTABLE','0.35','USD','-0.35',null).status).toBe('UNKNOWN_CURRENCY');
+    expect(compareCommission('AIRTABLE','0.35','EUR','-0.35','EUR')).toMatchObject({status:'UNKNOWN_CURRENCY',airtableConvention:'NOT_ESTABLISHED'});
+    expect(compareCommission('AIRTABLE',null,'USD','-0.35','USD').status).toBe('MISSING');
+  });
+  it('documenta cuatro fills con convenciones opuestas aun con ejecuciones sin identificar',async()=>{
+    const {dir,sqlite}=fixture(),path=join(dir,'real-trades','imports','example.xml');
+    const specified=[record('1','BUY',2,1.5,'2026-03-06T15:00:00Z'),record('2','BUY',1,1.7,'2026-03-06T15:15:00Z'),record('3','SELL',1,2,'2026-03-06T15:30:00Z'),record('4','SELL',2,2.3,'2026-03-06T15:45:00Z')]
+      .map(r=>({...r,fields:{...r.fields,'Comision USD':0.35}}));
+    const other=Array.from({length:45},(_,i)=>record(String(100+i)));
+    await new RealTradeImporter(sqlite,'AIRTABLE').run([...specified,...other]);
+    const fills=[trade('1','BUY','2','1.50','20260306;100000'),trade('2','BUY','1','1.70','20260306;101500'),trade('3','SELL','1','2.00','20260306;103000'),trade('4','SELL','2','2.30','20260306;104500')]
+      .map((s,i)=>s.replace('ibCommission="-1"',`ibCommission="${['-0.35','-0.354','-0.349','-0.35001'][i]}"`));
+    writeFileSync(path,xml(...fills));importFlexFile(sqlite,path,dir,'U1234567','America/New_York');
+    const before=sqlite.prepare('SELECT normalized FROM real_trade_versions ORDER BY id').all(),result=reconcile(sqlite);
+    expect(result.filter(x=>x.status==='DOCUMENTED_CONTRACT')).toHaveLength(4);
+    expect(result.filter(x=>x.status==='INCOMPLETE_CONTRACT')).toHaveLength(45);
+    expect(result.filter(x=>x.fill).map(x=>x.commissionComparison?.status).sort()).toEqual(['EXACT','POSSIBLE_ROUNDING','POSSIBLE_ROUNDING','POSSIBLE_ROUNDING']);
+    const episodes=reconstruct(result);expect(episodes).toHaveLength(1);
+    expect(episodes[0]).toMatchObject({structureStatus:'CANDIDATE_GROUP',status:'INCOMPLETE_HISTORY',economicStatus:'UNKNOWN',grossPnl:null,netPnl:null});
+    expect(episodes[0]!.executionIds).toHaveLength(4);
+    expect(reconstruct(result,()=>true,()=>true)[0]).toMatchObject({status:'INCOMPLETE_HISTORY',grossPnl:null,netPnl:null});
+    expect(sqlite.prepare('SELECT normalized FROM real_trade_versions ORDER BY id').all()).toEqual(before);
+    expect(rebuildSnapshot(sqlite)).toMatchObject({executions:49,episodes:1,coverage:'UNVERIFIED'});sqlite.close();
+  });
+  it('separa una discrepancia material de comisión de una contradicción contractual',async()=>{
+    const {dir,sqlite}=fixture(),path=join(dir,'real-trades','imports','example.xml'),base=record('1');
+    await new RealTradeImporter(sqlite,'AIRTABLE').run([{...base,fields:{...base.fields,'Comision USD':0.35}}]);
+    writeFileSync(path,xml(trade('1').replace('ibCommission="-1"','ibCommission="-0.36"')));importFlexFile(sqlite,path,dir,'U1234567','America/New_York');
+    expect(reconcile(sqlite)[0]).toMatchObject({status:'CONFLICTING_CONTRACT',reason:'COMMISSION_MISMATCH',commissionComparison:{status:'MATERIAL_DIFFERENCE',difference:'0.01'}});sqlite.close();
+  });
+  it.each([
+    ['cantidad',(s:string)=>s.replace('quantity="1"','quantity="2"')],
+    ['dirección',(s:string)=>s.replace('buySell="BUY"','buySell="SELL"').replace('quantity="1"','quantity="-1"')],
+    ['fecha',(s:string)=>s.replace('20260306;100000','20260306;100001')],
+    ['precio',(s:string)=>s.replace('tradePrice="1.50"','tradePrice="1.50000001"')],
+    ['subyacente',(s:string)=>s.replace('underlyingSymbol="NVDA"','underlyingSymbol="QQQ"')]
+  ])('mantiene estricta la comparación de %s',async(_field,modify)=>{
+    const {dir,sqlite}=fixture(),path=join(dir,'real-trades','imports','example.xml');
+    await new RealTradeImporter(sqlite,'AIRTABLE').run([record('1')]);writeFileSync(path,xml(modify(trade('1'))));importFlexFile(sqlite,path,dir,'U1234567','America/New_York');
+    expect(reconcile(sqlite)[0]).toMatchObject({status:'CONFLICTING_CONTRACT',reason:'EXECUTION_OR_CONTRACT_MISMATCH'});sqlite.close();
+  });
+  it('no documenta un contrato si falta el precio de ejecución necesario para compararlo',async()=>{
+    const {dir,sqlite}=fixture(),path=join(dir,'real-trades','imports','example.xml');
+    await new RealTradeImporter(sqlite,'AIRTABLE').run([record('1')]);writeFileSync(path,xml(trade('1').replace('tradePrice="1.50"','tradePrice=""')));importFlexFile(sqlite,path,dir,'U1234567','America/New_York');
+    expect(reconcile(sqlite)[0]).toMatchObject({status:'INCOMPLETE_CONTRACT',reason:'EXECUTION_PRICE_MISSING'});sqlite.close();
+  });
   it('importa XML aislado, conserva hash e impide reimportar contenido idéntico',async()=>{
     const {dir,sqlite}=fixture();const path=join(dir,'real-trades','imports','example.xml');writeFileSync(path,xml(trade('1')));
     await new RealTradeImporter(sqlite,'AIRTABLE').run([record('1')]);
@@ -45,12 +102,19 @@ describe('41W Flex y reconciliación',()=>{
     writeFileSync(path,xml(trade('1')));importFlexFile(sqlite,path,dir,'U1234567','America/New_York');
     expect(reconcile(sqlite)[0]).toMatchObject({status:'AMBIGUOUS_CONTRACT',reason:'MULTIPLE_EVIDENCE_VERSIONS'});sqlite.close();
   });
-  it('marca contradicciones en la comisión y el ID de orden sin sustituir la ejecución',async()=>{
+  it('mantiene una discrepancia material de comisión aunque también difiera la orden',async()=>{
     const {dir,sqlite}=fixture(),path=join(dir,'real-trades','imports','example.xml');
     const base=record('1'),row={...base,fields:{...base.fields,'Comision USD':-2,'ID orden IBKR':'ORDER-A'}};await new RealTradeImporter(sqlite,'AIRTABLE').run([row]);
     writeFileSync(path,xml(trade('1').replace('transactionType="ExchTrade"','transactionType="ExchTrade" ibOrderID="ORDER-B"')));importFlexFile(sqlite,path,dir,'U1234567','America/New_York');
-    expect(reconcile(sqlite)[0]).toMatchObject({status:'CONFLICTING_CONTRACT',reason:'EXECUTION_OR_CONTRACT_MISMATCH'});
+    expect(reconcile(sqlite)[0]).toMatchObject({status:'CONFLICTING_CONTRACT',reason:'COMMISSION_MISMATCH',orderComparison:'DIFFERENT'});
     expect(sqlite.prepare('SELECT count(*) n FROM real_trade_executions').get()).toEqual({n:1});sqlite.close();
+  });
+  it('señala los IDs de orden distintos sin invalidar el contrato ni autorizar resultados',async()=>{
+    const {dir,sqlite}=fixture(),path=join(dir,'real-trades','imports','example.xml'),base=record('1');
+    await new RealTradeImporter(sqlite,'AIRTABLE').run([{...base,fields:{...base.fields,'Comision USD':1,'ID orden IBKR':'ORDER-A'}}]);
+    writeFileSync(path,xml(trade('1').replace('transactionType="ExchTrade"','transactionType="ExchTrade" ibOrderID="ORDER-B"')));importFlexFile(sqlite,path,dir,'U1234567','America/New_York');
+    const items=reconcile(sqlite);expect(items[0]).toMatchObject({status:'DOCUMENTED_CONTRACT',orderComparison:'DIFFERENT',commissionComparison:{status:'EXACT'}});
+    expect(reconstruct(items,()=>true,()=>true)[0]).toMatchObject({structureStatus:'CANDIDATE_GROUP',status:'INCOMPLETE_HISTORY',economicStatus:'UNKNOWN',entryDebit:null,grossPnl:null,netPnl:null});sqlite.close();
   });
   it('una venta sin inventario previo nunca produce resultado y una reconstrucción es idempotente',async()=>{
     const {dir,sqlite}=fixture(),path=join(dir,'real-trades','imports','example.xml');
@@ -125,6 +189,18 @@ describe('41W Flex y reconciliación',()=>{
     expect(sqlite.prepare('SELECT count(*) n FROM real_reconstruction_snapshots').get()).toEqual(before);
     await importer.run([record('2')]);const stale=await app.inject({url:'/api/v1/real-trades/reconciliation',headers});expect(stale.json()).toMatchObject({status:'STALE'});
     await app.close();sqlite.close();
+  });
+  it('mantiene legibles las proyecciones previas sin los nuevos campos de comparación',async()=>{
+    const {dir,sqlite}=fixture(),dbPath=join(dir,'data.sqlite'),path=join(dir,'real-trades','imports','example.xml');
+    await new RealTradeImporter(sqlite,'AIRTABLE').run([record('1')]);writeFileSync(path,xml(trade('1')));importFlexFile(sqlite,path,dir,'U1234567','America/New_York');rebuildSnapshot(sqlite);
+    const row=sqlite.prepare('SELECT payload,input_hash FROM real_reconstruction_snapshots').get() as {payload:string;input_hash:string};
+    const old=JSON.parse(row.payload);for(const x of old.executions){delete x.commissionComparison;delete x.orderComparison;}for(const x of old.episodes)delete x.structureStatus;
+    old.inputHash=sha256(JSON.stringify(old.executions));old.codeHash='0'.repeat(64);
+    const payload=JSON.stringify(old),hash=sha256(payload);sqlite.prepare('INSERT INTO real_reconstruction_snapshots(sha256,created_at_utc,algorithm,input_hash,payload) VALUES (?,?,?,?,?)').run(hash,'2026-01-01T00:00:00.000Z','41W-FIFO-1',old.inputHash,payload);
+    const {app,token}=await createApp({mode:'OFFLINE',privateDir:dir,dbPath});
+    try{const response=await app.inject({url:`/api/v1/real-trades/reconciliation?view=executions&snapshot=${hash}`,headers:{'x-local-token':token}});
+      expect(response.statusCode).toBe(200);expect(response.json()).toMatchObject({status:'STALE',total:1});
+    }finally{await app.close();sqlite.close();}
   });
   it('migra una base anterior preservando registros y tablas de Paper',async()=>{
     const {dir,sqlite}=fixture();await new RealTradeImporter(sqlite,'AIRTABLE').run([record('1')]);
