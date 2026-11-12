@@ -15,10 +15,11 @@ describe('42A matriz causal y auditoría',()=>{
   });
   it('no convierte cruces, valores desconocidos ni cierres futuros en señales',()=>{
     const first=candle('2026-03-06T14:30:00.000Z'),future=candle('2026-03-06T14:45:00.000Z');
-    const prior=[...pilotRows([first],'NVDA')],later=[...pilotRows([first,{...future,close:99}],'NVDA')];
+    const prior=[...pilotRows([first],'NVDA','2026-03-06T15:00:00.000Z')],later=[...pilotRows([first,{...future,close:99}],'NVDA','2026-03-06T15:00:00.000Z')];
     expect(later.slice(0,2)).toEqual(prior);expect(prior).toHaveLength(2);
     expect(prior.every(x=>x.status==='NO_EVALUABLE'&&x.availableAtUtc===null&&x.confirmation===null)).toBe(true);
     expect(prior[0]!.observedAtUtc).toBe('2026-03-06T14:45:00.000Z');
+    expect([...pilotRows([first],'NVDA','2026-03-06T14:44:59.000Z')]).toEqual([]);
   });
   it('audita huecos y cierres anticipados con calendario sin fabricar velas',()=>{
     const calendar=new Map([['2024-11-29',{open:570,close:780}],['2024-12-02',{open:570,close:960}]]);
@@ -31,5 +32,10 @@ describe('42A matriz causal y auditoría',()=>{
     const calendar=new Map([['2026-03-06',{open:570,close:960}]]),bar=candle('2026-03-06T14:30:00.000Z');
     expect(()=>auditDataset([bar,bar],calendar)).toThrow();
     expect(()=>auditDataset([candle('2026-03-07T14:30:00.000Z')],calendar)).toThrow();
+  });
+  it('continúa entre viernes y lunes con cambio EST/EDT si los extremos son consecutivos',()=>{
+    const calendar=new Map([['2026-03-06',{open:570,close:960}],['2026-03-09',{open:570,close:960}]]);
+    const bars=[candle('2026-03-06T20:45:00.000Z'),candle('2026-03-09T13:30:00.000Z')];
+    expect(auditDataset(bars,calendar).frames['15m'].maxContinuous).toBe(2);
   });
 });

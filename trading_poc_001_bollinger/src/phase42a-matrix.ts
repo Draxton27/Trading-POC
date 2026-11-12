@@ -62,8 +62,10 @@ export function buildMatrix(audits:Record<'NVDA'|'AMD'|'AMZN',AuditState>){
       audits[asset]==='NO_VERIFICABLE'?'La procedencia o integridad no pudo acreditarse.':'Faltan definiciones operables o recepción histórica verificable.'})));
 }
 /** Every row is an examined bar, not a detected opportunity or a signal. */
-export function* pilotRows(candles:readonly Candle[],asset:'NVDA'|'AMD'|'AMZN'){
-  for(const candle of candles)for(const strategy of ['E1','E2'] as const)yield {asset,strategy,barStartUtc:candle.timestamp,
+export function* pilotRows(candles:readonly Candle[],asset:'NVDA'|'AMD'|'AMZN',asOfUtc:string){
+  const cutoff=Date.parse(asOfUtc);if(!Number.isFinite(cutoff))throw Error('CORTE_INVALIDO');
+  for(const candle of candles){if(Date.parse(candle.timestamp)+900000>cutoff)continue;for(const strategy of ['E1','E2'] as const)yield {asset,strategy,barStartUtc:candle.timestamp,
     observedAtUtc:new Date(Date.parse(candle.timestamp)+900000).toISOString(),availableAtUtc:null,
     status:'NO_EVALUABLE',scope:'VELA_EXAMINADA_NO_ES_SENAL',reasons:['DIRECTRIZ_SIN_DEFINICION_OBJETIVA','TENDENCIA_15M_SIN_DEFINICION_OBJETIVA','CONFIRMACION_SIN_DEFINICION_OBJETIVA','RECEPCION_HISTORICA_NO_VERIFICADA','AJUSTE_POINT_IN_TIME_NO_VERIFICADO'],confirmation:null,invalidation:null};
+  }
 }
