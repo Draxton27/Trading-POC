@@ -7,6 +7,8 @@ apps/ibkr-agent/dist/
 .env.*
 !.env.example
 private/
+# Material documental aportado por el usuario: consultar localmente, no redistribuir.
+Investep_Estrategias_1_a_8_Imagenes_1_a_14.pdf
 academy-private/
 *.sqlite
 *.sqlite-*
