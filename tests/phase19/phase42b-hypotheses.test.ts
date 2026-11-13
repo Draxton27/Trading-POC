@@ -13,4 +13,7 @@ describe('42B competing hypotheses',()=>{
     const r=compareHypotheses({lastClose:null,vwap:null,bbUpper:null,bbLower:null,relative:{QQQ:null}});
     expect(r.observed).toEqual([]);expect(r.supportingEvidence).toEqual([]);expect(r.contradictingEvidence).toEqual([]);
   });
+  it('distinguishes touching a band from being strictly inside it',()=>{
+    expect(compareHypotheses({lastClose:102,vwap:null,bbUpper:102,bbLower:98,relative:{}}).observed[0]?.relation).toBe('EN_BANDA');
+  });
 });

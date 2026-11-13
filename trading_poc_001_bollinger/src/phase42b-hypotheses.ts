@@ -10,7 +10,8 @@ export function compareHypotheses(input:{lastClose:number|null;vwap:number|null;
     if(relation==='DEBAJO')contradictory.push({hypothesis:'CONTEXTO_VWAP',observation:'CIERRE_DEBAJO_VWAP',limitation:'NO_DESCARTA_APOYO_ANTERIOR'});
   }
   if(input.lastClose!==null&&input.bbUpper!==null&&input.bbLower!==null){
-    observed.push({kind:'CIERRE_VS_BOLLINGER',relation:input.lastClose>input.bbUpper?'ENCIMA':input.lastClose<input.bbLower?'DEBAJO':'DENTRO'});
+    observed.push({kind:'CIERRE_VS_BOLLINGER',relation:input.lastClose>input.bbUpper?'ENCIMA':input.lastClose<input.bbLower?'DEBAJO':
+      input.lastClose===input.bbUpper||input.lastClose===input.bbLower?'EN_BANDA':'DENTRO'});
   }
   for(const [benchmark,value] of Object.entries(input.relative)){
     if(value===null)continue;const relation=value>0?'MAYOR':value<0?'MENOR':'IGUAL';observed.push({kind:`RETORNO_VS_${benchmark}`,relation});

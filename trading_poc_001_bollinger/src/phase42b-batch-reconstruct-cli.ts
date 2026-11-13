@@ -53,7 +53,7 @@ function main(){
         sma1h=historicalHourlySma15(m15.bars,calendar,item.entryUtc),sma1d=historicalDailySma15(m15.bars,calendar,item.entryUtc);
       const close=intraday.lastClose,point=bb.value;
       const bandPosition=close!==null&&point?.upper!==null&&point?.upper!==undefined&&point.lower!==null?
-        close>point.upper?'POR_ENCIMA':close<point.lower?'POR_DEBAJO':'DENTRO':null;
+        close>point.upper?'POR_ENCIMA':close<point.lower?'POR_DEBAJO':close===point.upper||close===point.lower?'EN_BANDA':'DENTRO':null;
       const comparisons=compareHypotheses({lastClose:close,vwap:intraday.vwap,bbUpper:point?.upper??null,bbLower:point?.lower??null,relative:{}});
       return {...base,reason:'RECEPCION_HISTORICA_NO_VERIFICADA',limitations:['AJUSTES_Y_EVENTOS_CORPORATIVOS_NO_VERIFICADOS'],sources:{minute:minute.manifestSha256,m15:m15.manifestSha256},
         observedConditional:{intraday,bb15:bb,sma1h,sma1d,bandPosition},comparisons};
