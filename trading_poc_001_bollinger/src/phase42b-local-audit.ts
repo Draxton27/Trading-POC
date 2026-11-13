@@ -3,6 +3,20 @@ import type {MarketCalendar} from './alpaca-calendar.ts';
 import type {QueueItem} from './phase42b-queue.ts';
 import {newYorkLocalToUtc} from './phase42b-queue.ts';
 
+/** Counts expected RTH bars for the trade session; provider omissions are never treated as zero volume. */
+export function auditSessionCoverage(item:QueueItem,candles:readonly Candle[],calendar:MarketCalendar,frame:1|5|15){
+  const date=item.entryLocal?.slice(0,10),schedule=date?calendar.get(date):undefined;
+  if(!date||!schedule||!item.entryUtc)return {status:'NO_VERIFICABLE' as const,expected:null,observed:null,missing:null,reasons:['CALENDARIO_O_HORA_NO_DISPONIBLE']};
+  const hh=Math.floor(schedule.open/60).toString().padStart(2,'0'),mm=(schedule.open%60).toString().padStart(2,'0');
+  const open=Date.parse(newYorkLocalToUtc(`${date}T${hh}:${mm}:00`)),entry=Date.parse(item.entryUtc),expected:number[]=[];
+  for(let m=schedule.open;m+frame<=schedule.close;m+=frame){const start=open+(m-schedule.open)*60_000;
+    if(start+frame*60_000>=entry)break;expected.push(start);}
+  const times=new Set(candles.map(c=>Date.parse(c.timestamp))),observed=expected.filter(t=>times.has(t)).length;
+  return {status:'NO_VERIFICABLE' as const,expected:expected.length,observed,missing:expected.length-observed,
+    reasons:[...(observed<expected.length?['VELAS_FALTANTES']:[]),...(expected.length===0?['SIN_VELAS_CERRADAS_ANTES_DE_ENTRADA']:[]),
+      'RECEPCION_HISTORICA_NO_VERIFICADA','EVENTOS_CORPORATIVOS_NO_VERIFICADOS']};
+}
+
 /** Reports available file coverage, never claims historical receipt or produces an indicator. */
 export function auditLocal15m(queue:readonly QueueItem[],symbol:string,candles:readonly Candle[],calendar:MarketCalendar){
   const times=new Set(candles.map(c=>Date.parse(c.timestamp)));
