@@ -5,6 +5,7 @@ import {fileURLToPath} from 'node:url';
 import {loadMarketCalendar} from './alpaca-calendar.ts';
 import {stableQueueHash,type QueueItem} from './phase42b-queue.ts';
 import {historicalBollinger15,historicalDailySma15,historicalHourlySma15,historicalSessionMinutes,type HistoricalBar} from './phase42b-retrospective.ts';
+import {compareHypotheses} from './phase42b-hypotheses.ts';
 
 const root=resolve(fileURLToPath(new URL('../..',import.meta.url)),'private','phase42b');
 const sha=(b:Buffer)=>createHash('sha256').update(b).digest('hex');
@@ -53,8 +54,9 @@ function main(){
       const close=intraday.lastClose,point=bb.value;
       const bandPosition=close!==null&&point?.upper!==null&&point?.upper!==undefined&&point.lower!==null?
         close>point.upper?'POR_ENCIMA':close<point.lower?'POR_DEBAJO':'DENTRO':null;
+      const comparisons=compareHypotheses({lastClose:close,vwap:intraday.vwap,bbUpper:point?.upper??null,bbLower:point?.lower??null,relative:{}});
       return {...base,reason:'RECEPCION_HISTORICA_NO_VERIFICADA',limitations:['AJUSTES_Y_EVENTOS_CORPORATIVOS_NO_VERIFICADOS'],sources:{minute:minute.manifestSha256,m15:m15.manifestSha256},
-        observedConditional:{intraday,bb15:bb,sma1h,sma1d,bandPosition}};
+        observedConditional:{intraday,bb15:bb,sma1h,sma1d,bandPosition},comparisons};
     }catch(error){const code=error instanceof Error&&/^SOURCE_[A-Z_]+$/.test(error.message)?error.message:'FUENTE_O_INTEGRIDAD_NO_VERIFICABLE';return {...base,reason:code};}
   });
   const output=join(root,'batch-reconstructions');mkdirSync(output,{recursive:true});const dest=join(output,a[5]!);mkdirSync(dest);

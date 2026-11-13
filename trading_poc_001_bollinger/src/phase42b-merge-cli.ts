@@ -13,7 +13,7 @@ function main(){
   if(!Array.isArray(q.queue)||stableQueueHash(q.queue)!==q.queueSha256)throw Error('QUEUE_INVALID');
   const equity=readFileSync(join(root,'batch-reconstructions',a[3]!,'report.json')),
     spx=readFileSync(join(root,'spx-audits',a[5]!,'audit.json'));
-  const e=JSON.parse(equity.toString('utf8')) as {version:string;queueSha256:string;outcomes:{sourceRecordId:string}[]};
+  const e=JSON.parse(equity.toString('utf8')) as {version:string;queueSha256:string;outcomes:{sourceRecordId:string;comparisons?:{supportingEvidence:unknown[];contradictingEvidence:unknown[]}}[]};
   const s=JSON.parse(spx.toString('utf8')) as {version:string;queueSha256:string;outcomes:{sourceRecordId:string}[]};
   if(e.version!=='42B-batch-reconstruction-v1'||s.version!=='42B-spx-audit-v1'||e.queueSha256!==q.queueSha256||s.queueSha256!==q.queueSha256||
     !Array.isArray(e.outcomes)||!Array.isArray(s.outcomes))throw Error('SOURCE_INVALID');
@@ -25,7 +25,8 @@ function main(){
   const rows=q.queue.map(item=>({sourceRecordId:item.sourceRecordId,sourceTradeIds:item.sourceTradeIds,sourceKey:item.sourceKey,
     status:'NO_VERIFICABLE',equity:ei.get(item.sourceRecordId),spx:si.get(item.sourceRecordId)??null,
     separation:{observations:'RETROSPECTIVAS_CONDICIONALES',hypotheses:item.hypotheses,
-      supportingEvidence:[],contradictingEvidence:[],laterEvolution:null},
+      supportingEvidence:ei.get(item.sourceRecordId)?.comparisons?.supportingEvidence??[],
+      contradictingEvidence:ei.get(item.sourceRecordId)?.comparisons?.contradictingEvidence??[],laterEvolution:null},
     limitations:['RECEPCION_HISTORICA_NO_VERIFICADA','MOTIVACION_DEL_OPERADOR_DESCONOCIDA','MUESTRA_SELECCIONADA']}));
   const parent=join(root,'reports');mkdirSync(parent,{recursive:true});const dest=join(parent,a[7]!);mkdirSync(dest);
   const report={version:'42B-research-report-v1',queueSha256:q.queueSha256,sourceHashes:{equity:sha(equity),spx:sha(spx)},rows};

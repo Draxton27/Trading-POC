@@ -5,6 +5,7 @@ import {fileURLToPath} from 'node:url';
 import {loadMarketCalendar} from './alpaca-calendar.ts';
 import {newYorkLocalToUtc} from './phase42b-queue.ts';
 import {historicalBollinger15,historicalDailySma15,historicalHourlySma15,historicalRelativeMinutes,historicalSessionMinutes,type HistoricalBar} from './phase42b-retrospective.ts';
+import {compareHypotheses} from './phase42b-hypotheses.ts';
 
 const root=resolve(fileURLToPath(new URL('../..',import.meta.url)),'private','phase42b');
 const sha=(v:Buffer)=>createHash('sha256').update(v).digest('hex');
@@ -47,6 +48,8 @@ function main(){
   const qqq=a.length===20?load(a[17]!,'QQQ','1Min'):null,smh=a.length===20?load(a[19]!,'SMH','1Min'):null;
   const relative={qqq:qqq?historicalRelativeMinutes(m1.bars,qqq.bars,calendar,entryLocal):null,
     smh:smh?historicalRelativeMinutes(m1.bars,smh.bars,calendar,entryLocal):null};
+  const comparisons=compareHypotheses({lastClose:intraday.lastClose,vwap:intraday.vwap,bbUpper:bb.value?.upper??null,bbLower:bb.value?.lower??null,
+    relative:{QQQ:relative.qqq?.value?.differencePercentagePoints??null,SMH:relative.smh?.value?.differencePercentagePoints??null}});
   const parent=join(root,'reconstructions');mkdirSync(parent,{recursive:true});const target=join(parent,a[15]!);mkdirSync(target);
   const report={version:'42B-retrospective-v1',symbol,entryLocal,entryUtc,status:'NO_VERIFICABLE',
     limitations:['RECEPCION_HISTORICA_NO_VERIFICADA','AJUSTES_Y_EVENTOS_CORPORATIVOS_NO_VERIFICADOS','CONTEXTO_CONDICIONAL_NO_PRUEBA_INTENCION'],
@@ -54,7 +57,7 @@ function main(){
       snapshotId:matches[0]!.id,tradeIds:matches[0]!.fields['Trade relacionado'],sourceManifestSha256:sha(sourceManifestBytes),
       snapshotSha256:createHash('sha256').update(JSON.stringify(matches[0])).digest('hex'),qqq:qqq?.manifestSha256??null,smh:smh?.manifestSha256??null},
     observedConditional:{bb15:bb,intraday,sma1h,sma1d,relative},hypotheses:['FORTALEZA_RELATIVA','CATALIZADOR','RETESTEO','VWAP','APERTURA_ANTICIPATORIA','PROMEDIADO'],
-    supportingEvidence:[],contradictingEvidence:[],laterEvolution:null};
+    comparisons,laterEvolution:null};
   writeFileSync(join(target,'report.json'),JSON.stringify(report,null,2)+'\n',{flag:'wx',mode:0o600});
   console.log(JSON.stringify({status:report.status,bb15:bb.status,intraday:intraday.status}));
 }
