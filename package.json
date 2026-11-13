@@ -40,6 +40,7 @@
     "research:42b:summary": "tsx trading_poc_001_bollinger/src/phase42b-summary-cli.ts",
     "research:42b:spx-audit": "tsx trading_poc_001_bollinger/src/phase42b-spx-cli.ts",
     "research:42b:batch-reconstruct": "tsx trading_poc_001_bollinger/src/phase42b-batch-reconstruct-cli.ts",
+    "research:42b:report": "tsx trading_poc_001_bollinger/src/phase42b-merge-cli.ts",
     "db:generate": "drizzle-kit generate --config apps/api/drizzle.config.ts",
     "ml:train": "node scripts/ml-train.mjs",
     "ml:infer": "node scripts/ml-infer.mjs",

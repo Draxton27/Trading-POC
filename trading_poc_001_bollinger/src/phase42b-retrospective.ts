@@ -2,6 +2,7 @@ import {calculateBollinger} from './bollinger.ts';
 import {isCalendarBar,type MarketCalendar} from './alpaca-calendar.ts';
 import {newYorkLocalToUtc} from './phase42b-queue.ts';
 import type {Candle} from './domain.ts';
+import {buildDailyCandles,buildHourlyCandles,calculateSmaPoints} from './multitimeframe.ts';
 
 export type HistoricalBar=Candle & {providerVwap:number|null};
 const minutes=(m:number)=>`${Math.floor(m/60).toString().padStart(2,'0')}:${(m%60).toString().padStart(2,'0')}`;
@@ -51,4 +52,41 @@ export function historicalRelativeMinutes(asset:readonly HistoricalBar[],benchma
   const assetReturn=(al.close/af.open-1)*100,benchmarkReturn=(bl.close/bf.open-1)*100;
   return {status:'RETROSPECTIVO_NO_POINT_IN_TIME' as const,value:{basis:'APERTURA_A_ULTIMO_CIERRE_MINUTO',
     assetReturnPercent:assetReturn,benchmarkReturnPercent:benchmarkReturn,differencePercentagePoints:assetReturn-benchmarkReturn}};
+}
+
+/** Use the existing 15m→1h convention and require calendar continuity per SMA period. */
+export function historicalHourlySma15(bars:readonly HistoricalBar[],calendar:MarketCalendar,entryUtc:string){
+  const entry=Date.parse(entryUtc);if(!Number.isFinite(entry))throw Error('ENTRY_INVALID');
+  const prior=bars.filter(b=>{const t=Date.parse(b.timestamp);return t+15*60_000<entry&&isCalendarBar(t,calendar);});
+  const aggregates=buildHourlyCandles(prior,calendar),byStart=new Map(aggregates.filter(x=>x.complete&&Date.parse(x.endTimestamp)<entry).map(x=>[Date.parse(x.timestamp),x]));
+  const expected:number[]=[];
+  for(const [day,s] of [...calendar].sort(([a],[b])=>a.localeCompare(b))){
+    const open=Date.parse(newYorkLocalToUtc(`${day}T${minutes(s.open)}:00`));if(open>=entry)break;
+    for(let m=s.open;m<s.close;m+=60){const end=open+(Math.min(m+60,s.close)-s.open)*60_000;if(end<entry)expected.push(open+(m-s.open)*60_000);}
+  }
+  return Object.fromEntries([20,40,100,200].map(n=>{
+    const wanted=expected.slice(-n-1),missing=wanted.filter(t=>!byStart.has(t)).length;
+    if(wanted.length<n+1||missing)return [String(n),{status:'NO_VERIFICABLE',current:null,previous:null,missing}];
+    const point=calculateSmaPoints(wanted.map(t=>byStart.get(t)!)).at(-1)!;
+    const key=n as 20|40|100|200;
+    return [String(n),{status:'RETROSPECTIVO_NO_POINT_IN_TIME',current:point.values[key],previous:point.previous[key],missing:0}];
+  }));
+}
+
+/** Daily SMAs require complete regular sessions, including early-close schedules. */
+export function historicalDailySma15(bars:readonly HistoricalBar[],calendar:MarketCalendar,entryUtc:string){
+  const entry=Date.parse(entryUtc);if(!Number.isFinite(entry))throw Error('ENTRY_INVALID');
+  const prior=bars.filter(b=>{const t=Date.parse(b.timestamp);return t+15*60_000<entry&&isCalendarBar(t,calendar);});
+  const aggregates=buildDailyCandles(prior,calendar),byStart=new Map(aggregates.filter(x=>x.complete&&Date.parse(x.endTimestamp)<entry).map(x=>[Date.parse(x.timestamp),x]));
+  const expected:number[]=[];
+  for(const [day,s] of [...calendar].sort(([a],[b])=>a.localeCompare(b))){
+    const open=Date.parse(newYorkLocalToUtc(`${day}T${minutes(s.open)}:00`));if(open>=entry)break;
+    if(open+(s.close-s.open)*60_000<entry)expected.push(open);
+  }
+  return Object.fromEntries([20,40,100,200].map(n=>{
+    const wanted=expected.slice(-n-1),missing=wanted.filter(t=>!byStart.has(t)).length;
+    if(wanted.length<n+1||missing)return [String(n),{status:'NO_VERIFICABLE',current:null,previous:null,missing}];
+    const point=calculateSmaPoints(wanted.map(t=>byStart.get(t)!)).at(-1)!,key=n as 20|40|100|200;
+    return [String(n),{status:'RETROSPECTIVO_NO_POINT_IN_TIME',current:point.values[key],previous:point.previous[key],missing:0}];
+  }));
 }

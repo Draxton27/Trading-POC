@@ -4,7 +4,7 @@ import {join,resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {loadMarketCalendar} from './alpaca-calendar.ts';
 import {newYorkLocalToUtc} from './phase42b-queue.ts';
-import {historicalBollinger15,historicalRelativeMinutes,historicalSessionMinutes,type HistoricalBar} from './phase42b-retrospective.ts';
+import {historicalBollinger15,historicalDailySma15,historicalHourlySma15,historicalRelativeMinutes,historicalSessionMinutes,type HistoricalBar} from './phase42b-retrospective.ts';
 
 const root=resolve(fileURLToPath(new URL('../..',import.meta.url)),'private','phase42b');
 const sha=(v:Buffer)=>createHash('sha256').update(v).digest('hex');
@@ -43,7 +43,7 @@ function main(){
   if(matches.length!==1||matches[0]!.fields.Ticker!==symbol||matches[0]!.fields['Entrada ET']!==entryLocal||
     !Array.isArray(matches[0]!.fields['Trade relacionado'])||!matches[0]!.fields['Trade relacionado'].length)throw Error('SNAPSHOT_IDENTITY_MISMATCH');
   const calendarPath=join(root,'calendars',a[9]!,'calendar.json'),calendar=loadMarketCalendar(calendarPath);
-  const bb=historicalBollinger15(m15.bars,calendar,entryUtc),intraday=historicalSessionMinutes(m1.bars,calendar,entryLocal);
+  const bb=historicalBollinger15(m15.bars,calendar,entryUtc),intraday=historicalSessionMinutes(m1.bars,calendar,entryLocal),sma1h=historicalHourlySma15(m15.bars,calendar,entryUtc),sma1d=historicalDailySma15(m15.bars,calendar,entryUtc);
   const qqq=a.length===20?load(a[17]!,'QQQ','1Min'):null,smh=a.length===20?load(a[19]!,'SMH','1Min'):null;
   const relative={qqq:qqq?historicalRelativeMinutes(m1.bars,qqq.bars,calendar,entryLocal):null,
     smh:smh?historicalRelativeMinutes(m1.bars,smh.bars,calendar,entryLocal):null};
@@ -53,7 +53,7 @@ function main(){
     sources:{m15:m15.manifestSha256,m1:m1.manifestSha256,calendar:sha(readFileSync(calendarPath)),
       snapshotId:matches[0]!.id,tradeIds:matches[0]!.fields['Trade relacionado'],sourceManifestSha256:sha(sourceManifestBytes),
       snapshotSha256:createHash('sha256').update(JSON.stringify(matches[0])).digest('hex'),qqq:qqq?.manifestSha256??null,smh:smh?.manifestSha256??null},
-    observedConditional:{bb15:bb,intraday,relative},hypotheses:['FORTALEZA_RELATIVA','CATALIZADOR','RETESTEO','VWAP','APERTURA_ANTICIPATORIA','PROMEDIADO'],
+    observedConditional:{bb15:bb,intraday,sma1h,sma1d,relative},hypotheses:['FORTALEZA_RELATIVA','CATALIZADOR','RETESTEO','VWAP','APERTURA_ANTICIPATORIA','PROMEDIADO'],
     supportingEvidence:[],contradictingEvidence:[],laterEvolution:null};
   writeFileSync(join(target,'report.json'),JSON.stringify(report,null,2)+'\n',{flag:'wx',mode:0o600});
   console.log(JSON.stringify({status:report.status,bb15:bb.status,intraday:intraday.status}));

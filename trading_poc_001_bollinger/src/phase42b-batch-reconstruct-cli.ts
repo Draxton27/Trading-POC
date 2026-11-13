@@ -4,7 +4,7 @@ import {join,resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {loadMarketCalendar} from './alpaca-calendar.ts';
 import {stableQueueHash,type QueueItem} from './phase42b-queue.ts';
-import {historicalBollinger15,historicalSessionMinutes,type HistoricalBar} from './phase42b-retrospective.ts';
+import {historicalBollinger15,historicalDailySma15,historicalHourlySma15,historicalSessionMinutes,type HistoricalBar} from './phase42b-retrospective.ts';
 
 const root=resolve(fileURLToPath(new URL('../..',import.meta.url)),'private','phase42b');
 const sha=(b:Buffer)=>createHash('sha256').update(b).digest('hex');
@@ -48,12 +48,13 @@ function main(){
     const dir=join(parent,batch);
     try{
       const minute=load(join(dir,`${item.sourceRecordId}-1Min`),item,'1Min'),m15=load(join(dir,`${item.sourceRecordId}-15Min`),item,'15Min');
-      const intraday=historicalSessionMinutes(minute.bars,calendar,item.entryLocal),bb=historicalBollinger15(m15.bars,calendar,item.entryUtc);
+      const intraday=historicalSessionMinutes(minute.bars,calendar,item.entryLocal),bb=historicalBollinger15(m15.bars,calendar,item.entryUtc),
+        sma1h=historicalHourlySma15(m15.bars,calendar,item.entryUtc),sma1d=historicalDailySma15(m15.bars,calendar,item.entryUtc);
       const close=intraday.lastClose,point=bb.value;
       const bandPosition=close!==null&&point?.upper!==null&&point?.upper!==undefined&&point.lower!==null?
         close>point.upper?'POR_ENCIMA':close<point.lower?'POR_DEBAJO':'DENTRO':null;
-      return {...base,reason:'RECEPCION_HISTORICA_NO_VERIFICADA',sources:{minute:minute.manifestSha256,m15:m15.manifestSha256},
-        observedConditional:{intraday,bb15:bb,bandPosition}};
+      return {...base,reason:'RECEPCION_HISTORICA_NO_VERIFICADA',limitations:['AJUSTES_Y_EVENTOS_CORPORATIVOS_NO_VERIFICADOS'],sources:{minute:minute.manifestSha256,m15:m15.manifestSha256},
+        observedConditional:{intraday,bb15:bb,sma1h,sma1d,bandPosition}};
     }catch(error){const code=error instanceof Error&&/^SOURCE_[A-Z_]+$/.test(error.message)?error.message:'FUENTE_O_INTEGRIDAD_NO_VERIFICABLE';return {...base,reason:code};}
   });
   const output=join(root,'batch-reconstructions');mkdirSync(output,{recursive:true});const dest=join(output,a[5]!);mkdirSync(dest);
