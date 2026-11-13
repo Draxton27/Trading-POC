@@ -1,5 +1,6 @@
 import type {Candle} from './domain.ts';
 import {calculateBollinger} from './bollinger.ts';
+import {calculateSmaPoints} from './multitimeframe.ts';
 
 /** Historical bars may have been corrected or adjusted later; their close is not proof of receipt. */
 export type EvidenceBar = Candle & {endUtc: string; availableAtUtc: string | null};
@@ -54,4 +55,25 @@ export function preEntryBollinger(bars: readonly EvidenceBar[], expectedStarts: 
   const audit = auditWindow(bars, expectedStarts, 15, decisionUtc, source);
   if (audit.status !== 'VERIFICABLE' || bars.length < 20) return {status:'NO_VERIFICABLE' as const, value:null, audit};
   return {status:'VERIFICABLE' as const, value:calculateBollinger(bars).at(-1) ?? null, audit};
+}
+
+/** SMAs use only complete, verified hourly bars and the existing higher-timeframe implementation. */
+export function preEntryHourlySma(bars:readonly EvidenceBar[],expectedStarts:readonly string[],decisionUtc:string,source:SourceEvidence){
+  const audit=auditWindow(bars,expectedStarts,60,decisionUtc,source);
+  if(audit.status!=='VERIFICABLE'||bars.length<20)return {status:'NO_VERIFICABLE' as const,value:null,audit};
+  const aggregates=bars.map(bar=>({...bar,endTimestamp:bar.endUtc,availableAt:bar.availableAtUtc!,dateNy:'',
+    timeframe:'hour' as const,durationMinutes:60,expectedSourceBars:1,observedSourceBars:1,complete:true,scheduledAbbreviated:false}));
+  const point=calculateSmaPoints(aggregates).at(-1)!;
+  return {status:'VERIFICABLE' as const,value:{values:point.values,previous:point.previous},audit};
+}
+
+/** Weighted provider VWAP, not an OHLC-derived approximation. The caller must provide all session minutes. */
+export function preEntryVwap(bars:readonly (EvidenceBar & {providerVwap:number|null})[],expectedStarts:readonly string[],
+  decisionUtc:string,source:SourceEvidence){
+  const audit=auditWindow(bars,expectedStarts,1,decisionUtc,source);
+  if(audit.status!=='VERIFICABLE'||bars.some(b=>b.providerVwap===null||!Number.isFinite(b.providerVwap)||b.providerVwap<=0))
+    return {status:'NO_VERIFICABLE' as const,value:null,audit};
+  const volume=bars.reduce((n,b)=>n+b.volume,0);
+  if(volume<=0)return {status:'NO_VERIFICABLE' as const,value:null,audit};
+  return {status:'VERIFICABLE' as const,value:bars.reduce((n,b)=>n+b.providerVwap!*b.volume,0)/volume,audit};
 }
